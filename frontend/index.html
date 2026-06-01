@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EmotionLens Dashboard</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+
+<body class="dark-theme">
+    <div class="app-container">
+
+        <!-- Header -->
+        <header class="topbar glass-panel">
+            <div class="logo">
+                <span class="logo-icon">👁️</span>
+                <h1>EmotionLens</h1>
+            </div>
+
+            <!-- Navigation Tabs -->
+            <nav class="nav-tabs" id="main-nav">
+                <button class="nav-tab active" data-view="view-live">
+                    <span class="nav-tab-icon">🎯</span>
+                    <span class="nav-tab-label" data-i18n="nav.live">Live Analysis</span>
+                </button>
+                <button class="nav-tab" data-view="view-sessions">
+                    <span class="nav-tab-icon">📂</span>
+                    <span class="nav-tab-label" data-i18n="nav.sessions">Sessions</span>
+                </button>
+                <button class="nav-tab" data-view="view-compare">
+                    <span class="nav-tab-icon">🔄</span>
+                    <span class="nav-tab-label" data-i18n="nav.compare">Compare</span>
+                </button>
+                <button class="nav-tab" data-view="view-upload">
+                    <span class="nav-tab-icon">📹</span>
+                    <span class="nav-tab-label" data-i18n="nav.upload">Upload Video</span>
+                </button>
+                <div class="nav-tab-indicator" id="nav-indicator"></div>
+            </nav>
+
+            <div class="settings-group">
+                <button class="icon-btn" id="btn-lang">EN</button>
+                <button class="icon-btn" id="btn-settings">⚙️</button>
+            </div>
+        </header>
+
+        <!-- ══════════════════════════════════════════════ -->
+        <!-- VIEW: Live Analysis (default active)          -->
+        <!-- ══════════════════════════════════════════════ -->
+        <div id="view-live" class="view-panel active">
+
+            <!-- Session Controls Bar -->
+            <div class="session-bar glass-panel">
+                <div class="session-controls">
+                    <div class="status-badge" id="connection-status">
+                        <span class="dot disconnected"></span>
+                        <span class="status-text" data-i18n="live.disconnected">Disconnected</span>
+                    </div>
+                    <div class="timer" id="session-timer">00:00:00</div>
+                    <button class="btn btn-primary" id="btn-start-session" data-i18n="live.startSession">Start Session</button>
+                    <button class="btn btn-danger hidden" id="btn-end-session" data-i18n="live.endSession">End Session</button>
+                </div>
+            </div>
+
+            <!-- Calibration Bar -->
+            <div class="calibration-container hidden" id="calibration-bar">
+                <div class="calibration-text" data-i18n="live.calibrating">Calibrating Baseline... Please maintain a neutral expression.</div>
+                <div class="progress-track">
+                    <div class="progress-fill" id="calibration-fill"></div>
+                </div>
+            </div>
+
+            <!-- Main Dashboard Grid -->
+            <main class="dashboard-grid">
+
+                <!-- Left Column: Video & Immediate Stats -->
+                <div class="col-left">
+
+                    <!-- Video Feed -->
+                    <div class="video-container glass-panel">
+                        <div class="video-wrapper">
+                            <video id="webcam-video" autoplay playsinline muted></video>
+                            <canvas id="overlay-canvas"></canvas>
+                            <!-- Image element to display EVM amplified frames from backend -->
+                            <img id="processed-video" alt="Processed Frame">
+                        </div>
+                        <div class="video-controls" style="display: flex; justify-content: space-between; align-items: center; gap: 15px;">
+                            <div style="display: flex; gap: 15px; align-items: center;">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="toggle-evm">
+                                    <span class="slider"></span>
+                                    <span class="label-text">Show Pulse (EVM)</span>
+                                </label>
+                                <div class="camera-quality-badge" id="camera-quality-badge" style="display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--text-muted);">
+                                    <span data-i18n="live.cameraQuality">Camera:</span>
+                                    <span class="quality-indicator good" id="camera-quality-value">Good</span>
+                                </div>
+                            </div>
+                            <button class="btn btn-secondary" id="btn-recalibrate" style="padding: 6px 12px; font-size: 0.8rem;" data-i18n="live.recalibrate">🔄 Recalibrate</button>
+                        </div>
+                        <div class="camera-warnings hidden" id="camera-warnings" style="margin-top: 8px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: var(--radius-sm); padding: 8px 12px; font-size: 0.8rem; color: #f87171; display: flex; flex-direction: column; gap: 4px;">
+                            <!-- Warnings listed here -->
+                        </div>
+                    </div>
+
+                    <!-- Live Metrics Row -->
+                    <div class="metrics-row">
+                        <!-- Current Emotion -->
+                        <div class="metric-card glass-panel current-emotion">
+                            <h3 data-i18n="live.dominantEmotion">Dominant Emotion</h3>
+                            <div class="emotion-display">
+                                <span class="emotion-icon" id="current-emotion-icon">😐</span>
+                                <div class="emotion-details">
+                                    <h2 id="current-emotion-name">Neutral</h2>
+                                    <div class="confidence-bar">
+                                        <div class="confidence-fill" id="emotion-confidence-fill" style="width: 0%">
+                                        </div>
+                                    </div>
+                                    <span class="confidence-text" id="emotion-confidence-text">0%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Heart Rate (rPPG) -->
+                        <div class="metric-card glass-panel heart-rate">
+                            <h3 data-i18n="live.heartRate">Heart Rate (rPPG)</h3>
+                            <div class="hr-display">
+                                <div class="bpm-value">
+                                    <span id="hr-bpm">--</span>
+                                    <span class="unit" data-i18n="live.bpm">BPM</span>
+                                </div>
+                                <div class="hr-heart" id="hr-heart-icon">❤️</div>
+                            </div>
+                            <div class="stress-indicator">
+                                <span class="stress-label" data-i18n="live.stressLevel">Stress Level:</span>
+                                <span class="stress-val" id="hr-stress-text" data-i18n="live.stressLow">Low</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: Analysis & Logs -->
+                <div class="col-right">
+
+                    <!-- Trustworthiness / Congruence -->
+                    <div class="glass-panel congruence-panel">
+                        <h3 data-i18n="live.congruenceScore">Congruence Score</h3>
+                        <div class="gauge-container">
+                            <canvas id="congruence-gauge"></canvas>
+                            <div class="gauge-center">
+                                <span class="gauge-value" id="congruence-value">--</span>
+                                <span class="gauge-label" id="congruence-label" data-i18n="live.waiting">Waiting...</span>
+                            </div>
+                        </div>
+                        <div class="congruence-breakdown">
+                            <div class="breakdown-item">
+                                <span class="label" data-i18n="live.stability">Stability</span>
+                                <span class="val" id="breakdown-stability">--</span>
+                            </div>
+                            <div class="breakdown-item">
+                                <span class="label" data-i18n="live.alignment">Alignment</span>
+                                <span class="val" id="breakdown-alignment">--</span>
+                            </div>
+                            <div class="breakdown-item">
+                                <span class="label" data-i18n="live.baseline">Baseline</span>
+                                <span class="val" id="breakdown-baseline">--</span>
+                            </div>
+                            <div class="breakdown-item">
+                                <span class="label" data-i18n="live.physio">Physio</span>
+                                <span class="val" id="breakdown-physio">--</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Emotion Timeline -->
+                    <div class="glass-panel timeline-panel">
+                        <h3 data-i18n="live.emotionTimeline">Emotion Timeline</h3>
+                        <div class="chart-container">
+                            <canvas id="timeline-chart"></canvas>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Bottom Row: Logs & Notes -->
+                <div class="col-bottom">
+
+                    <!-- Micro-Expression Log -->
+                    <div class="glass-panel log-panel">
+                        <div class="panel-header">
+                            <h3>⚡ <span data-i18n="live.microExpressionLog">Micro-Expression Log</span></h3>
+                            <span class="badge" id="micro-count">0 <span data-i18n="live.detected">Detected</span></span>
+                        </div>
+                        <div class="log-list" id="micro-log-list">
+                            <div class="empty-state" data-i18n="live.noMicroExpressions">No micro-expressions detected yet.</div>
+                            <!-- Items injected by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Interviewer Notes -->
+                    <div class="glass-panel notes-panel">
+                        <div class="panel-header">
+                            <h3>📝 <span data-i18n="live.interviewerNotes">Interviewer Notes</span></h3>
+                        </div>
+                        <div class="notes-input-area">
+                            <input type="text" id="note-input" placeholder="Type a note (e.g., 'Asked about gaps in resume')" data-i18n-placeholder="live.notePlaceholder">
+                            <button class="btn btn-secondary" id="btn-add-note" data-i18n="live.addNote">Add</button>
+                        </div>
+                        <div class="notes-list" id="notes-list">
+                            <!-- Items injected by JS -->
+                        </div>
+                    </div>
+
+                </div>
+            </main>
+        </div>
+
+        <!-- ══════════════════════════════════════════════ -->
+        <!-- VIEW: Sessions History                        -->
+        <!-- ══════════════════════════════════════════════ -->
+        <div id="view-sessions" class="view-panel">
+            <div class="view-header">
+                <h2>📂 Session History</h2>
+                <p class="view-subtitle">Review past interview analysis sessions</p>
+            </div>
+            <div class="sessions-grid" id="sessions-grid">
+                <div class="sessions-empty-state">
+                    <span class="empty-icon">📂</span>
+                    <h3>No sessions yet</h3>
+                    <p>Start a live analysis or upload a video to create your first session.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════════════════════════════════════════ -->
+        <!-- VIEW: Compare Sessions                        -->
+        <!-- ══════════════════════════════════════════════ -->
+        <div id="view-compare" class="view-panel">
+            <div class="view-header">
+                <h2>🔄 Compare Sessions</h2>
+                <p class="view-subtitle">Side-by-side analysis of two candidates</p>
+            </div>
+
+            <div class="compare-selectors glass-panel">
+                <div class="compare-selector-group">
+                    <label for="compare-select-a">Candidate A</label>
+                    <select id="compare-select-a" class="compare-select">
+                        <option value="" disabled selected>Select a session...</option>
+                    </select>
+                </div>
+                <div class="compare-vs-icon">⚔️</div>
+                <div class="compare-selector-group">
+                    <label for="compare-select-b">Candidate B</label>
+                    <select id="compare-select-b" class="compare-select">
+                        <option value="" disabled selected>Select a session...</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" id="btn-compare">🔄 Compare Sessions</button>
+            </div>
+
+            <div class="compare-results" id="compare-results">
+                <div class="compare-empty-state">
+                    <span class="empty-icon">🔄</span>
+                    <h3>Select two sessions to compare</h3>
+                    <p>Choose candidates from the dropdowns above and click Compare.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════════════════════════════════════════ -->
+        <!-- VIEW: Upload Video                            -->
+        <!-- ══════════════════════════════════════════════ -->
+        <div id="view-upload" class="view-panel">
+            <div class="view-header">
+                <h2>📹 Upload Video</h2>
+                <p class="view-subtitle">Upload a recorded interview video for offline analysis</p>
+            </div>
+
+            <div class="upload-area">
+                <div class="upload-drop-zone glass-panel" id="upload-drop-zone">
+                    <div class="drop-zone-content">
+                        <span class="drop-zone-icon">📁</span>
+                        <h3>Drag & drop your video here</h3>
+                        <p>or click to browse files</p>
+                        <span class="drop-zone-hint">Supports MP4, WebM, MOV · Max 500 MB</span>
+                    </div>
+                    <input type="file" id="upload-file-input" accept="video/*" class="hidden">
+                </div>
+
+                <div class="upload-file-info hidden" id="upload-file-info">
+                    <!-- Populated by JS -->
+                </div>
+
+                <button class="btn btn-primary btn-lg hidden" id="btn-upload-video">⬆️ Upload Video</button>
+
+                <div class="upload-progress-container hidden" id="upload-progress-container">
+                    <div class="upload-progress-label">
+                        <span>Upload Progress</span>
+                        <span class="upload-progress-text" id="upload-progress-text">0%</span>
+                    </div>
+                    <div class="progress-track progress-track-lg">
+                        <div class="progress-fill upload-progress-fill" id="upload-progress-fill"></div>
+                    </div>
+                </div>
+
+                <div class="upload-progress-container hidden" id="processing-progress-container">
+                    <div class="upload-progress-label">
+                        <span>Processing Video</span>
+                        <span class="upload-progress-text" id="processing-progress-text">0%</span>
+                    </div>
+                    <div class="progress-track progress-track-lg">
+                        <div class="progress-fill processing-progress-fill" id="processing-progress-fill"></div>
+                    </div>
+                </div>
+
+                <div class="upload-status-message" id="upload-status-message"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Ethical Disclaimer Modal -->
+    <div class="disclaimer-overlay" id="disclaimer-modal">
+        <div class="disclaimer-content glass-panel">
+            <div class="disclaimer-icon">⚖️</div>
+            <h2 data-i18n="disclaimer.title">Ethical Disclaimer</h2>
+            <p class="disclaimer-text" data-i18n="disclaimer.text">
+                EmotionLens is an analytical aid designed for research and educational purposes.
+                Emotion detection technology has inherent limitations and biases. Results should
+                never be used as the sole basis for hiring decisions, character assessment, or
+                truthfulness determination. All analysis should be interpreted by qualified
+                professionals within proper ethical frameworks. This tool does not replace
+                human judgment.
+            </p>
+            <div class="disclaimer-actions">
+                <button class="btn btn-primary" id="btn-disclaimer-accept" data-i18n="disclaimer.acknowledge">I Understand</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/js/config.js"></script>
+    <script src="/js/i18n.js"></script>
+    <script src="/js/charts.js"></script>
+    <script src="/js/webcam.js"></script>
+    <script src="/js/websocket.js"></script>
+    <script src="/js/dashboard.js"></script>
+    <script src="/js/sessions.js"></script>
+    <script src="/js/comparison.js"></script>
+    <script src="/js/video-upload.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>

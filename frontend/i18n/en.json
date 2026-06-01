@@ -1,0 +1,142 @@
+{
+  "app": {
+    "name": "EmotionLens",
+    "tagline": "Real-time Facial Emotion & Micro-Expression Analysis"
+  },
+
+  "nav": {
+    "live": "Live Analysis",
+    "sessions": "Sessions",
+    "compare": "Compare",
+    "upload": "Upload Video"
+  },
+
+  "live": {
+    "startSession": "Start Session",
+    "endSession": "End Session",
+    "disconnected": "Disconnected",
+    "connecting": "Connecting...",
+    "connected": "Connected",
+    "calibrating": "Calibrating Baseline... Please maintain a neutral expression.",
+    "dominantEmotion": "Dominant Emotion",
+    "heartRate": "Heart Rate (rPPG)",
+    "bpm": "BPM",
+    "stressLevel": "Stress Level:",
+    "stressLow": "Low",
+    "stressMedium": "Moderate",
+    "stressHigh": "High",
+    "congruenceScore": "Congruence Score",
+    "waiting": "Waiting...",
+    "stability": "Stability",
+    "alignment": "Alignment",
+    "baseline": "Baseline",
+    "physio": "Physio",
+    "emotionTimeline": "Emotion Timeline",
+    "microExpressionLog": "Micro-Expression Log",
+    "detected": "Detected",
+    "noMicroExpressions": "No micro-expressions detected yet.",
+    "interviewerNotes": "Interviewer Notes",
+    "notePlaceholder": "Type a note (e.g., 'Asked about gaps in resume')",
+    "addNote": "Add",
+    "showPulse": "Show Pulse (EVM)",
+    "noFaceDetected": "No face detected"
+  },
+
+  "sessions": {
+    "title": "Session History",
+    "subtitle": "Review past interview analysis sessions",
+    "noSessions": "No sessions yet",
+    "noSessionsDesc": "Start a live analysis or upload a video to create your first session.",
+    "loading": "Loading sessions...",
+    "couldNotLoad": "Could not load sessions",
+    "retry": "Retry",
+    "viewReport": "View Report",
+    "pdf": "PDF",
+    "csv": "CSV",
+    "dominantEmotion": "Dominant Emotion",
+    "congruence": "Congruence",
+    "duration": "Duration",
+    "active": "Active",
+    "completed": "Completed",
+    "cancelled": "Cancelled",
+    "processing": "Processing",
+    "deleteConfirm": "Are you sure you want to delete this session? This action cannot be undone.",
+    "deleteSuccess": "Session deleted successfully",
+    "reportFailed": "Failed to load report"
+  },
+
+  "compare": {
+    "title": "Compare Sessions",
+    "subtitle": "Side-by-side analysis of two candidates",
+    "candidateA": "Candidate A",
+    "candidateB": "Candidate B",
+    "selectSession": "Select a session...",
+    "compareBtn": "Compare Sessions",
+    "comparing": "Comparing...",
+    "selectTwo": "Select two sessions to compare",
+    "selectTwoDesc": "Choose candidates from the dropdowns above and click Compare.",
+    "selectBoth": "Please select two sessions to compare.",
+    "selectDifferent": "Please select two different sessions.",
+    "comparisonFailed": "Comparison failed",
+    "keyMetrics": "Key Metrics Comparison",
+    "topEmotions": "Top Emotions",
+    "congruence": "Congruence",
+    "microExpr": "Micro-Expr."
+  },
+
+  "upload": {
+    "title": "Upload Video",
+    "subtitle": "Upload a recorded interview video for offline analysis",
+    "dragDrop": "Drag & drop your video here",
+    "orBrowse": "or click to browse files",
+    "hint": "Supports MP4, WebM, MOV · Max 500 MB",
+    "uploadBtn": "Upload Video",
+    "uploading": "Uploading...",
+    "uploadProgress": "Upload Progress",
+    "processingVideo": "Processing Video",
+    "uploadingVideo": "Uploading video...",
+    "uploadComplete": "Upload complete! Processing video...",
+    "uploadFailed": "Upload failed",
+    "invalidType": "Please select a video file (mp4, webm, mov, etc.).",
+    "fileTooLarge": "File too large. Maximum size is",
+    "processedSuccess": "Video processed successfully!",
+    "resultsReady": "Your analysis results are ready to view.",
+    "viewResults": "View Results →"
+  },
+
+  "report": {
+    "sessionReport": "Session Report",
+    "candidate": "Candidate",
+    "unknown": "Unknown",
+    "emotionDistribution": "Emotion Distribution",
+    "downloadPdf": "Download PDF",
+    "downloadCsv": "Download CSV",
+    "close": "Close",
+    "noData": "No data"
+  },
+
+  "emotions": {
+    "happy": "Happy",
+    "sad": "Sad",
+    "angry": "Angry",
+    "surprise": "Surprise",
+    "disgust": "Disgust",
+    "fear": "Fear",
+    "neutral": "Neutral",
+    "nervousness": "Nervous",
+    "confidence": "Confident"
+  },
+
+  "disclaimer": {
+    "title": "Ethical Disclaimer",
+    "text": "EmotionLens is an analytical aid designed for research and educational purposes. Emotion detection technology has inherent limitations and biases. Results should never be used as the sole basis for hiring decisions, character assessment, or truthfulness determination. All analysis should be interpreted by qualified professionals within proper ethical frameworks. This tool does not replace human judgment.",
+    "acknowledge": "I Understand",
+    "learnMore": "Learn More"
+  },
+
+  "settings": {
+    "language": "Language",
+    "english": "English",
+    "spanish": "Español"
+  }
+}
