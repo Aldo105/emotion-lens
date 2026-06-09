@@ -261,6 +261,10 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                 is_calibrating = timestamp < settings.baseline_calibration_seconds
                 calibration_progress = min(1.0, timestamp / settings.baseline_calibration_seconds)
 
+            # Feed calibration frames to micro-expression engine for habitual tracking
+            if not baseline_calibrated and is_calibrating:
+                micro_engine.record_calibration_frame(action_units)
+
             if not baseline_calibrated and not is_calibrating:
                 # Calibration period just ended -- set baselines
                 au_analyzer.set_baseline()
@@ -294,6 +298,7 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                     current_aus=action_units,
                     timestamp=timestamp,
                     dominant_emotion=emotion_result["emotion"],
+                    camera_quality_score=camera_quality["score"],
                 )
                 if raw_event:
                     micro_event = MicroExpressionEvent(

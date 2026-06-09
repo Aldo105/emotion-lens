@@ -6,14 +6,22 @@ caused by blood flow, enabling remote heart rate (rPPG) estimation.
 
 Algorithm Pipeline:
   1. Extract forehead ROI using MediaPipe landmarks
-  2. Average the green channel intensity across the ROI per frame
-  3. Build a signal buffer (rolling window of ~10 seconds)
-  4. Apply Butterworth bandpass filter (0.7 - 4.0 Hz = 42-240 BPM)
-  5. FFT to find dominant frequency -> convert to BPM
-  6. Optionally: amplify color changes for visual feedback
+  2. Extract mean R, G, B values from the forehead ROI
+  3. Extract nose-bridge reference ROI and subtract common-mode noise
+  4. Build signal buffers (rolling window of ~10 seconds)
+  5. Compute CHROM pulse signal (de Haan & Jeanne, 2013)
+  6. Apply Butterworth bandpass filter (0.7 - 4.0 Hz = 42-240 BPM)
+  7. FFT to find dominant frequency -> convert to BPM
+  8. Motion artifact rejection via landmark velocity
+  9. Signal quality (SNR) computation
+  10. Optionally: amplify color changes for visual feedback
 
 Based on MIT CSAIL's "Eulerian Video Magnification for Revealing
 Subtle Changes in the World" (Wu et al., 2012).
+
+CHROM method based on: de Haan, G. & Jeanne, V. (2013).
+"Robust Pulse Rate From Chrominance-Based rPPG."
+IEEE Transactions on Biomedical Engineering.
 
 Reference: https://github.com/joeljose/Eulerian-Video-Magnification
 """
@@ -37,8 +45,10 @@ class HeartRateEstimator:
     Estimates heart rate from facial video using remote photoplethysmography (rPPG).
     
     Uses the forehead region (most stable for pulse detection) extracted via
-    MediaPipe landmarks. Applies Eulerian color magnification principles:
-    temporal bandpass filtering on the green channel to isolate pulse signal.
+    MediaPipe landmarks. Applies the CHROM (Chrominance-based) algorithm
+    on R, G, B channels to isolate the pulse signal, with a nose-bridge
+    reference ROI for common-mode noise removal and motion artifact rejection
+    via landmark velocity tracking.
     """
 
     def __init__(
@@ -48,6 +58,7 @@ class HeartRateEstimator:
         freq_low: float = 0.7,    # 42 BPM minimum
         freq_high: float = 4.0,   # 240 BPM maximum
         amplification_factor: float = 50.0,
+        motion_threshold: float = 5.0,  # Normalized pixel displacement threshold
     ):
         """
         Args:
@@ -56,15 +67,20 @@ class HeartRateEstimator:
             freq_low: Low cutoff frequency in Hz (0.7 = 42 BPM).
             freq_high: High cutoff frequency in Hz (4.0 = 240 BPM).
             amplification_factor: Color amplification factor for visual output.
+            motion_threshold: Maximum landmark displacement (in normalized pixels)
+                              before a frame is rejected as motion-corrupted.
         """
         self.fps = fps
         self.freq_low = freq_low
         self.freq_high = freq_high
         self.amplification_factor = amplification_factor
         self.buffer_size = int(buffer_seconds * fps)
+        self.motion_threshold = motion_threshold
 
-        # Signal buffers
+        # Signal buffers — multi-channel for CHROM
+        self._red_signal: deque[float] = deque(maxlen=self.buffer_size)
         self._green_signal: deque[float] = deque(maxlen=self.buffer_size)
+        self._blue_signal: deque[float] = deque(maxlen=self.buffer_size)
         self._timestamps: deque[float] = deque(maxlen=self.buffer_size)
 
         # Heart rate history for smoothing
@@ -77,12 +93,24 @@ class HeartRateEstimator:
             337, 299, 333, 338, 297, 10
         ]
 
+        # Nose-bridge reference ROI landmark indices
+        # This region has minimal blood flow and captures common-mode noise
+        self._nose_bridge_indices = [6, 197, 195, 5, 4]
+
+        # Motion detection landmark indices (nose tip, forehead center)
+        self._motion_landmark_indices = [1, 10]  # Nose tip, forehead center
+
         # State
         self._ready = False
         self._frame_count = 0
         self._last_bpm = 0.0
         self._signal_quality = 0.0
         self._warned_fs_low = False
+
+        # Motion artifact rejection state
+        self._prev_motion_landmarks: list[tuple[float, float]] | None = None
+        self._motion_frames_skipped = 0
+        self._last_motion_detected = False
 
     def process_frame(
         self,
@@ -107,6 +135,8 @@ class HeartRateEstimator:
                 "signal_ready": bool,        # Whether enough data is collected
                 "raw_signal_value": float,   # Current green channel mean
                 "stress_indicator": float,   # 0-1 based on HR variability
+                "motion_detected": bool,     # Whether motion artifact was detected
+                "signal_quality": float,     # SNR-based signal reliability (0-1)
             }
         """
         if not SCIPY_AVAILABLE:
@@ -114,47 +144,85 @@ class HeartRateEstimator:
 
         self._frame_count += 1
 
-        # Step 1: Extract forehead ROI
-        roi_mean = self._extract_forehead_signal(frame, landmarks, frame_shape)
-        if roi_mean is None:
+        # Step 1: Motion artifact detection
+        motion_detected = self._detect_motion(landmarks, frame_shape)
+        self._last_motion_detected = motion_detected
+
+        # Step 2: Extract forehead ROI (multi-channel)
+        roi_rgb = self._extract_forehead_signal(frame, landmarks, frame_shape)
+        if roi_rgb is None:
             return self._empty_result()
 
-        # Step 2: Add to signal buffer
-        self._green_signal.append(roi_mean)
+        r_mean, g_mean, b_mean = roi_rgb
+
+        # Step 3: Extract nose-bridge reference and subtract common-mode noise
+        ref_rgb = self._extract_nose_bridge_signal(frame, landmarks, frame_shape)
+        if ref_rgb is not None:
+            ref_r, ref_g, ref_b = ref_rgb
+            # Subtract reference signal to remove common-mode noise
+            # (lighting changes, camera auto-exposure)
+            r_mean = r_mean - ref_r
+            g_mean = g_mean - ref_g
+            b_mean = b_mean - ref_b
+
+        # Step 4: If motion detected, skip adding to buffer
+        if motion_detected:
+            self._motion_frames_skipped += 1
+            # Still return current estimate but flag motion
+            return self._build_result(
+                bpm=round(self._last_bpm, 1),
+                confidence=round(self._signal_quality, 3),
+                signal_ready=self._ready,
+                raw_signal_value=round(g_mean, 4),
+                motion_detected=True,
+            )
+
+        # Step 5: Add to signal buffers
+        self._red_signal.append(r_mean)
+        self._green_signal.append(g_mean)
+        self._blue_signal.append(b_mean)
         self._timestamps.append(timestamp)
 
-        # Step 3: Need minimum data to estimate HR
+        # Step 6: Need minimum data to estimate HR
         min_samples = int(self.fps * 3)  # At least 3 seconds
         if len(self._green_signal) < min_samples:
             return {
                 "bpm": 0.0,
                 "bpm_confidence": 0.0,
                 "signal_ready": False,
-                "raw_signal_value": roi_mean,
+                "raw_signal_value": round(g_mean, 4),
                 "stress_indicator": 0.0,
+                "motion_detected": False,
+                "signal_quality": 0.0,
             }
 
         self._ready = True
 
-        # Step 4: Estimate heart rate
+        # Step 7: Estimate heart rate using CHROM algorithm
         bpm, confidence = self._estimate_heart_rate()
 
-        # Step 5: Smooth the BPM output
+        # Step 8: Smooth the BPM output
         if bpm > 0:
             self._hr_history.append(bpm)
 
         smoothed_bpm = float(np.median(self._hr_history)) if self._hr_history else 0.0
         self._last_bpm = smoothed_bpm
 
-        # Step 6: Compute stress indicator from HR variability
+        # Step 9: Compute stress indicator from HR variability
         stress = self._compute_stress_indicator()
+
+        # Step 10: Compute signal quality (SNR)
+        signal_quality = self._compute_signal_quality()
+        self._signal_quality = confidence
 
         return {
             "bpm": round(smoothed_bpm, 1),
             "bpm_confidence": round(confidence, 3),
             "signal_ready": True,
-            "raw_signal_value": round(roi_mean, 4),
+            "raw_signal_value": round(g_mean, 4),
             "stress_indicator": round(stress, 3),
+            "motion_detected": False,
+            "signal_quality": round(signal_quality, 3),
         }
 
     def get_magnified_frame(
@@ -171,12 +239,13 @@ class HeartRateEstimator:
         actually see the blood flow pulsing through the skin.
 
         The effect works by:
-          1. Bandpass filtering the green channel signal history
-          2. Normalizing the filtered value to [-1, +1]
-          3. Mapping pulse phase to a vivid red ↔ cyan color shift
-          4. Alpha-blending the color overlay onto the forehead ROI
-          5. Drawing a glowing contour around the forehead region
-          6. Adding an on-screen BPM readout
+          1. Computing the CHROM pulse signal from R, G, B channel histories
+          2. Bandpass filtering the combined CHROM signal
+          3. Normalizing the filtered value to [-1, +1]
+          4. Mapping pulse phase to a vivid red ↔ cyan color shift
+          5. Alpha-blending the color overlay onto the forehead ROI
+          6. Drawing a glowing contour around the forehead region
+          7. Adding an on-screen BPM readout
         """
         if not SCIPY_AVAILABLE or len(self._green_signal) < int(self.fps * 3):
             return frame
@@ -194,11 +263,14 @@ class HeartRateEstimator:
         mask_blurred = cv2.GaussianBlur(mask, (21, 21), 10)
         mask_float = mask_blurred.astype(np.float32) / 255.0
 
-        # Apply temporal bandpass filter to the green signal
-        signal = np.array(self._green_signal)
+        # Compute the CHROM pulse signal and apply bandpass filter
+        chrom_signal = self._compute_chrom_signal()
+        if chrom_signal is None or len(chrom_signal) == 0:
+            return frame
+
         # Detrend before filtering (remove DC / slow drift)
-        signal = signal - np.mean(signal)
-        filtered = self._bandpass_filter(signal)
+        chrom_signal = chrom_signal - np.mean(chrom_signal)
+        filtered = self._bandpass_filter(chrom_signal)
 
         if filtered is None or len(filtered) == 0:
             return frame
@@ -272,12 +344,13 @@ class HeartRateEstimator:
         frame: np.ndarray,
         landmarks: list[dict],
         frame_shape: tuple[int, int],
-    ) -> float | None:
+    ) -> tuple[float, float, float] | None:
         """
-        Extract the mean green channel value from the forehead ROI.
+        Extract the mean R, G, B channel values from the forehead ROI.
         
-        The green channel is most sensitive to hemoglobin absorption
-        changes caused by blood flow.
+        All three channels are needed for the CHROM algorithm, which
+        combines them via chrominance analysis to isolate the pulse signal
+        more robustly than green-channel-only approaches.
         """
         h, w = frame_shape
 
@@ -289,14 +362,129 @@ class HeartRateEstimator:
         mask = np.zeros((h, w), dtype=np.uint8)
         cv2.fillPoly(mask, [forehead_pts], 255)
 
-        # Extract green channel mean within the ROI
-        green_channel = frame[:, :, 1]  # BGR -> G is index 1
-        roi_pixels = green_channel[mask == 255]
+        # Extract R, G, B channel means within the ROI (frame is BGR)
+        blue_channel = frame[:, :, 0]
+        green_channel = frame[:, :, 1]
+        red_channel = frame[:, :, 2]
 
-        if len(roi_pixels) == 0:
+        roi_mask = mask == 255
+        roi_blue = blue_channel[roi_mask]
+        roi_green = green_channel[roi_mask]
+        roi_red = red_channel[roi_mask]
+
+        if len(roi_green) == 0:
             return None
 
-        return float(np.mean(roi_pixels))
+        return (
+            float(np.mean(roi_red)),
+            float(np.mean(roi_green)),
+            float(np.mean(roi_blue)),
+        )
+
+    def _extract_nose_bridge_signal(
+        self,
+        frame: np.ndarray,
+        landmarks: list[dict],
+        frame_shape: tuple[int, int],
+    ) -> tuple[float, float, float] | None:
+        """
+        Extract mean R, G, B values from the nose-bridge reference ROI.
+        
+        The nose bridge has minimal blood flow pulsation and is used as
+        a reference region. Subtracting this signal from the forehead
+        signal removes common-mode noise such as lighting changes and
+        camera auto-exposure adjustments.
+        """
+        h, w = frame_shape
+
+        if not landmarks or len(landmarks) < 200:
+            return None
+
+        # Build nose-bridge polygon
+        points = []
+        for idx in self._nose_bridge_indices:
+            if idx < len(landmarks):
+                lm = landmarks[idx]
+                px = int(lm["x"] * w)
+                py = int(lm["y"] * h)
+                points.append([px, py])
+
+        if len(points) < 3:
+            return None
+
+        nose_pts = np.array(points, dtype=np.int32)
+
+        # Create mask for nose bridge
+        mask = np.zeros((h, w), dtype=np.uint8)
+        cv2.fillPoly(mask, [nose_pts], 255)
+
+        # Extract R, G, B channel means within the ROI (frame is BGR)
+        roi_mask = mask == 255
+        roi_blue = frame[:, :, 0][roi_mask]
+        roi_green = frame[:, :, 1][roi_mask]
+        roi_red = frame[:, :, 2][roi_mask]
+
+        if len(roi_green) == 0:
+            return None
+
+        return (
+            float(np.mean(roi_red)),
+            float(np.mean(roi_green)),
+            float(np.mean(roi_blue)),
+        )
+
+    def _detect_motion(
+        self,
+        landmarks: list[dict],
+        frame_shape: tuple[int, int],
+    ) -> bool:
+        """
+        Detect motion artifacts using landmark velocity between frames.
+        
+        Computes the mean displacement of key landmarks (nose tip, forehead
+        center) between the current and previous frames. If displacement
+        exceeds the motion threshold, the frame is marked as motion-corrupted
+        and should not be added to the signal buffer.
+        
+        Returns True if motion artifact is detected.
+        """
+        h, w = frame_shape
+
+        if not landmarks or len(landmarks) < max(self._motion_landmark_indices) + 1:
+            self._prev_motion_landmarks = None
+            return False
+
+        # Extract current positions of motion landmarks
+        current_positions = []
+        for idx in self._motion_landmark_indices:
+            lm = landmarks[idx]
+            # Use normalized coordinates scaled by frame dimensions
+            px = lm["x"] * w
+            py = lm["y"] * h
+            current_positions.append((px, py))
+
+        if self._prev_motion_landmarks is None:
+            self._prev_motion_landmarks = current_positions
+            return False
+
+        # Compute mean displacement
+        total_displacement = 0.0
+        for (cx, cy), (px, py) in zip(current_positions, self._prev_motion_landmarks):
+            dx = cx - px
+            dy = cy - py
+            total_displacement += np.sqrt(dx * dx + dy * dy)
+
+        mean_displacement = total_displacement / len(current_positions)
+
+        # Normalize displacement by frame diagonal for resolution independence
+        frame_diagonal = np.sqrt(w * w + h * h)
+        normalized_displacement = mean_displacement / frame_diagonal * 1000.0
+
+        # Update previous landmarks
+        self._prev_motion_landmarks = current_positions
+
+        # Check against threshold
+        return normalized_displacement > self.motion_threshold
 
     def _get_forehead_polygon(
         self,
@@ -321,16 +509,67 @@ class HeartRateEstimator:
 
         return np.array(points, dtype=np.int32)
 
+    def _compute_chrom_signal(self) -> np.ndarray | None:
+        """
+        Compute the CHROM (Chrominance-based) pulse signal from R, G, B buffers.
+        
+        Implements the method by de Haan & Jeanne (2013):
+        - Normalize each channel by its mean to remove DC offset
+        - Combine via chrominance projection:
+            X = 3*R_n - 2*G_n
+            Y = 1.5*R_n + G_n - 1.5*B_n
+            alpha = std(X) / std(Y)
+            pulse = X - alpha * Y
+        
+        This approach is more robust to motion and illumination changes
+        than single-channel (green-only) methods.
+        """
+        if len(self._red_signal) < 10:
+            return None
+
+        R = np.array(self._red_signal)
+        G = np.array(self._green_signal)
+        B = np.array(self._blue_signal)
+
+        # Normalize each channel by its mean
+        r_mean = np.mean(R)
+        g_mean = np.mean(G)
+        b_mean = np.mean(B)
+
+        if r_mean < 1e-6 or g_mean < 1e-6 or b_mean < 1e-6:
+            return None
+
+        R_n = R / r_mean
+        G_n = G / g_mean
+        B_n = B / b_mean
+
+        # CHROM combination
+        X = 3.0 * R_n - 2.0 * G_n
+        Y = 1.5 * R_n + G_n - 1.5 * B_n
+
+        std_x = np.std(X)
+        std_y = np.std(Y)
+
+        alpha = std_x / (std_y + 1e-6)
+
+        pulse_signal = X - alpha * Y
+
+        return pulse_signal
+
     def _estimate_heart_rate(self) -> tuple[float, float]:
         """
-        Estimate heart rate using FFT on the bandpass-filtered signal.
+        Estimate heart rate using FFT on the CHROM pulse signal
+        after bandpass filtering.
         
         Returns (bpm, confidence).
         """
-        signal = np.array(self._green_signal)
+        # Compute CHROM pulse signal from multi-channel data
+        chrom_signal = self._compute_chrom_signal()
+        if chrom_signal is None:
+            return 0.0, 0.0
 
         # Detrend the signal (remove DC component and slow drift)
-        signal = signal - np.mean(signal)
+        signal = chrom_signal - np.mean(chrom_signal)
 
         # Apply bandpass filter
         filtered = self._bandpass_filter(signal)
@@ -422,9 +661,17 @@ class HeartRateEstimator:
         """
         Compute a stress indicator based on heart rate variability (HRV).
         
-        Higher HRV variation = more stress.
-        Normal resting HR: 60-100 BPM.
-        Elevated HR + high variability = stress signal.
+        Physiological basis (corrected):
+        - **High HRV** (high std of R-R intervals) indicates good vagal tone
+          and parasympathetic activity → RELAXATION.
+        - **Low HRV** (low std) indicates sympathetic dominance → STRESS.
+        
+        This is consistent with established cardiology research: reduced HRV
+        is a marker of stress, anxiety, and poor cardiovascular health.
+        
+        Combined factors:
+        - Factor 1: Elevated heart rate (higher HR = more stress)
+        - Factor 2: Low variability = stress (INVERTED from naive assumption)
         """
         if len(self._hr_history) < 3:
             return 0.0
@@ -437,13 +684,103 @@ class HeartRateEstimator:
         # 60-80 = calm (0.0), 80-100 = moderate (0.3-0.5), >100 = stressed (0.7-1.0)
         hr_stress = float(np.clip((mean_hr - 70) / 50.0, 0.0, 1.0))
 
-        # Factor 2: HR variability (high std = more stress/anxiety)
-        # Low std (< 3) = calm, high std (> 10) = stressed
-        variability_stress = float(np.clip(std_hr / 15.0, 0.0, 1.0))
+        # Factor 2: LOW variability = stress (physiologically correct)
+        # High std (>8) = relaxed (0.0), Low std (<2) = stressed (1.0)
+        variability_stress = float(np.clip(1.0 - (std_hr / 10.0), 0.0, 1.0))
 
         # Combined stress indicator
         stress = hr_stress * 0.6 + variability_stress * 0.4
         return float(np.clip(stress, 0.0, 1.0))
+
+    def _compute_signal_quality(self) -> float:
+        """
+        Compute signal quality using the Signal-to-Noise Ratio (SNR) of
+        the power spectral density of the filtered CHROM pulse signal.
+        
+        The SNR is calculated as the ratio of the peak power (at the
+        dominant pulse frequency) to the average noise floor power
+        across the valid frequency band.
+        
+        Returns:
+            A value between 0.0 and 1.0 representing signal reliability:
+            - 0.0 = very noisy, unreliable signal
+            - 1.0 = clean, high-confidence signal
+        """
+        chrom_signal = self._compute_chrom_signal()
+        if chrom_signal is None or len(chrom_signal) < 10:
+            return 0.0
+
+        # Detrend
+        signal = chrom_signal - np.mean(chrom_signal)
+
+        # Apply bandpass filter
+        filtered = self._bandpass_filter(signal)
+        if filtered is None:
+            return 0.0
+
+        n = len(filtered)
+
+        # Estimate actual FPS
+        if len(self._timestamps) > 1:
+            time_span = self._timestamps[-1] - self._timestamps[0]
+            actual_fps = (len(self._timestamps) - 1) / max(time_span, 0.1)
+        else:
+            actual_fps = self.fps
+
+        # Compute power spectral density via FFT
+        freqs = fftfreq(n, d=1.0 / actual_fps)
+        fft_values = np.abs(fft(filtered)) ** 2  # Power spectrum
+
+        # Focus on valid frequency band
+        valid_mask = (freqs > self.freq_low) & (freqs < self.freq_high)
+        valid_psd = fft_values[valid_mask]
+
+        if len(valid_psd) == 0:
+            return 0.0
+
+        # Peak power
+        peak_power = np.max(valid_psd)
+
+        # Average noise floor (mean of all bins excluding the peak)
+        if len(valid_psd) > 1:
+            # Remove the peak bin to estimate noise floor
+            noise_bins = np.delete(valid_psd, np.argmax(valid_psd))
+            noise_floor = np.mean(noise_bins)
+        else:
+            noise_floor = valid_psd[0]
+
+        if noise_floor < 1e-10:
+            return 1.0  # No noise detected, perfect signal (unlikely)
+
+        # SNR in linear scale
+        snr = peak_power / noise_floor
+
+        # Map SNR to 0.0–1.0 quality scale
+        # SNR of 1 = noise (quality 0), SNR of 10+ = good (quality ~1)
+        quality = float(np.clip((snr - 1.0) / 9.0, 0.0, 1.0))
+
+        return quality
+
+    def _build_result(
+        self,
+        bpm: float,
+        confidence: float,
+        signal_ready: bool,
+        raw_signal_value: float,
+        motion_detected: bool,
+    ) -> dict:
+        """Build a result dict with current stress and signal quality."""
+        stress = self._compute_stress_indicator() if signal_ready else 0.0
+        signal_quality = self._compute_signal_quality() if signal_ready else 0.0
+        return {
+            "bpm": bpm,
+            "bpm_confidence": confidence,
+            "signal_ready": signal_ready,
+            "raw_signal_value": raw_signal_value,
+            "stress_indicator": round(stress, 3),
+            "motion_detected": motion_detected,
+            "signal_quality": round(signal_quality, 3),
+        }
 
     def _empty_result(self) -> dict:
         """Return empty result when analysis isn't possible."""
@@ -453,4 +790,6 @@ class HeartRateEstimator:
             "signal_ready": False,
             "raw_signal_value": 0.0,
             "stress_indicator": 0.0,
+            "motion_detected": False,
+            "signal_quality": 0.0,
         }
