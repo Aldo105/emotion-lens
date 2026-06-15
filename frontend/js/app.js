@@ -131,13 +131,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         const time = timerDisplay.textContent;
         const div = document.createElement('div');
         div.className = 'note-item';
-        div.innerHTML = `
-            <div class="note-header">
-                <span>🕒 ${time}</span>
-                <span>User</span>
-            </div>
-            <div class="note-text">${text}</div>
-        `;
+
+        const header = document.createElement('div');
+        header.className = 'note-header';
+        const timeSpan = document.createElement('span');
+        timeSpan.textContent = `🕒 ${time}`;
+        const userSpan = document.createElement('span');
+        userSpan.textContent = 'User';
+        header.appendChild(timeSpan);
+        header.appendChild(userSpan);
+
+        const noteText = document.createElement('div');
+        noteText.className = 'note-text';
+        noteText.textContent = text;  // Safe — no HTML injection
+
+        div.appendChild(header);
+        div.appendChild(noteText);
         
         notesList.prepend(div);
         noteInput.value = '';

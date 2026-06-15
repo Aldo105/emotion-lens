@@ -245,6 +245,138 @@ def generate_pdf_report(session_data: dict, output_path: str) -> str:
         km_table.setStyle(_table_style(len(km_rows)))
         elements.append(km_table)
 
+    # ── Comparative Analysis: Emotions vs Micro-Expressions ──────────
+    if micros:
+        elements.append(PageBreak())
+        elements.append(Paragraph(
+            "Comparative Analysis: Emotions vs Micro-Expressions",
+            heading_style,
+        ))
+        elements.append(Paragraph(
+            "This table correlates each detected micro-expression with the "
+            "emotion being displayed at that moment, revealing potential "
+            "emotional incongruences during the session.",
+            body_style,
+        ))
+        elements.append(Spacer(1, 3 * mm))
+
+        # Build the main comparison table
+        comp_header = [
+            "Time", "Displayed\nEmotion", "Micro-Expression\nDetected",
+            "AUs Involved", "Duration", "Contradiction", "Interpretation",
+        ]
+        comp_rows = [comp_header]
+
+        for m in micros:
+            ts = m.get("timestamp", 0)
+            mins = int(ts // 60)
+            secs = int(ts % 60)
+            time_str = f"{mins:02d}:{secs:02d}"
+
+            dominant = (m.get("dominant_emotion_at_time") or "neutral").capitalize()
+            detected = (m.get("detected_emotion") or "unknown").capitalize()
+            aus = ", ".join(m.get("action_units_involved", []))
+            duration = f"{m.get('duration_ms', 0):.0f}ms"
+            is_contra = m.get("is_contradictory", False)
+            contradiction_str = "YES" if is_contra else "No"
+
+            # Generate interpretation based on the data
+            if is_contra:
+                interpretation = (
+                    f"Subject showed {dominant.lower()} but briefly "
+                    f"revealed {detected.lower()} — possible suppression"
+                )
+            else:
+                interpretation = (
+                    f"Congruent — {detected.lower()} reinforces "
+                    f"the displayed {dominant.lower()}"
+                )
+
+            comp_rows.append([
+                time_str, dominant, detected,
+                _truncate(aus, 20), duration,
+                contradiction_str, _truncate(interpretation, 45),
+            ])
+
+        comp_table = Table(
+            comp_rows,
+            colWidths=[14 * mm, 22 * mm, 22 * mm, 22 * mm, 16 * mm, 20 * mm, 54 * mm],
+        )
+
+        # Custom style with color-coded contradiction column
+        comp_style_cmds = _table_style(len(comp_rows)).getCommands()
+
+        # Color-code the contradiction column: red for YES, green for No
+        for i in range(1, len(comp_rows)):
+            is_yes = comp_rows[i][5] == "YES"
+            if is_yes:
+                comp_style_cmds.append(
+                    ("TEXTCOLOR", (5, i), (5, i), colors.HexColor("#c0392b"))
+                )
+                comp_style_cmds.append(
+                    ("FONTNAME", (5, i), (5, i), "Helvetica-Bold")
+                )
+            else:
+                comp_style_cmds.append(
+                    ("TEXTCOLOR", (5, i), (5, i), colors.HexColor("#27ae60"))
+                )
+
+        comp_table.setStyle(TableStyle(comp_style_cmds))
+        elements.append(comp_table)
+
+        # ── Summary sub-table: Contradiction pairs ───────────────────
+        contra_pairs: dict[str, int] = {}
+        congruent_count = 0
+        for m in micros:
+            if m.get("is_contradictory"):
+                dominant = (m.get("dominant_emotion_at_time") or "?").capitalize()
+                detected = (m.get("detected_emotion") or "?").capitalize()
+                pair_key = f"{dominant} -> {detected}"
+                contra_pairs[pair_key] = contra_pairs.get(pair_key, 0) + 1
+            else:
+                congruent_count += 1
+
+        if contra_pairs:
+            elements.append(Spacer(1, 6 * mm))
+            elements.append(Paragraph(
+                "Contradiction Summary",
+                ParagraphStyle(
+                    "SubHeading", parent=heading_style,
+                    fontSize=12, spaceBefore=2 * mm,
+                ),
+            ))
+            elements.append(Paragraph(
+                "Frequency of emotion contradictions detected during the session. "
+                "A higher count suggests more emotional suppression in that pattern.",
+                body_style,
+            ))
+            elements.append(Spacer(1, 2 * mm))
+
+            sum_header = ["Displayed Emotion -> Hidden Emotion", "Occurrences", "Interpretation"]
+            sum_rows = [sum_header]
+
+            interpretations = {
+                "Happiness": "social masking",
+                "Neutral": "emotional suppression",
+                "Sadness": "concealed frustration",
+                "Fear": "hidden anxiety",
+                "Anger": "suppressed aggression",
+                "Surprise": "concealed reaction",
+                "Disgust": "hidden aversion",
+            }
+
+            for pair, count in sorted(contra_pairs.items(), key=lambda x: x[1], reverse=True):
+                # Extract displayed emotion for interpretation
+                displayed = pair.split(" -> ")[0]
+                interp = interpretations.get(displayed, "emotional incongruence")
+                sum_rows.append([pair, str(count), f"Possible {interp}"])
+
+            sum_rows.append(["Congruent (non-contradictory)", str(congruent_count), "Authentic expression"])
+
+            sum_table = Table(sum_rows, colWidths=[65 * mm, 25 * mm, 80 * mm])
+            sum_table.setStyle(_table_style(len(sum_rows)))
+            elements.append(sum_table)
+
     # ── Footer ───────────────────────────────────────────────────────
     elements.append(Spacer(1, 10 * mm))
     elements.append(Paragraph(

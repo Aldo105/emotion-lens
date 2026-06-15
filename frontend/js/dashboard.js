@@ -221,10 +221,10 @@ class DashboardUI {
 
         // Update breakdown
         if (breakdown) {
-            this.elBreakdowns.stability.textContent = Math.round(breakdown.stability_score || 0);
-            this.elBreakdowns.alignment.textContent = Math.round(breakdown.alignment_score || 0);
-            this.elBreakdowns.baseline.textContent = Math.round(breakdown.baseline_score || 0);
-            this.elBreakdowns.physio.textContent = Math.round(breakdown.physiological_score || 0);
+            this.elBreakdowns.stability.textContent = Math.round(breakdown.stability || 0);
+            this.elBreakdowns.alignment.textContent = Math.round(breakdown.micro_alignment || 0);
+            this.elBreakdowns.baseline.textContent = Math.round(breakdown.baseline || 0);
+            this.elBreakdowns.physio.textContent = Math.round(breakdown.physiological || 0);
         }
     }
 

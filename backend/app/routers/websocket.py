@@ -25,6 +25,8 @@ from backend.app.services.emotion_classifier import EmotionClassifier
 from backend.app.services.micro_expressions import MicroExpressionEngine
 from backend.app.services.congruence import CongruenceScorer
 from backend.app.services.heart_rate import HeartRateEstimator
+from backend.app.services import session_manager
+from backend.app.models.database import async_session_factory
 
 router = APIRouter()
 
@@ -170,16 +172,34 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
     heart_rate_estimator = HeartRateEstimator(fps=15.0)
 
     frame_count = 0
+    processed_frame_count = 0
     session_start = time.time()
     baseline_calibrated = False
     calibration_start = None  # For recalibration timing
 
+    # ── Database session persistence ─────────────────────────────────
+    db_session = None
+    analysis_session_id = None
+    emotion_record_batch = []  # Batch records for efficient DB writes
+    BATCH_SIZE = 10  # Flush to DB every N processed frames
+
     try:
+        # Create a database session and analysis session for persistence
+        db_session = async_session_factory()
+        analysis_session = await session_manager.create_session(
+            db=db_session,
+            name=f"Live Session — {time.strftime('%Y-%m-%d %H:%M')}",
+            candidate_name=None,
+            input_type="webcam",
+        )
+        analysis_session_id = analysis_session.id
+        await db_session.commit()
+
         # Send initial status
         await manager.send_json(websocket, WSStatusMessage(
             type="status",
             message="Connected to EmotionLens analysis server",
-            data={"device": device, "mode": emotion_classifier.mode},
+            data={"device": device, "mode": emotion_classifier.mode, "session_id": analysis_session_id},
         ).model_dump())
 
         while True:
@@ -380,6 +400,56 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
 
             await manager.send_json(websocket, result.model_dump())
 
+            # ── Persist frame data to database (batched) ─────────────
+            if analysis_session_id and baseline_calibrated:
+                processed_frame_count += 1
+                emotion_record_batch.append({
+                    "timestamp": round(timestamp, 3),
+                    "emotion": emotion_result["emotion"],
+                    "confidence": round(emotion_result["confidence"], 3),
+                    "emotion_probabilities": {
+                        k: round(v, 3) for k, v in emotion_result["probabilities"].items()
+                    },
+                    "action_units": {k: round(v, 3) for k, v in action_units.items()},
+                    "congruence_score": congruence_result["score"],
+                    "model_confidence": round(emotion_result["model_confidence"], 3),
+                })
+
+                # Save micro-expression immediately (rare event)
+                if micro_event:
+                    try:
+                        await session_manager.save_micro_expression(
+                            db=db_session,
+                            session_id=analysis_session_id,
+                            event={
+                                "timestamp": micro_event.timestamp,
+                                "duration_ms": micro_event.duration_ms,
+                                "detected_emotion": micro_event.detected_emotion,
+                                "dominant_emotion_at_time": micro_event.dominant_emotion_at_time,
+                                "action_units_involved": micro_event.action_units_involved,
+                                "relevance_score": micro_event.relevance_score,
+                                "is_contradictory": micro_event.is_contradictory,
+                                "description": micro_event.description,
+                            },
+                        )
+                        await db_session.commit()
+                    except Exception as e:
+                        print(f"[WARN] Failed to save micro-expression: {e}")
+
+                # Batch-flush emotion records every N frames
+                if len(emotion_record_batch) >= BATCH_SIZE:
+                    try:
+                        for record_data in emotion_record_batch:
+                            await session_manager.save_emotion_record(
+                                db=db_session,
+                                session_id=analysis_session_id,
+                                data=record_data,
+                            )
+                        await db_session.commit()
+                    except Exception as e:
+                        print(f"[WARN] Failed to batch-save emotion records: {e}")
+                    emotion_record_batch.clear()
+
     except WebSocketDisconnect:
         manager.disconnect(websocket)
     except Exception as e:
@@ -387,4 +457,28 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
         traceback.print_exc()
         manager.disconnect(websocket)
     finally:
+        # ── Finalize session on disconnect ────────────────────────────
+        if db_session and analysis_session_id:
+            try:
+                # Flush any remaining batched records
+                if emotion_record_batch:
+                    for record_data in emotion_record_batch:
+                        await session_manager.save_emotion_record(
+                            db=db_session,
+                            session_id=analysis_session_id,
+                            data=record_data,
+                        )
+                    emotion_record_batch.clear()
+
+                # End session and generate summary
+                await session_manager.end_session(
+                    db=db_session,
+                    session_id=analysis_session_id,
+                )
+                await db_session.commit()
+            except Exception as e:
+                print(f"[WARN] Failed to finalize session: {e}")
+            finally:
+                await db_session.close()
+
         face_detector.close()
