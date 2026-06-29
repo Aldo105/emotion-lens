@@ -158,14 +158,14 @@ class CongruenceScorer:
         Rapid, unexplained shifts = lower score.
         """
         if len(self.emotion_history) < 5:
-            return 75.0  # Default to moderate-high during warmup
+            return 50.0  # Warmup default
 
         # Look at last 30 readings
         recent = list(self.emotion_history)[-30:]
         emotions = [r["emotion"] for r in recent]
 
         if not emotions:
-            return 75.0
+            return 50.0
 
         # Count emotion transitions
         transitions = sum(
@@ -187,7 +187,7 @@ class CongruenceScorer:
         Contradictory micro-expressions = lower score.
         """
         if not self.micro_events:
-            return 85.0  # No micro-expressions = slightly positive default
+            return 60.0  # No micro-expressions = baseline moderate default
 
         # Look at recent micro-expressions (last 10)
         recent_micros = self.micro_events[-10:]
@@ -207,7 +207,7 @@ class CongruenceScorer:
 
         total = len(recent_micros)
         if total == 0:
-            return 85.0
+            return 60.0
 
         # More contradictory = lower alignment
         contradiction_ratio = contradictory_count / total
@@ -226,17 +226,17 @@ class CongruenceScorer:
         Large deviations = lower score (possible concealment).
         """
         if not self.baseline_set or not self.baseline_aus:
-            return 75.0  # Default when no baseline
-
+            return 60.0  # Default when no baseline
+ 
         deviations = []
         for au_name, current_val in current_aus.items():
             if au_name in self.baseline_aus:
                 baseline_val = self.baseline_aus[au_name]
                 deviation = abs(current_val - baseline_val)
                 deviations.append(deviation)
-
+ 
         if not deviations:
-            return 75.0
+            return 60.0
 
         avg_deviation = np.mean(deviations)
 
@@ -254,6 +254,7 @@ class CongruenceScorer:
         blink_rate = action_units.get("blink_rate", 0.5)
         gaze_stability = action_units.get("gaze_stability", 0.5)
         head_tilt = action_units.get("head_tilt", 0.0)
+        hr_stress = action_units.get("hr_stress")
 
         # Blink rate: normal (0.3-0.5) = high score, extreme = low
         if blink_rate < 0.3:
@@ -272,5 +273,16 @@ class CongruenceScorer:
         head_score = (1.0 - head_tilt) * 100.0
 
         # Weighted combination
-        physio = blink_score * 0.35 + gaze_score * 0.45 + head_score * 0.20
+        if hr_stress is not None:
+            # hr_stress: 0.0 (no stress) to 1.0 (stressed)
+            hr_stress_score = (1.0 - hr_stress) * 100.0
+            physio = (
+                blink_score * 0.25 +
+                gaze_score * 0.35 +
+                head_score * 0.15 +
+                hr_stress_score * 0.25
+            )
+        else:
+            physio = blink_score * 0.35 + gaze_score * 0.45 + head_score * 0.20
+
         return float(np.clip(physio, 10.0, 100.0))

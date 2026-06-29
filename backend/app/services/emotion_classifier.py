@@ -150,6 +150,7 @@ class EmotionClassifier:
         face_image: np.ndarray = None,
         action_units: dict[str, float] = None,
         blendshapes: dict[str, float] = None,
+        quality_penalty: float = 1.0,
     ) -> dict:
         """
         Predict emotion with temporal smoothing.
@@ -158,6 +159,8 @@ class EmotionClassifier:
             face_image: Preprocessed face crop (for CNN mode).
             action_units: Dict of AU name -> activation level.
             blendshapes: Dict of MediaPipe blendshape name -> score (0-1).
+            quality_penalty: 0.0–1.0 multiplier from camera quality gate.
+                Degraded frames get 0.75, reducing reported confidence.
 
         Returns:
             {
@@ -184,11 +187,14 @@ class EmotionClassifier:
         # Step 3: Apply emotion switching logic (hysteresis)
         final_emotion, final_confidence = self._apply_hysteresis(smoothed)
 
+        # Step 4: Apply quality penalty (degraded frames get lower confidence)
+        final_confidence *= quality_penalty
+
         return {
             "emotion": final_emotion,
             "confidence": final_confidence,
             "probabilities": smoothed,
-            "model_confidence": raw_result["model_confidence"],
+            "model_confidence": raw_result["model_confidence"] * quality_penalty,
             "mode": raw_result["mode"],
         }
 
@@ -313,7 +319,7 @@ class EmotionClassifier:
             "emotion": top_emotion,
             "confidence": top_confidence,
             "probabilities": prob_dict,
-            "model_confidence": min(1.0, model_confidence + 0.3),
+            "model_confidence": min(1.0, model_confidence),
             "mode": "blendshape",
         }
 
@@ -353,7 +359,7 @@ class EmotionClassifier:
 
         score_values = np.array(list(scores.values()), dtype=np.float32)
         temperature = 0.5
-        exp_scores = np.exp(score_values / temperature)
+        exp_scores = np.exp((score_values - np.max(score_values)) / temperature)
         probabilities = exp_scores / (np.sum(exp_scores) + 1e-10)
 
         prob_dict = {label: float(probabilities[i]) for i, label in enumerate(scores.keys())}
@@ -367,7 +373,7 @@ class EmotionClassifier:
             "emotion": top_emotion,
             "confidence": top_confidence,
             "probabilities": prob_dict,
-            "model_confidence": min(1.0, model_confidence + 0.3),
+            "model_confidence": min(1.0, model_confidence),
             "mode": "heuristic",
         }
 

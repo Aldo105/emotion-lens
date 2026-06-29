@@ -24,6 +24,10 @@ class WebSocketManager {
         this.ws.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
+                if (data.type === 'status' && data.data && data.data.session_id) {
+                    this.lastSessionId = data.data.session_id;
+                    console.log("[WS] Session ID initialized:", this.lastSessionId);
+                }
                 this.onMessage(data);
             } catch (err) {
                 console.error("Error parsing WS message:", err);

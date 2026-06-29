@@ -67,7 +67,56 @@ class WebcamManager {
             CONFIG.CAPTURE_HEIGHT
         );
         
-        // Convert to base64 jpeg string (quality 0.7 for bandwidth)
-        return this.captureCanvas.toDataURL('image/jpeg', 0.7);
+        // Convert to base64 jpeg string (quality 0.85 for AU precision)
+        return this.captureCanvas.toDataURL('image/jpeg', 0.85);
+    }
+
+    /**
+     * Draw a semi-transparent overlay with a centered face-shape guide.
+     */
+    drawFaceGuide(color = 'rgba(79, 70, 229, 0.6)') {
+        if (!this.canvasElement) return;
+        const w = this.canvasElement.width;
+        const h = this.canvasElement.height;
+        this.ctx.clearRect(0, 0, w, h);
+        
+        // Dark overlay outside the guide
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        this.ctx.fillRect(0, 0, w, h);
+        
+        // Clip oval guide
+        this.ctx.save();
+        this.ctx.beginPath();
+        const cx = w / 2;
+        const cy = h / 2;
+        const rx = w * 0.25;
+        const ry = h * 0.35;
+        this.ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+        
+        this.ctx.clip();
+        this.ctx.clearRect(0, 0, w, h);
+        this.ctx.restore();
+        
+        // Draw dashed border
+        this.ctx.beginPath();
+        this.ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+        this.ctx.strokeStyle = color;
+        this.ctx.lineWidth = 3;
+        this.ctx.setLineDash([8, 4]);
+        this.ctx.stroke();
+        
+        // Draw instructions label
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.font = 'bold 12px sans-serif';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('CENTRA TU ROSTRO AQUI', cx, cy - ry - 15);
+    }
+
+    /**
+     * Clear all drawings/overlays from the canvas.
+     */
+    clearOverlay() {
+        if (!this.canvasElement) return;
+        this.ctx.clearRect(0, 0, this.canvasElement.width, this.canvasElement.height);
     }
 }

@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.config import settings
 from backend.app.models.database import (
     get_db, Session, SessionSummary,
-    EmotionRecord, MicroExpression, InterviewerNote,
+    EmotionRecord, MicroExpression, InterviewerNote, SessionFeedback
 )
 from backend.app.services.report_generator import (
     generate_pdf_report, generate_csv_string,
@@ -72,6 +72,12 @@ async def _get_report_data(session_id: int, db: AsyncSession) -> dict:
         .order_by(InterviewerNote.timestamp.asc())
     )
     notes = notes_result.scalars().all()
+
+    # Fetch feedback
+    feedback_result = await db.execute(
+        select(SessionFeedback).where(SessionFeedback.session_id == session_id)
+    )
+    feedback = feedback_result.scalar_one_or_none()
 
     return {
         "session": {
@@ -134,6 +140,13 @@ async def _get_report_data(session_id: int, db: AsyncSession) -> dict:
             }
             for n in notes
         ],
+        "feedback": {
+            "overall_accuracy_rating": feedback.overall_accuracy_rating if feedback else None,
+            "self_reported_emotion": feedback.self_reported_emotion if feedback else None,
+            "attempted_suppression": feedback.attempted_suppression if feedback else False,
+            "moment_validations": feedback.moment_validations if feedback else [],
+            "free_text_comments": feedback.free_text_comments if feedback else None,
+        } if feedback else None,
     }
 
 

@@ -1437,3 +1437,372 @@ h1, h2, h3, h4 {
     align-items: center;
     gap: 4px;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   QUALITY BARS PANEL
+   ═══════════════════════════════════════════════════════════════════ */
+
+.quality-bars-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--glass-border);
+}
+
+.quality-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.quality-bar-label {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    min-width: 90px;
+    white-space: nowrap;
+}
+
+.quality-bar-track {
+    flex: 1;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.quality-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.4s ease, background 0.4s ease;
+    width: 0%;
+}
+
+.quality-bar-fill.bar-red {
+    background: linear-gradient(90deg, #ef4444, #f87171);
+}
+
+.quality-bar-fill.bar-yellow {
+    background: linear-gradient(90deg, #f59e0b, #fbbf24);
+}
+
+.quality-bar-fill.bar-green {
+    background: linear-gradient(90deg, #10b981, #34d399);
+}
+
+/* ── Quality Suggestions ── */
+
+.quality-suggestions {
+    margin-top: 6px;
+    padding: 8px 12px;
+    background: rgba(79, 70, 229, 0.12);
+    border: 1px solid rgba(79, 70, 229, 0.25);
+    border-radius: var(--radius-sm);
+    font-size: 0.8rem;
+    color: #a5b4fc;
+    animation: fadeInSuggestion 0.4s ease;
+}
+
+@keyframes fadeInSuggestion {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Quality Gate Banner ── */
+
+.quality-gate-banner {
+    margin-top: 8px;
+    padding: 10px 16px;
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid rgba(239, 68, 68, 0.5);
+    border-radius: var(--radius-sm);
+    color: #fca5a5;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-align: center;
+    animation: pulseBanner 2s ease-in-out infinite;
+}
+
+@keyframes pulseBanner {
+    0%, 100% { opacity: 0.85; }
+    50% { opacity: 1; border-color: rgba(239, 68, 68, 0.8); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   CALIBRATION INSTRUCTIONS
+   ═══════════════════════════════════════════════════════════════════ */
+
+.calibration-instructions {
+    margin-top: 8px;
+    padding: 12px 16px;
+    background: rgba(79, 70, 229, 0.08);
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(79, 70, 229, 0.2);
+}
+
+.calib-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #a5b4fc;
+    margin-bottom: 8px;
+}
+
+.calib-tips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.calib-tips span {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.04);
+    padding: 4px 10px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   POST-SESSION SURVEY MODAL
+   ═══════════════════════════════════════════════════════════════════ */
+
+.survey-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    animation: fadeIn 0.3s ease;
+}
+
+.survey-overlay.hidden {
+    display: none;
+}
+
+.survey-card {
+    background: rgba(25, 28, 41, 0.95);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: 32px;
+    max-width: 560px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+}
+
+.survey-card h2 {
+    font-size: 1.3rem;
+    color: var(--text-main);
+    margin-bottom: 6px;
+}
+
+.survey-card .survey-subtitle {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+}
+
+.survey-section {
+    margin-bottom: 24px;
+}
+
+.survey-section h3 {
+    font-size: 0.95rem;
+    color: #a5b4fc;
+    margin-bottom: 12px;
+}
+
+/* Slider */
+.survey-slider-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.survey-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    outline: none;
+}
+
+.survey-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--primary);
+    cursor: pointer;
+    border: 2px solid #a5b4fc;
+    transition: transform 0.2s;
+}
+
+.survey-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+.survey-slider-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-main);
+    min-width: 48px;
+    text-align: center;
+}
+
+/* Emotion selector pills */
+.survey-emotion-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.survey-emotion-pill {
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.survey-emotion-pill:hover {
+    background: rgba(79, 70, 229, 0.15);
+    border-color: rgba(79, 70, 229, 0.4);
+}
+
+.survey-emotion-pill.active {
+    background: rgba(79, 70, 229, 0.25);
+    border-color: var(--primary);
+    color: var(--text-main);
+}
+
+/* Moment validation cards */
+.survey-moment-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--glass-border);
+}
+
+.survey-moment-card .moment-info {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+}
+
+.survey-moment-card .moment-info .moment-time {
+    color: var(--text-main);
+    font-weight: 600;
+    margin-right: 8px;
+}
+
+.survey-moment-btns {
+    display: flex;
+    gap: 6px;
+}
+
+.survey-moment-btns button {
+    padding: 4px 10px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.survey-moment-btns button:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.survey-moment-btns button.selected-correct {
+    background: rgba(16, 185, 129, 0.2);
+    border-color: var(--success);
+    color: var(--success);
+}
+
+.survey-moment-btns button.selected-incorrect {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+.survey-moment-btns button.selected-unsure {
+    background: rgba(245, 158, 11, 0.2);
+    border-color: var(--warning);
+    color: var(--warning);
+}
+
+/* Toggle switch for suppression question */
+.survey-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+}
+
+.survey-toggle-row label {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+/* Survey actions */
+.survey-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--glass-border);
+}
+
+.survey-actions .btn-survey-submit {
+    padding: 10px 24px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.survey-actions .btn-survey-submit:hover {
+    background: var(--primary-hover);
+}
+
+.survey-actions .btn-survey-skip {
+    padding: 10px 24px;
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.survey-actions .btn-survey-skip:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-main);
+}

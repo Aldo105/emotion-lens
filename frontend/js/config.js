@@ -4,9 +4,9 @@ const CONFIG = {
     API_URL: `http://${window.location.host}/api`,
     
     // Video capture settings
-    CAPTURE_FPS: 10,        // Frames per second to send to backend
-    CAPTURE_WIDTH: 640,     // Downscale width for faster transmission
-    CAPTURE_HEIGHT: 480,
+    CAPTURE_FPS: 20,        // Frames per second — 20 FPS needed for micro-expression detection
+    CAPTURE_WIDTH: 960,     // Higher resolution for precise AU landmark detection
+    CAPTURE_HEIGHT: 720,
     
     // Emotion mapping (colors & emojis)
     EMOTIONS: {

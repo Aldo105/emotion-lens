@@ -85,7 +85,7 @@ MICRO_EXPR_PATTERNS = {
 }
 
 # AUs that are commonly habitual (we track and suppress these)
-HABITUAL_AUS = ["AU2", "AU14", "AU45"]
+HABITUAL_AUS = ["AU2", "AU4", "AU12", "AU14", "AU45"]
 
 
 class MicroExpressionEngine:

@@ -67,7 +67,7 @@ class Settings(BaseSettings):
     congruence_weight_physiological: float = 0.15
 
     # ── WebSocket ────────────────────────────────────────────────────
-    ws_frame_skip: int = 2  # Process every Nth frame (1 = all frames)
+    ws_frame_skip: int = 1  # Process every frame (needed for micro-expression detection at 20 FPS)
     ws_max_connections: int = 10
 
     # ── Video Recording (Optional) ───────────────────────────────────

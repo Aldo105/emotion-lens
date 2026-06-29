@@ -2,6 +2,7 @@
 let sessionManager;
 let comparisonManager;
 let videoUploadManager;
+let postSessionSurvey;
 let i18n;
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -45,6 +46,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const charts = new DashboardCharts();
     const ui = new DashboardUI(charts);
     const webcam = new WebcamManager();
+    ui.webcam = webcam; // Pass webcam reference for drawing overlays
     const ws = new WebSocketManager(
         (data) => ui.handleMessage(data),
         (status) => ui.updateStatus(status)
@@ -54,6 +56,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     sessionManager = new SessionManager();
     comparisonManager = new ComparisonManager();
     videoUploadManager = new VideoUploadManager();
+    postSessionSurvey = new PostSessionSurvey();
 
     // ── DOM Elements ──
     const btnStart = document.getElementById('btn-start-session');
@@ -81,7 +84,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         timerDisplay.textContent = `${hrs}:${mins}:${secs}`;
     }
 
-    // ── Start Session ──
     btnStart.addEventListener('click', async () => {
         const streamReady = await webcam.start();
         if (streamReady) {
@@ -94,6 +96,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             btnStart.classList.add('hidden');
             btnEnd.classList.remove('hidden');
             charts.reset();
+            
+            // Reset session/UI micro-expression counters
+            ui.collectedMicroExpressions = [];
+            ui.microCount = 0;
+            if (ui.elMicroCount) ui.elMicroCount.textContent = '0 Detected';
+            if (ui.elMicroLog) ui.elMicroLog.innerHTML = '<div class="empty-state">No micro-expressions detected yet.</div>';
         }
     });
 
@@ -107,6 +115,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         btnStart.classList.remove('hidden');
         btnEnd.classList.add('hidden');
+
+        // Show optional post-session survey for the subject
+        postSessionSurvey.show({
+            session_id: ws.lastSessionId || null,
+            micro_expressions: ui.collectedMicroExpressions || [],
+            dominant_emotion: null,
+        });
     });
 
     // ── Recalibrate ──

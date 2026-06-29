@@ -377,6 +377,67 @@ def generate_pdf_report(session_data: dict, output_path: str) -> str:
             sum_table.setStyle(_table_style(len(sum_rows)))
             elements.append(sum_table)
 
+    # ── Subject Validation ───────────────────────────────────────────
+    feedback = session_data.get("feedback")
+    if feedback and feedback.get("overall_accuracy_rating") is not None:
+        elements.append(Spacer(1, 4 * mm))
+        elements.append(Paragraph("Subject Validation & Feedback", heading_style))
+        elements.append(Paragraph(
+            "This section presents post-session self-report feedback completed by the subject, "
+            "allowing for validation of the automated analysis.",
+            body_style,
+        ))
+        elements.append(Spacer(1, 3 * mm))
+
+        overall_rating = feedback["overall_accuracy_rating"]
+        self_reported = feedback.get("self_reported_emotion") or "—"
+        dom_emo = (summary or {}).get("dominant_emotion") or "—"
+        match_str = "—"
+        if self_reported != "—" and dom_emo != "—":
+            match_str = "YES" if self_reported.lower() == dom_emo.lower() else "No"
+            
+        suppression = "Yes" if feedback.get("attempted_suppression") else "No"
+        
+        # Calculate moment validations
+        moment_vals = feedback.get("moment_validations") or []
+        total_vals = len(moment_vals)
+        correct_vals = sum(1 for mv in moment_vals if mv.get("verdict") == "correct")
+        if total_vals > 0:
+            val_str = f"{correct_vals} / {total_vals} correct ({correct_vals / total_vals * 100:.0f}%)"
+        else:
+            val_str = "No events validated"
+
+        feedback_rows = [
+            ["Metric", "Value"],
+            ["Overall Self-Reported Accuracy", f"{overall_rating * 100:.0f}%"],
+            ["Self-Reported Predominant Emotion", self_reported.capitalize()],
+            ["Displayed Dominant Emotion", dom_emo.capitalize()],
+            ["Emotion Match", match_str],
+            ["Attempted Emotional Suppression", suppression],
+            ["Moment Validations", val_str],
+        ]
+
+        feedback_table = Table(feedback_rows, colWidths=[80 * mm, 80 * mm])
+        feedback_style_cmds = _table_style(len(feedback_rows)).getCommands()
+        
+        # Color-code Match
+        for i in range(1, len(feedback_rows)):
+            if feedback_rows[i][0] == "Emotion Match":
+                if match_str == "YES":
+                    feedback_style_cmds.append(("TEXTCOLOR", (1, i), (1, i), colors.HexColor("#27ae60")))
+                    feedback_style_cmds.append(("FONTNAME", (1, i), (1, i), "Helvetica-Bold"))
+                elif match_str == "No":
+                    feedback_style_cmds.append(("TEXTCOLOR", (1, i), (1, i), colors.HexColor("#c0392b")))
+                    feedback_style_cmds.append(("FONTNAME", (1, i), (1, i), "Helvetica-Bold"))
+                    
+        feedback_table.setStyle(TableStyle(feedback_style_cmds))
+        elements.append(feedback_table)
+        
+        if feedback.get("free_text_comments"):
+            elements.append(Spacer(1, 4 * mm))
+            elements.append(Paragraph("Subject Comments:", ParagraphStyle("CommentSub", parent=small_style, fontName="Helvetica-Bold", fontSize=9)))
+            elements.append(Paragraph(feedback["free_text_comments"], body_style))
+
     # ── Footer ───────────────────────────────────────────────────────
     elements.append(Spacer(1, 10 * mm))
     elements.append(Paragraph(

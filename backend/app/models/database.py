@@ -193,6 +193,27 @@ class SessionSummary(Base):
 
 # ── Database Engine & Session Factory ────────────────────────────────
 
+# ── Session Feedback (Post-Session Survey) ───────────────────────────
+
+class SessionFeedback(Base):
+    """
+    Stores post-session survey responses from the subject.
+    Used to measure and calibrate system precision.
+    """
+    __tablename__ = "session_feedback"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(Integer, ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False)
+    overall_accuracy_rating = Column(Float, nullable=True)          # 0.0 - 1.0
+    self_reported_emotion = Column(String(50), nullable=True)       # Subject's actual predominant emotion
+    attempted_suppression = Column(Boolean, default=False)          # Did subject try to hide emotions?
+    moment_validations = Column(JSON, nullable=True)                # [{timestamp, emotion, verdict}]
+    free_text_comments = Column(Text, nullable=True)                # Optional comments
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    session = relationship("Session", backref="feedback")
+
+
 engine = create_async_engine(
     settings.database_url,
     echo=settings.debug,

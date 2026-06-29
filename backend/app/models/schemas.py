@@ -197,6 +197,7 @@ class WSFrameResult(BaseModel):
     # Heart Rate (Eulerian Video Magnification / rPPG)
     heart_rate: Optional[dict] = None
     evm_frame: Optional[str] = None
+    preprocessed_frame: Optional[str] = None
     # {"bpm": float, "bpm_confidence": float, "signal_ready": bool, "stress_indicator": float}
 
     # Camera quality assessment
@@ -213,3 +214,32 @@ class WSStatusMessage(BaseModel):
     type: str  # "status", "error", "calibration_complete", "session_ended"
     message: str
     data: Optional[dict] = None
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# FEEDBACK SCHEMAS
+# ═══════════════════════════════════════════════════════════════════════
+
+class SessionFeedbackCreate(BaseModel):
+    """Request body for submitting post-session feedback."""
+    overall_accuracy_rating: float = Field(..., ge=0.0, le=1.0)
+    self_reported_emotion: Optional[str] = Field(None, max_length=50)
+    attempted_suppression: bool = False
+    moment_validations: Optional[list[dict]] = None
+    free_text_comments: Optional[str] = None
+
+
+class SessionFeedbackResponse(BaseModel):
+    """Response schema for feedback."""
+    id: int
+    session_id: int
+    overall_accuracy_rating: Optional[float] = None
+    self_reported_emotion: Optional[str] = None
+    attempted_suppression: bool
+    moment_validations: Optional[list[dict]] = None
+    free_text_comments: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+

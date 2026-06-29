@@ -35,6 +35,10 @@ class ActionUnitAnalyzer:
         self._blink_timestamps = []
         self._last_eye_ratio = None
 
+        # EMA smoothing (Fase 4.2)
+        self._prev_smoothed_aus = None
+        self._ema_alpha = 0.5
+
     def compute(
         self,
         landmarks: list[dict],
@@ -59,6 +63,11 @@ class ActionUnitAnalyzer:
         # Convert to numpy array for vectorized math
         lm = np.array([[l["x"], l["y"], l["z"]] for l in landmarks], dtype=np.float32)
         h, w = frame_shape
+
+        # ── Head Pose Compensation (Fase 4.1) ──
+        yaw, pitch = self._estimate_yaw_pitch(landmarks)
+        if abs(yaw) > 0.05 or abs(pitch) > 0.05:
+            lm = self._compensate_head_pose(lm, yaw, pitch)
 
         # Normalize by inter-ocular distance (scale-invariant)
         iod = self._inter_ocular_distance(lm)
@@ -101,11 +110,81 @@ class ActionUnitAnalyzer:
         # Clamp all values to [0.0, 1.0]
         aus = {k: float(np.clip(v, 0.0, 1.0)) for k, v in aus.items()}
 
+        # Apply EMA smoothing (Fase 4.2)
+        if self._prev_smoothed_aus is None:
+            self._prev_smoothed_aus = aus.copy()
+        else:
+            smoothed = {}
+            for k, v in aus.items():
+                if k in ("blink_rate", "gaze_stability", "head_tilt", "face_symmetry"):
+                    smoothed[k] = v
+                else:
+                    prev = self._prev_smoothed_aus.get(k, v)
+                    smoothed[k] = self._ema_alpha * v + (1 - self._ema_alpha) * prev
+            self._prev_smoothed_aus = smoothed.copy()
+            aus = smoothed.copy()
+
         # Store for baseline calibration
         if not self.baseline_set:
             self._baseline_buffer.append(aus.copy())
 
         return aus
+
+    def _estimate_yaw_pitch(self, landmarks: list) -> tuple[float, float]:
+        """Estimate yaw and pitch in radians from raw landmarks."""
+        try:
+            nose = landmarks[1]
+            left_eye = landmarks[33]
+            right_eye = landmarks[263]
+            forehead = landmarks[10]
+            chin = landmarks[152]
+
+            eye_mid_x = (left_eye["x"] + right_eye["x"]) / 2.0
+            eye_width = abs(right_eye["x"] - left_eye["x"])
+            if eye_width > 0.001:
+                yaw_ratio = (nose["x"] - eye_mid_x) / eye_width
+                yaw = yaw_ratio * 1.0  # rad
+            else:
+                yaw = 0.0
+
+            vert_mid_y = (forehead["y"] + chin["y"]) / 2.0
+            vert_span = abs(chin["y"] - forehead["y"])
+            if vert_span > 0.001:
+                pitch_ratio = (nose["y"] - vert_mid_y) / vert_span
+                pitch = pitch_ratio * 1.0  # rad
+            else:
+                pitch = 0.0
+
+            return yaw, pitch
+        except Exception:
+            return 0.0, 0.0
+
+    def _compensate_head_pose(self, lm: np.ndarray, yaw: float, pitch: float) -> np.ndarray:
+        """Rotate landmarks around nose tip to compensate head pose orientation."""
+        try:
+            # Rotation around Y axis (yaw)
+            cy, sy = np.cos(-yaw), np.sin(-yaw)
+            R_y = np.array([
+                [cy, 0, sy],
+                [0, 1, 0],
+                [-sy, 0, cy]
+            ], dtype=np.float32)
+
+            # Rotation around X axis (pitch)
+            cp, sp = np.cos(-pitch), np.sin(-pitch)
+            R_x = np.array([
+                [1, 0, 0],
+                [0, cp, -sp],
+                [0, sp, cp]
+            ], dtype=np.float32)
+
+            R = R_y @ R_x
+            nose_center = lm[1].copy()
+            centered = lm - nose_center
+            rotated = centered @ R.T
+            return rotated + nose_center
+        except Exception:
+            return lm
 
     def set_baseline(self):
         """

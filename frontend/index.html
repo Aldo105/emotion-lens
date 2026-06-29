@@ -81,6 +81,7 @@
                 <div class="progress-track">
                     <div class="progress-fill" id="calibration-fill"></div>
                 </div>
+                <div id="calibration-instructions" class="calibration-instructions hidden"></div>
             </div>
 
             <!-- Main Dashboard Grid -->
@@ -114,6 +115,31 @@
                         <div class="camera-warnings hidden" id="camera-warnings" style="margin-top: 8px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: var(--radius-sm); padding: 8px 12px; font-size: 0.8rem; color: #f87171; display: flex; flex-direction: column; gap: 4px;">
                             <!-- Warnings listed here -->
                         </div>
+                        <!-- Quality Bars Panel -->
+                        <div class="quality-bars-panel" style="margin-top: 8px;">
+                            <div class="quality-bar-row">
+                                <span class="quality-bar-label">💡 Luz</span>
+                                <div class="quality-bar-track"><div class="quality-bar-fill bar-green" id="qbar-brightness"></div></div>
+                            </div>
+                            <div class="quality-bar-row">
+                                <span class="quality-bar-label">🎨 Contraste</span>
+                                <div class="quality-bar-track"><div class="quality-bar-fill bar-green" id="qbar-contrast"></div></div>
+                            </div>
+                            <div class="quality-bar-row">
+                                <span class="quality-bar-label">🔍 Nitidez</span>
+                                <div class="quality-bar-track"><div class="quality-bar-fill bar-green" id="qbar-sharpness"></div></div>
+                            </div>
+                            <div class="quality-bar-row">
+                                <span class="quality-bar-label">📐 Posicion</span>
+                                <div class="quality-bar-track"><div class="quality-bar-fill bar-green" id="qbar-position"></div></div>
+                            </div>
+                            <div class="quality-bar-row">
+                                <span class="quality-bar-label">⚖️ Balance</span>
+                                <div class="quality-bar-track"><div class="quality-bar-fill bar-green" id="qbar-balance"></div></div>
+                            </div>
+                        </div>
+                        <div id="quality-suggestions" class="quality-suggestions hidden"></div>
+                        <div id="quality-gate-banner" class="quality-gate-banner hidden"></div>
                     </div>
 
                     <!-- Live Metrics Row -->
@@ -351,6 +377,13 @@
         </div>
     </div>
 
+    <!-- Post-Session Survey Modal -->
+    <div class="survey-overlay hidden" id="survey-modal">
+        <div class="survey-card">
+            <!-- Content built dynamically by PostSessionSurvey JS -->
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="/js/config.js"></script>
     <script src="/js/i18n.js"></script>
@@ -361,6 +394,7 @@
     <script src="/js/sessions.js"></script>
     <script src="/js/comparison.js"></script>
     <script src="/js/video-upload.js"></script>
+    <script src="/js/post-session-survey.js"></script>
     <script src="/js/app.js"></script>
 </body>
 </html>

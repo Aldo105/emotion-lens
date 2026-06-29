@@ -132,7 +132,7 @@ class FaceDetector:
 
         options = mp_vision.FaceLandmarkerOptions(
             base_options=base_options,
-            running_mode=mp_vision.RunningMode.IMAGE,
+            running_mode=mp_vision.RunningMode.VIDEO,
             num_faces=max_faces,
             min_face_detection_confidence=detection_confidence,
             min_face_presence_confidence=detection_confidence,
@@ -143,6 +143,7 @@ class FaceDetector:
 
         self.landmarker = mp_vision.FaceLandmarker.create_from_options(options)
         self.refine_landmarks = refine_landmarks
+        self._frame_timestamp_ms = 0  # Monotonic timestamp for VIDEO mode
 
     def detect(self, frame: np.ndarray) -> dict | None:
         """
@@ -173,7 +174,8 @@ class FaceDetector:
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
 
-        results = self.landmarker.detect(mp_image)
+        results = self.landmarker.detect_for_video(mp_image, self._frame_timestamp_ms)
+        self._frame_timestamp_ms += 50  # ~20 FPS, monotonically increasing
 
         if not results.face_landmarks or len(results.face_landmarks) == 0:
             return None
