@@ -287,15 +287,28 @@ class ActionUnitAnalyzer:
     def _au6_cheek_raiser(self, lm: np.ndarray, iod: float) -> float:
         """
         Measures cheek raising (genuine/Duchenne smile indicator).
-        Detects narrowing of eyes from below (lower lid pushes up).
+        Uses the distance from the cheek bone area (landmarks 50/280)
+        to the lower eyelid — when the cheek rises, this distance shrinks.
+        This is distinct from AU7 (lid tightener) which only measures
+        eye opening.
         """
-        # Lower eyelid to iris/eye center distance
-        left_lower = self._dist(lm, 145, 159)   # bottom to top of left eye
-        right_lower = self._dist(lm, 374, 386)   # bottom to top of right eye
-        avg_opening = (left_lower + right_lower) / 2.0
-        ratio = avg_opening / iod
-        # Smaller opening with AU12 active = cheek raiser
-        return float(np.clip((0.08 - ratio) * 15.0, 0.0, 1.0))
+        # Cheek-to-lower-eyelid distance (shrinks when cheek pushes up)
+        left_cheek_to_lid  = self._dist(lm, 50,  145)   # left cheek to left lower lid
+        right_cheek_to_lid = self._dist(lm, 280, 374)   # right cheek to right lower lid
+        avg_cheek_dist = (left_cheek_to_lid + right_cheek_to_lid) / 2.0
+        cheek_ratio = avg_cheek_dist / iod
+
+        # Also incorporate lower lid push-up (eye narrowing from below)
+        left_lower_lid  = self._dist(lm, 145, 159)
+        right_lower_lid = self._dist(lm, 374, 386)
+        avg_eye_narrow = (left_lower_lid + right_lower_lid) / 2.0
+        eye_ratio = avg_eye_narrow / iod
+
+        # Combine: cheek proximity (60% weight) + eye narrowing (40% weight)
+        # Lower cheek_ratio = cheek is higher; lower eye_ratio = eyes narrower
+        cheek_component = float(np.clip((0.18 - cheek_ratio) * 8.0, 0.0, 1.0))
+        eye_component   = float(np.clip((0.08 - eye_ratio) * 15.0, 0.0, 1.0))
+        return cheek_component * 0.6 + eye_component * 0.4
 
     # ── AU7: Lid Tightener ───────────────────────────────────────────
     def _au7_lid_tightener(self, lm: np.ndarray, iod: float) -> float:
@@ -439,11 +452,15 @@ class ActionUnitAnalyzer:
         cutoff = timestamp - 60.0
         self._blink_timestamps = [t for t in self._blink_timestamps if t > cutoff]
 
-        # Calculate rate
+        # Calculate rate — divide by the observation window, NOT total session time.
+        # self._blink_timestamps only keeps last 60s of blinks, so the window
+        # is min(timestamp, 60.0). Previously divided by full timestamp, which
+        # caused blink_rate to collapse to ~0 after 60 seconds of session.
         if timestamp < 10:  # Need at least 10 seconds of data
             return 0.5  # Default to neutral
 
-        blinks_per_min = len(self._blink_timestamps) * (60.0 / max(timestamp, 1.0))
+        window = min(timestamp, 60.0)
+        blinks_per_min = len(self._blink_timestamps) * (60.0 / window)
 
         # Normalize: 15-20 bpm = normal (0.3-0.5), >30 = high nervousness (1.0)
         return float(np.clip((blinks_per_min - 15) / 25.0, 0.0, 1.0))

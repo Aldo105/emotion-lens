@@ -71,8 +71,17 @@ class Settings(BaseSettings):
     ws_max_connections: int = 10
 
     # ── Video Recording (Optional) ───────────────────────────────────
-    enable_video_recording: bool = False
+    enable_video_recording: bool = True
     recordings_dir: str = str(BASE_DIR / "data" / "recordings")
+
+    # ── EVM Post-Processing Rendering ─────────────────────────────────
+    # Applied offline after session ends to produce a downloadable video
+    # where skin color changes from blood flow are clearly visible.
+    evm_amplification: float = 40.0     # Color magnification factor (30-60 recommended)
+    evm_freq_low: float = 0.8           # Hz (48 BPM) — bandpass lower cutoff
+    evm_freq_high: float = 2.0          # Hz (120 BPM) — bandpass upper cutoff
+    evm_pyramid_levels: int = 4         # Gaussian pyramid depth (3-5)
+    evm_delete_raw_after_render: bool = True  # Delete raw video after EVM render
 
     # ── Reports ──────────────────────────────────────────────────────
     reports_dir: str = str(BASE_DIR / "data" / "reports")

@@ -110,6 +110,9 @@ class SessionManager {
                     <button class="btn btn-secondary btn-sm" onclick="sessionManager.downloadCSV('${session.id}')">
                         📊 CSV
                     </button>
+                    <button class="btn btn-secondary btn-sm" onclick="sessionManager.downloadEVM('${session.id}')" title="Descargar Video EVM">
+                        🎥 EVM
+                    </button>
                     <button class="btn btn-danger btn-sm" onclick="sessionManager.deleteSession('${session.id}')">
                         🗑️
                     </button>
@@ -124,6 +127,7 @@ class SessionManager {
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const report = await res.json();
             this.showDetailModal(report, id);
+            this.renderAnalysis(report.interview_analysis);
         } catch (err) {
             console.error('Failed to load session report:', err);
             this.showToast('Failed to load report: ' + err.message, 'error');
@@ -189,11 +193,34 @@ class SessionManager {
                         <h3>Emotion Distribution</h3>
                         <div class="detail-emotion-bars">${emotionBars || '<p class="empty-state">No data</p>'}</div>
                     </div>
+                    
+                    <!-- Interview Analysis Section -->
+                    <div id="detail-analysis-section" style="display: none;">
+                        <h3 class="detail-section-title">🧠 Interview Analysis</h3>
+                        
+                        <!-- Dimension Scores Radar -->
+                        <div class="analysis-dimensions" id="detail-dimensions">
+                            <!-- Filled dynamically -->
+                        </div>
+                        
+                        <!-- Overall Score -->
+                        <div class="analysis-overall" id="detail-overall-score"></div>
+                        
+                        <!-- Behavioral Patterns -->
+                        <div class="analysis-patterns" id="detail-patterns"></div>
+                        
+                        <!-- Red Flags -->
+                        <div class="analysis-flags" id="detail-red-flags"></div>
+                        
+                        <!-- Recommendations -->
+                        <div class="analysis-recommendations" id="detail-recommendations"></div>
+                    </div>
                 </div>
 
                 <div class="modal-footer">
                     <button class="btn btn-primary" onclick="sessionManager.downloadPDF('${sessionId}')">📄 Download PDF</button>
                     <button class="btn btn-secondary" onclick="sessionManager.downloadCSV('${sessionId}')">📊 Download CSV</button>
+                    <button class="btn btn-secondary" onclick="sessionManager.downloadEVM('${sessionId}')">🎥 Video EVM</button>
                     <button class="btn btn-secondary" onclick="sessionManager.closeModal()">Close</button>
                 </div>
             </div>
@@ -207,6 +234,90 @@ class SessionManager {
         modal.addEventListener('click', (e) => {
             if (e.target === modal) this.closeModal();
         });
+    }
+
+    renderAnalysis(analysis) {
+        const section = document.getElementById('detail-analysis-section');
+        if (!analysis || !analysis.dimension_scores) {
+            if (section) section.style.display = 'none';
+            return;
+        }
+        section.style.display = 'block';
+        
+        // Render dimension scores
+        const dims = document.getElementById('detail-dimensions');
+        const scores = analysis.dimension_scores;
+        const dimConfig = CONFIG.ANALYSIS_DIMENSIONS || {};
+        
+        dims.innerHTML = Object.entries(scores)
+            .filter(([key]) => key !== 'overall')
+            .map(([key, score]) => {
+                const cfg = dimConfig[key] || { label: key, color: '#888', icon: '📊' };
+                const color = score >= 70 ? '#10b981' : score >= 40 ? '#f59e0b' : '#ef4444';
+                return `
+                    <div class="dimension-card">
+                        <div style="font-size: 1.2rem">${cfg.icon}</div>
+                        <div class="dimension-score" style="color: ${color}">${Math.round(score)}</div>
+                        <div class="dimension-label">${cfg.label}</div>
+                        <div class="dimension-bar">
+                            <div class="dimension-bar-fill" style="width: ${score}%; background: ${cfg.color}"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        
+        // Overall score
+        const overallEl = document.getElementById('detail-overall-score');
+        const overall = scores.overall || 0;
+        const overallColor = overall >= 70 ? '#10b981' : overall >= 40 ? '#f59e0b' : '#ef4444';
+        overallEl.innerHTML = `
+            <div class="score-big" style="color: ${overallColor}">${Math.round(overall)}/100</div>
+            <div style="color: var(--text-secondary); margin-top: 4px;">Overall Interview Score</div>
+        `;
+        
+        // Behavioral patterns
+        const patternsEl = document.getElementById('detail-patterns');
+        const patterns = analysis.behavioral_patterns || [];
+        if (patterns.length > 0) {
+            patternsEl.innerHTML = '<h4 style="margin: 12px 0 8px;">Behavioral Patterns</h4>' +
+                patterns.map(p => {
+                    const isPositive = ['stress_recovery', 'authentic_engagement'].includes(p.type);
+                    const cls = isPositive ? 'positive' : (p.severity === 'medium' ? 'medium' : 'negative');
+                    return `<div class="pattern-item ${cls}">
+                        <strong>${isPositive ? '✅' : '⚠️'} ${p.type.replace(/_/g, ' ').toUpperCase()}</strong>
+                        <div style="font-size: 0.85rem; margin-top: 4px;">${p.description}</div>
+                        ${p.context_question ? `<div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px;">Context: ${p.context_question}</div>` : ''}
+                    </div>`;
+                }).join('');
+        } else {
+            patternsEl.innerHTML = '';
+        }
+        
+        // Red flags
+        const flagsEl = document.getElementById('detail-red-flags');
+        const flags = analysis.red_flags || [];
+        if (flags.length > 0) {
+            flagsEl.innerHTML = '<h4 style="margin: 12px 0 8px;">🔴 Red Flags</h4>' +
+                flags.map(f => `<div class="flag-item ${f.severity}">
+                    <strong>${f.type.replace(/_/g, ' ')}</strong>
+                    <div style="font-size: 0.85rem; margin-top: 4px;">${f.evidence}</div>
+                </div>`).join('');
+        } else {
+            flagsEl.innerHTML = '';
+        }
+        
+        // Recommendations
+        const recsEl = document.getElementById('detail-recommendations');
+        const recs = analysis.recommendations || [];
+        if (recs.length > 0) {
+            recsEl.innerHTML = '<h4 style="margin: 12px 0 8px;">📋 Recommendations</h4>' +
+                recs.map(r => `<div class="recommendation-item ${r.priority}">
+                    <span style="text-transform: uppercase; font-size: 0.7rem; font-weight: 700; color: var(--text-secondary);">${r.category}</span>
+                    <div style="margin-top: 4px;">${r.text}</div>
+                </div>`).join('');
+        } else {
+            recsEl.innerHTML = '';
+        }
     }
 
     closeModal() {
@@ -250,6 +361,32 @@ class SessionManager {
 
     downloadCSV(id) {
         window.open(`${CONFIG.API_URL}/reports/${id}/csv`, '_blank');
+    }
+
+    async downloadEVM(id) {
+        try {
+            this.showToast('Verificando disponibilidad del video EVM...', 'info');
+            const res = await fetch(`${CONFIG.API_URL}/reports/${id}/evm-status`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+
+            if (data.status === 'ready') {
+                const sizeInfo = data.size_mb ? ` (${data.size_mb} MB)` : '';
+                this.showToast(`Iniciando descarga de video EVM${sizeInfo}...`, 'success');
+                window.open(`${CONFIG.API_URL}/reports/${id}/evm-video`, '_blank');
+            } else if (data.status === 'rendering') {
+                const pct = Math.round((data.progress || 0) * 100);
+                const phase = data.phase ? ` [${data.phase}]` : '';
+                this.showToast(`El video EVM se está procesando: ${pct}%${phase}. Intenta en unos momentos.`, 'info');
+            } else if (data.status === 'failed') {
+                this.showToast('El procesamiento del video EVM falló para esta sesión.', 'error');
+            } else {
+                this.showToast('No hay grabación de video disponible para esta sesión.', 'warning');
+            }
+        } catch (err) {
+            console.error('Error al solicitar video EVM:', err);
+            this.showToast('Error al verificar video EVM: ' + err.message, 'error');
+        }
     }
 
     formatDuration(seconds) {

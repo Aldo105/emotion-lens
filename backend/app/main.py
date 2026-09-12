@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.app.config import settings, BASE_DIR, initialize_gpu
 from backend.app.models.database import init_db
-from backend.app.routers import sessions, notes, reports, websocket, videos, feedback
+from backend.app.routers import sessions, notes, reports, websocket, videos, feedback, analysis
 
 
 # ── Lifecycle ─────────────────────────────────────────────────────────
@@ -114,6 +114,12 @@ app.include_router(
     feedback.router,
     prefix="/api/feedback",
     tags=["Feedback"],
+)
+
+app.include_router(
+    analysis.router,
+    prefix="/api/analysis",
+    tags=["Analysis"],
 )
 
 

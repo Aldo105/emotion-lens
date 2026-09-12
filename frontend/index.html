@@ -6,18 +6,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EmotionLens Dashboard</title>
 
-    <!-- Google Fonts -->
+    <!-- Google Fonts: async — does not block first paint -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700&display=swap"
-        rel="stylesheet">
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700&display=swap"
+        rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700&display=swap" rel="stylesheet">
+    </noscript>
 
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chart.js: defer so it does not block HTML parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
 
-    <!-- Custom CSS -->
-    <link rel="stylesheet" href="/css/styles.css">
+    <!-- App CSS: non-blocking, noscript fallback -->
+    <link rel="stylesheet" href="/css/styles.css" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="/css/styles.css"></noscript>
+
+    <!-- Critical inline: prevents invisible-page flash while CSS loads async -->
+    <style>
+        body { background:#0f111a; color:#f0f2f5; font-family:Inter,system-ui,sans-serif; margin:0; }
+        .hidden { display:none !important; }
+    </style>
+
 </head>
 
 <body class="dark-theme">
@@ -94,6 +105,13 @@
                     <div class="video-container glass-panel">
                         <div class="video-wrapper">
                             <video id="webcam-video" autoplay playsinline muted></video>
+                            
+                            <!-- Noise Filter Indicator -->
+                            <div id="noise-indicator" class="noise-indicator" style="display: none;">
+                                <span id="noise-icon">🗣️</span>
+                                <span id="noise-label">Speaking</span>
+                            </div>
+
                             <canvas id="overlay-canvas"></canvas>
                             <!-- Image element to display EVM amplified frames from backend -->
                             <img id="processed-video" alt="Processed Frame">

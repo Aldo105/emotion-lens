@@ -145,12 +145,15 @@ class FaceDetector:
         self.refine_landmarks = refine_landmarks
         self._frame_timestamp_ms = 0  # Monotonic timestamp for VIDEO mode
 
-    def detect(self, frame: np.ndarray) -> dict | None:
+    def detect(self, frame: np.ndarray, timestamp_ms: int | None = None) -> dict | None:
         """
         Detect face and extract landmarks from a BGR frame.
 
         Args:
             frame: OpenCV BGR image (numpy array).
+            timestamp_ms: Optional real wall-clock timestamp in milliseconds.
+                If provided, uses this instead of synthetic +50ms increments.
+                This improves tracking when frames arrive at irregular intervals.
 
         Returns:
             Dict with landmarks and metadata, or None if no face found.
@@ -174,8 +177,17 @@ class FaceDetector:
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
 
+        # Use real timestamp if provided, otherwise fall back to synthetic monotonic
+        if timestamp_ms is not None:
+            # Ensure monotonically increasing (MediaPipe requires this)
+            if timestamp_ms <= self._frame_timestamp_ms:
+                self._frame_timestamp_ms += 1
+            else:
+                self._frame_timestamp_ms = timestamp_ms
+        else:
+            self._frame_timestamp_ms += 50  # Fallback: synthetic ~20 FPS
+
         results = self.landmarker.detect_for_video(mp_image, self._frame_timestamp_ms)
-        self._frame_timestamp_ms += 50  # ~20 FPS, monotonically increasing
 
         if not results.face_landmarks or len(results.face_landmarks) == 0:
             return None

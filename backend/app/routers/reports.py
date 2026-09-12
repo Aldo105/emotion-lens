@@ -10,6 +10,7 @@ Routes:
 """
 
 import io
+import json
 import os
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -20,7 +21,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.config import settings
 from backend.app.models.database import (
     get_db, Session, SessionSummary,
-    EmotionRecord, MicroExpression, InterviewerNote, SessionFeedback
+    EmotionRecord, MicroExpression, InterviewerNote, SessionFeedback,
+    InterviewAnalysis
 )
 from backend.app.services.report_generator import (
     generate_pdf_report, generate_csv_string,
@@ -78,6 +80,12 @@ async def _get_report_data(session_id: int, db: AsyncSession) -> dict:
         select(SessionFeedback).where(SessionFeedback.session_id == session_id)
     )
     feedback = feedback_result.scalar_one_or_none()
+
+    # Fetch interview analysis
+    analysis_result = await db.execute(
+        select(InterviewAnalysis).where(InterviewAnalysis.session_id == session_id)
+    )
+    analysis = analysis_result.scalar_one_or_none()
 
     return {
         "session": {
@@ -147,6 +155,22 @@ async def _get_report_data(session_id: int, db: AsyncSession) -> dict:
             "moment_validations": feedback.moment_validations if feedback else [],
             "free_text_comments": feedback.free_text_comments if feedback else None,
         } if feedback else None,
+        "interview_analysis": {
+            "dimension_scores": {
+                "technical_mastery": analysis.technical_mastery_score,
+                "emotional_stability": analysis.emotional_stability_score,
+                "authenticity": analysis.authenticity_score,
+                "self_confidence": analysis.self_confidence_score,
+                "communication": analysis.communication_score,
+                "overall": analysis.overall_score,
+            } if analysis else None,
+            "behavioral_patterns": analysis.behavioral_patterns if analysis else [],
+            "red_flags": analysis.red_flags if analysis else [],
+            "question_correlations": analysis.question_correlations if analysis else [],
+            "recommendations": analysis.recommendations if analysis else [],
+            "noise_events_filtered": analysis.noise_events_filtered if analysis else 0,
+            "speaking_time_ratio": analysis.speaking_time_ratio if analysis else None,
+        } if analysis else None,
     }
 
 
@@ -207,5 +231,99 @@ async def download_csv_report(session_id: int, db: AsyncSession = Depends(get_db
         io.StringIO(csv_content),
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# EVM VIDEO DOWNLOAD & STATUS ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════════
+
+@router.get("/{session_id}/evm-status")
+async def get_evm_status(session_id: int):
+    """
+    Check rendering status and progress of the Eulerian Video Magnification (EVM) video.
+    Returns:
+        status: "ready" | "rendering" | "failed" | "not_available"
+        progress: float (0.0 to 1.0)
+        phase: string describing current step
+        size_mb: float (if ready)
+    """
+    evm_path = os.path.join(settings.recordings_dir, f"{session_id}_evm.mp4")
+    raw_path = os.path.join(settings.recordings_dir, f"{session_id}_raw.mp4")
+    progress_path = os.path.join(settings.recordings_dir, f"{session_id}_evm_progress.json")
+
+    # If EVM video already exists and is ready
+    if os.path.exists(evm_path):
+        size_mb = os.path.getsize(evm_path) / (1024 * 1024)
+        return {
+            "status": "ready",
+            "progress": 1.0,
+            "phase": "done",
+            "size_mb": round(size_mb, 2),
+        }
+
+    # If progress file exists, read progress details
+    if os.path.exists(progress_path):
+        try:
+            with open(progress_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return {
+                    "status": data.get("status", "rendering"),
+                    "progress": data.get("progress", 0.0),
+                    "phase": data.get("phase", "processing"),
+                    "size_mb": None,
+                }
+        except Exception:
+            pass
+
+    # If raw video exists, it's about to be or currently being processed
+    if os.path.exists(raw_path):
+        return {
+            "status": "rendering",
+            "progress": 0.0,
+            "phase": "queued",
+            "size_mb": None,
+        }
+
+    return {
+        "status": "not_available",
+        "progress": 0.0,
+        "phase": "none",
+        "size_mb": None,
+    }
+
+
+@router.get("/{session_id}/evm-video")
+async def download_evm_video(session_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Download the rendered Eulerian Video Magnification MP4 video.
+    """
+    evm_path = os.path.join(settings.recordings_dir, f"{session_id}_evm.mp4")
+    raw_path = os.path.join(settings.recordings_dir, f"{session_id}_raw.mp4")
+
+    if os.path.exists(evm_path):
+        # Fetch session name for friendly download filename
+        result = await db.execute(select(Session).where(Session.id == session_id))
+        session = result.scalar_one_or_none()
+        session_name = session.name if session and session.name else f"session_{session_id}"
+        safe_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in session_name)
+        filename = f"EmotionLens_EVM_{safe_name}.mp4"
+
+        return FileResponse(
+            evm_path,
+            media_type="video/mp4",
+            filename=filename,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        )
+
+    if os.path.exists(raw_path):
+        raise HTTPException(
+            status_code=202,
+            detail="El video EVM se está procesando actualmente. Intenta nuevamente en unos momentos."
+        )
+
+    raise HTTPException(
+        status_code=404,
+        detail="No hay video EVM disponible para esta sesión."
     )
 

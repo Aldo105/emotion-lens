@@ -111,6 +111,7 @@
     "emotionDistribution": "Emotion Distribution",
     "downloadPdf": "Download PDF",
     "downloadCsv": "Download CSV",
+    "downloadEvm": "Download EVM Video",
     "close": "Close",
     "noData": "No data"
   },
@@ -138,5 +139,16 @@
     "language": "Language",
     "english": "English",
     "spanish": "Español"
-  }
+  },
+
+  "analysis_title": "Interview Analysis",
+  "analysis_dimensions": "Evaluation Dimensions",
+  "analysis_patterns": "Behavioral Patterns",
+  "analysis_red_flags": "Red Flags",
+  "analysis_recommendations": "Recommendations",
+  "analysis_overall": "Overall Interview Score",
+  "noise_speaking": "Speaking",
+  "noise_yawning": "Yawning",
+  "noise_tic": "Tic Detected",
+  "noise_filtered": "Noise Filtered"
 }

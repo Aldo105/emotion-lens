@@ -111,6 +111,7 @@
     "emotionDistribution": "Distribución de Emociones",
     "downloadPdf": "Descargar PDF",
     "downloadCsv": "Descargar CSV",
+    "downloadEvm": "Descargar Video EVM",
     "close": "Cerrar",
     "noData": "Sin datos"
   },
@@ -138,5 +139,16 @@
     "language": "Idioma",
     "english": "English",
     "spanish": "Español"
-  }
+  },
+
+  "analysis_title": "Análisis de Entrevista",
+  "analysis_dimensions": "Dimensiones de Evaluación",
+  "analysis_patterns": "Patrones de Comportamiento",
+  "analysis_red_flags": "Señales de Alerta",
+  "analysis_recommendations": "Recomendaciones",
+  "analysis_overall": "Puntuación General de Entrevista",
+  "noise_speaking": "Hablando",
+  "noise_yawning": "Bostezando",
+  "noise_tic": "Tic Detectado",
+  "noise_filtered": "Ruido Filtrado"
 }

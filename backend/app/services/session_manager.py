@@ -21,7 +21,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.models.database import (
     Session, SessionSummary, EmotionRecord,
     MicroExpression, InterviewerNote, async_session_factory,
+    InterviewAnalysis,
 )
+from backend.app.services.interview_analyzer import InterviewBehaviorAnalyzer
 from backend.app.models.schemas import (
     EmotionData, MicroExpressionEvent, SessionResponse,
 )
@@ -277,6 +279,95 @@ async def generate_summary(db: AsyncSession, session_id: int) -> SessionSummary:
 
     await db.flush()
     await db.refresh(summary)
+
+    # ── Generate Interview Behavior Analysis ──────────────────────────
+    try:
+        analyzer = InterviewBehaviorAnalyzer()
+        
+        # Convert ORM records to dicts for the analyzer
+        emo_dicts = [
+            {
+                "timestamp": r.timestamp,
+                "emotion": r.emotion,
+                "confidence": r.confidence,
+                "emotion_probabilities": r.emotion_probabilities,
+                "action_units": r.action_units,
+                "congruence_score": r.congruence_score,
+                "model_confidence": r.model_confidence,
+            }
+            for r in emotion_records
+        ]
+        micro_dicts = [
+            {
+                "timestamp": m.timestamp,
+                "duration_ms": m.duration_ms,
+                "detected_emotion": m.detected_emotion,
+                "dominant_emotion_at_time": m.dominant_emotion_at_time,
+                "action_units_involved": m.action_units_involved,
+                "relevance_score": m.relevance_score,
+                "is_contradictory": m.is_contradictory,
+                "description": m.description,
+            }
+            for m in micro_expressions
+        ]
+        note_dicts = [
+            {
+                "timestamp": n.timestamp,
+                "content": n.content,
+                "tag": n.tag,
+                "emotion_at_time": n.emotion_at_time,
+                "congruence_at_time": n.congruence_at_time,
+            }
+            for n in notes
+        ]
+        summary_dict = {
+            "emotion_distribution": emotion_distribution,
+            "dominant_emotion": dominant_emotion,
+            "average_congruence": avg_congruence,
+            "total_micro_expressions": total_micro,
+            "high_relevance_micro_expressions": high_relevance_micro,
+            "contradictory_micro_expressions": contradictory_micro,
+            "average_nervousness": avg_nervousness,
+            "average_confidence": avg_confidence,
+            "nervousness_peaks": nervousness_peaks,
+        }
+        
+        result = analyzer.analyze_session(
+            emotion_records=emo_dicts,
+            micro_expressions=micro_dicts,
+            interviewer_notes=note_dicts,
+            summary=summary_dict,
+        )
+        
+        # Upsert InterviewAnalysis
+        existing_analysis = await db.execute(
+            select(InterviewAnalysis).where(InterviewAnalysis.session_id == session_id)
+        )
+        analysis = existing_analysis.scalar_one_or_none()
+        if analysis is None:
+            analysis = InterviewAnalysis(session_id=session_id)
+            db.add(analysis)
+        
+        analysis.technical_mastery_score = result.dimension_scores.get("technical_mastery")
+        analysis.emotional_stability_score = result.dimension_scores.get("emotional_stability")
+        analysis.authenticity_score = result.dimension_scores.get("authenticity")
+        analysis.self_confidence_score = result.dimension_scores.get("self_confidence")
+        analysis.communication_score = result.dimension_scores.get("communication")
+        analysis.overall_score = result.dimension_scores.get("overall_score")
+        analysis.behavioral_patterns = result.behavioral_patterns
+        analysis.red_flags = result.red_flags
+        analysis.question_correlations = result.question_correlations
+        analysis.recommendations = result.recommendations
+        analysis.noise_events_filtered = (result.noise_stats or {}).get("noise_events_filtered", 0)
+        analysis.speaking_time_ratio = (result.noise_stats or {}).get("speaking_time_ratio")
+        
+        await db.flush()
+    except Exception as e:
+        # Don't fail the summary if analysis fails
+        import traceback
+        print(f"[WARNING] Interview analysis generation failed: {e}")
+        traceback.print_exc()
+
     return summary
 
 

@@ -1,153 +1,152 @@
 class DashboardCharts {
     constructor() {
         this.timelineChart = null;
-        this.gaugeChart = null;
-        
+        this.gaugeChart    = null;
+
         // Data arrays for timeline
         this.timeLabels = [];
         this.emotionData = {
             'happy': [], 'sad': [], 'angry': [], 'surprise': [],
-            'disgust': [], 'fear': [], 'neutral': [], 'nervousness': [], 'confidence': []
+            'disgust': [], 'fear': [], 'neutral': [], 'nervousness': [], 'confidence': [],
         };
-        
-        this.maxDataPoints = 60; // Keep last N points on screen
-        
+
+        // Show only last N data points to keep the chart readable
+        this.maxDataPoints = 60;
+
+        // Throttle: only push a chart render at most once per second
+        // (WebSocket sends frames at 20 fps but the chart doesn't need to redraw that fast)
+        this._lastChartRender = 0;
+        this._pendingUpdate   = false;
+
         this.initTimelineChart();
         this.initGaugeChart();
     }
 
     initTimelineChart() {
         const ctx = document.getElementById('timeline-chart').getContext('2d');
-        
-        // Create datasets for each emotion
-        const datasets = Object.keys(CONFIG.EMOTIONS).map(emotion => {
-            return {
-                label: CONFIG.EMOTIONS[emotion].label,
-                data: this.emotionData[emotion],
-                borderColor: getComputedStyle(document.documentElement).getPropertyValue(CONFIG.EMOTIONS[emotion].color.replace('var(', '').replace(')', '')).trim(),
-                backgroundColor: 'transparent',
-                borderWidth: 2,
-                tension: 0.4,
-                pointRadius: 0,
-                hidden: emotion === 'neutral' // Hide neutral by default to reduce clutter
-            };
-        });
+
+        const datasets = Object.keys(CONFIG.EMOTIONS).map(emotion => ({
+            label:           CONFIG.EMOTIONS[emotion].label,
+            data:            this.emotionData[emotion],
+            borderColor:     getComputedStyle(document.documentElement)
+                                 .getPropertyValue(
+                                     CONFIG.EMOTIONS[emotion].color.replace('var(', '').replace(')', '')
+                                 ).trim(),
+            backgroundColor: 'transparent',
+            borderWidth:     2,
+            tension:         0.4,
+            pointRadius:     0,
+            hidden:          emotion === 'neutral', // hide neutral by default
+        }));
 
         this.timelineChart = new Chart(ctx, {
             type: 'line',
-            data: {
-                labels: this.timeLabels,
-                datasets: datasets
-            },
+            data: { labels: this.timeLabels, datasets },
             options: {
-                responsive: true,
+                responsive:          true,
                 maintainAspectRatio: false,
-                animation: false,
-                interaction: {
-                    mode: 'index',
-                    intersect: false,
-                },
+                animation:           false,
+                interaction: { mode: 'index', intersect: false },
                 plugins: {
                     legend: {
                         position: 'top',
-                        labels: {
-                            color: '#9ba1b0',
-                            usePointStyle: true,
-                            boxWidth: 8
-                        }
+                        labels:   { color: '#9ba1b0', usePointStyle: true, boxWidth: 8 },
                     },
-                    tooltip: { mode: 'index', intersect: false }
+                    tooltip: { mode: 'index', intersect: false },
                 },
                 scales: {
-                    x: {
-                        display: false // Hide X axis labels for cleaner look
-                    },
+                    x: { display: false },
                     y: {
-                        min: 0,
-                        max: 100,
+                        min:  0,
+                        max:  100,
                         grid: { color: 'rgba(255,255,255,0.05)' },
-                        ticks: { color: '#9ba1b0' }
-                    }
-                }
-            }
+                        ticks: { color: '#9ba1b0' },
+                    },
+                },
+            },
         });
     }
 
     initGaugeChart() {
         const ctx = document.getElementById('congruence-gauge').getContext('2d');
-        
+
         this.gaugeChart = new Chart(ctx, {
             type: 'doughnut',
             data: {
                 labels: ['Congruence', 'Gap'],
                 datasets: [{
-                    data: [0, 100],
-                    backgroundColor: [
-                        '#94a3b8', // Default color, will change based on score
-                        'rgba(255, 255, 255, 0.05)'
-                    ],
-                    borderWidth: 0,
-                    circumference: 180,
-                    rotation: 270
-                }]
+                    data:            [0, 100],
+                    backgroundColor: ['#94a3b8', 'rgba(255,255,255,0.05)'],
+                    borderWidth:     0,
+                    circumference:   180,
+                    rotation:        270,
+                }],
             },
             options: {
-                responsive: true,
+                responsive:          true,
                 maintainAspectRatio: false,
-                cutout: '80%',
+                cutout:              '80%',
                 plugins: {
-                    legend: { display: false },
-                    tooltip: { enabled: false }
+                    legend:  { display: false },
+                    tooltip: { enabled: false },
                 },
-                animation: { animateRotate: false, animateScale: false }
-            }
+                animation: { animateRotate: false, animateScale: false },
+            },
         });
     }
 
+    /**
+     * Push new data into the timeline buffers and schedule a throttled redraw.
+     * Called on every WebSocket frame (~20 fps); the chart only repaints once/second.
+     */
     updateTimeline(timestamp, probabilities) {
-        // Format timestamp as mm:ss
         const mins = Math.floor(timestamp / 60).toString().padStart(2, '0');
         const secs = Math.floor(timestamp % 60).toString().padStart(2, '0');
         this.timeLabels.push(`${mins}:${secs}`);
 
-        // Update data arrays
         Object.keys(this.emotionData).forEach(emotion => {
-            const prob = (probabilities[emotion] || 0) * 100;
-            this.emotionData[emotion].push(prob);
+            this.emotionData[emotion].push((probabilities[emotion] || 0) * 100);
         });
 
-        // Keep only recent data points to avoid crowding
+        // Trim to maxDataPoints
         if (this.timeLabels.length > this.maxDataPoints) {
             this.timeLabels.shift();
-            Object.keys(this.emotionData).forEach(emotion => {
-                this.emotionData[emotion].shift();
-            });
+            Object.keys(this.emotionData).forEach(e => this.emotionData[e].shift());
         }
 
-        this.timelineChart.update();
+        // Throttled render: at most once per second
+        const now = Date.now();
+        if (!this._pendingUpdate) {
+            this._pendingUpdate = true;
+            const delay = Math.max(0, 1000 - (now - this._lastChartRender));
+            setTimeout(() => {
+                // 'none' skips the transition animation pass — still redraws data
+                this.timelineChart.update('none');
+                this._lastChartRender = Date.now();
+                this._pendingUpdate   = false;
+            }, delay);
+        }
     }
 
     updateGauge(score, colorName) {
-        const gaugeData = this.gaugeChart.data.datasets[0];
-        gaugeData.data[0] = score;
-        gaugeData.data[1] = 100 - score;
-        
-        // Map color name to CSS variable
-        let cssColor = '#10b981'; // Green default
-        if (colorName === 'yellow') cssColor = '#f59e0b';
-        if (colorName === 'red') cssColor = '#ef4444';
-        if (score === 0) cssColor = '#94a3b8'; // Grey if not ready
-        
-        gaugeData.backgroundColor[0] = cssColor;
-        this.gaugeChart.update();
+        const ds = this.gaugeChart.data.datasets[0];
+        ds.data[0] = score;
+        ds.data[1] = 100 - score;
+
+        ds.backgroundColor[0] =
+            colorName === 'yellow' ? '#f59e0b' :
+            colorName === 'red'    ? '#ef4444' :
+            score === 0            ? '#94a3b8' :
+                                     '#10b981'; // green
+
+        // 'none' avoids pointless animation recalculation
+        this.gaugeChart.update('none');
     }
-    
+
     reset() {
         this.timeLabels.length = 0;
-        Object.keys(this.emotionData).forEach(emotion => {
-            this.emotionData[emotion].length = 0;
-        });
-        this.timelineChart.update();
+        Object.keys(this.emotionData).forEach(e => { this.emotionData[e].length = 0; });
+        this.timelineChart.update('none');
         this.updateGauge(0, 'grey');
     }
 }

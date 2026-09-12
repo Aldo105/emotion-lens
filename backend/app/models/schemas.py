@@ -208,6 +208,10 @@ class WSFrameResult(BaseModel):
     is_calibrating: bool = False
     calibration_progress: float = 0.0  # 0.0 - 1.0
 
+    # Noise filter state
+    noise_state: Optional[dict] = None
+    # {"is_speaking": bool, "is_yawning": bool, "noise_type": str|null}
+
 
 class WSStatusMessage(BaseModel):
     """Status/control message sent via WebSocket."""
@@ -243,3 +247,90 @@ class SessionFeedbackResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
+# ═══════════════════════════════════════════════════════════════════════
+# INTERVIEW ANALYSIS SCHEMAS
+# ═══════════════════════════════════════════════════════════════════════
+
+class BehavioralPattern(BaseModel):
+    """A detected behavioral pattern during the interview."""
+    type: str  # e.g., "rapid_confusion", "nervous_spiral"
+    timestamp: Optional[float] = None
+    severity: str = Field(..., pattern="^(high|medium|low)$")
+    description: str
+    context_question: Optional[str] = None
+    is_positive: bool = False  # True for patterns like stress_recovery, authentic_engagement
+
+
+class RedFlag(BaseModel):
+    """A behavioral red flag detected during analysis."""
+    type: str
+    evidence: str
+    severity: str = Field(..., pattern="^(high|medium|low)$")
+
+
+class QuestionCorrelation(BaseModel):
+    """Correlation between an interviewer question and emotional reaction."""
+    question_timestamp: float
+    question_text: str
+    pre_emotion: str
+    post_emotion: str
+    emotion_shift: str  # "positive", "negative", "neutral"
+    nervousness_change: Optional[float] = None
+    congruence_change: Optional[float] = None
+    insight: str
+
+
+class Recommendation(BaseModel):
+    """An AI-generated recommendation for the hiring team."""
+    category: str  # "technical", "behavioral", "emotional", "positive", "follow_up"
+    priority: str = Field(..., pattern="^(high|medium|low)$")
+    text: str
+
+
+class DimensionScores(BaseModel):
+    """Scores across 5 evaluation dimensions."""
+    technical_mastery: float = Field(..., ge=0, le=100)
+    emotional_stability: float = Field(..., ge=0, le=100)
+    authenticity: float = Field(..., ge=0, le=100)
+    self_confidence: float = Field(..., ge=0, le=100)
+    communication: float = Field(..., ge=0, le=100)
+    overall: float = Field(..., ge=0, le=100)
+
+
+class NoiseFilterStats(BaseModel):
+    """Statistics from the facial noise filter."""
+    total_frames_analyzed: int = 0
+    speaking_frames: int = 0
+    yawn_events: int = 0
+    tic_events: int = 0
+    scratch_events: int = 0
+    forced_blink_events: int = 0
+    speaking_time_ratio: float = 0.0
+    noise_events_filtered: int = 0
+
+
+class InterviewAnalysisResponse(BaseModel):
+    """Complete interview analysis response."""
+    id: int
+    session_id: int
+    dimension_scores: Optional[DimensionScores] = None
+    behavioral_patterns: Optional[list[BehavioralPattern]] = None
+    red_flags: Optional[list[RedFlag]] = None
+    question_correlations: Optional[list[QuestionCorrelation]] = None
+    recommendations: Optional[list[Recommendation]] = None
+    noise_stats: Optional[NoiseFilterStats] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class InterviewAnalysisSummary(BaseModel):
+    """Executive summary of interview analysis."""
+    overall_score: float
+    top_strengths: list[str]
+    areas_of_concern: list[str]
+    key_recommendations: list[str]
+    pattern_count: int
+    red_flag_count: int

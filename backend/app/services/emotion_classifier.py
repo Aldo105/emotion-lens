@@ -1,17 +1,19 @@
 """
-EmotionLens — Emotion Classifier Service (v2)
+EmotionLens — Emotion Classifier Service (v3)
 
 Improved emotion classification with:
 1. MediaPipe Blendshape-based classification (52 FACS-like coefficients)
 2. Temporal smoothing (sliding window over last N frames)
-3. Emotion change threshold (requires sustained signal before switching)
-4. Fallback to geometry-based heuristics when blendshapes unavailable
+3. Time-based hysteresis (requires sustained signal before switching)
+4. Baseline subtraction (removes resting facial morphology bias)
+5. Fallback to geometry-based heuristics when blendshapes unavailable
 
 The blendshape approach is far more accurate than raw landmark geometry
 because MediaPipe's internal ML model already does the heavy lifting.
 """
 
 import os
+import time
 from collections import deque
 from pathlib import Path
 
@@ -93,6 +95,21 @@ BLENDSHAPE_EMOTION_MAP = {
 }
 
 
+# Plausible emotion transitions — transitions NOT in this map are considered suspect
+# and require higher confidence + longer streak to switch
+PLAUSIBLE_TRANSITIONS = {
+    "neutral": {"happy", "sad", "angry", "surprise", "fear", "disgust", "nervousness", "confidence"},
+    "happy": {"neutral", "surprise", "nervousness"},
+    "sad": {"neutral", "angry", "fear"},
+    "angry": {"neutral", "sad", "disgust"},
+    "surprise": {"neutral", "happy", "fear", "angry"},
+    "disgust": {"neutral", "angry"},
+    "fear": {"neutral", "surprise", "sad", "nervousness"},
+    "nervousness": {"neutral", "fear", "confidence"},
+    "confidence": {"neutral", "happy", "nervousness"},
+}
+
+
 class EmotionClassifier:
     """
     Classifies facial emotions using blendshapes or landmark heuristics.
@@ -106,13 +123,19 @@ class EmotionClassifier:
 
         # ── Temporal Smoothing ────────────────────────────────────────
         self.smoothing_window = 12        # Average over last N frames
-        self.min_switch_frames = 5        # Require N consecutive frames to switch emotion
+        # Time-based switching (Improvement 10): require 250ms, not frame count
+        self.min_switch_time_s = 0.25     # Require 250ms of sustained signal
         self.switch_confidence_threshold = 0.15  # New emotion must beat current by this margin
 
         self._prob_history: deque[dict] = deque(maxlen=self.smoothing_window)
         self._current_emotion = "neutral"
-        self._emotion_streak = 0          # How many frames the top emotion has been consistent
-        self._streak_emotion = "neutral"  # What emotion is on the streak
+        self._streak_start_time: float = 0.0   # When the current streak started
+        self._streak_emotion = "neutral"        # What emotion is on the streak
+        self._bounce_buffer = deque(maxlen=5)   # Tracks last 5 dominant emotions with timestamps
+
+        # ── Baseline Subtraction (Problem 5) ──────────────────────────
+        self._baseline_blendshapes: dict[str, float] | None = None
+        self._baseline_set = False
 
         # Try to load CNN model
         if model_path is None:
@@ -123,6 +146,35 @@ class EmotionClassifier:
         else:
             print(f"[INFO] No trained model found at {model_path}")
             print("[INFO] Using blendshape/heuristic mode for emotion classification")
+
+    def set_baseline(self, blendshapes: dict[str, float]) -> None:
+        """
+        Set the resting-face baseline blendshapes from calibration.
+
+        Called after the 30-second calibration period. Stores the average
+        blendshape values so they can be subtracted from every subsequent
+        frame, eliminating persistent bias from natural facial morphology
+        (e.g., someone with a resting frown won't be classified as sad).
+        """
+        self._baseline_blendshapes = blendshapes.copy()
+        self._baseline_set = True
+        print(f"[OK] Emotion classifier baseline set ({len(blendshapes)} blendshapes)")
+
+    def _subtract_baseline(self, blendshapes: dict[str, float]) -> dict[str, float]:
+        """
+        Subtract calibration baseline from current blendshapes.
+        Values are clamped to [0, 1] — we only care about activations
+        above the resting level.
+        """
+        if not self._baseline_set or self._baseline_blendshapes is None:
+            return blendshapes
+
+        adjusted = {}
+        for key, value in blendshapes.items():
+            baseline_val = self._baseline_blendshapes.get(key, 0.0)
+            # Only keep activation above baseline; clamp to [0, 1]
+            adjusted[key] = max(0.0, min(1.0, value - baseline_val))
+        return adjusted
 
     def _load_cnn_model(self, model_path: str):
         """Load the trained PyTorch CNN model."""
@@ -175,7 +227,9 @@ class EmotionClassifier:
         if self.mode == "cnn" and face_image is not None:
             raw_result = self._predict_cnn(face_image)
         elif blendshapes is not None and len(blendshapes) > 0:
-            raw_result = self._predict_blendshapes(blendshapes)
+            # Subtract baseline before scoring (Problem 5 fix)
+            adjusted_bs = self._subtract_baseline(blendshapes)
+            raw_result = self._predict_blendshapes(adjusted_bs, blendshapes)
         elif action_units is not None:
             raw_result = self._predict_heuristic(action_units)
         else:
@@ -229,29 +283,68 @@ class EmotionClassifier:
 
         return smoothed
 
+    def _validate_transition(
+        self, current_emotion: str, candidate_emotion: str, candidate_confidence: float
+    ) -> bool:
+        """
+        Validate whether a transition from current_emotion to candidate_emotion
+        is allowed, considering plausibility and anti-bounce logic.
+        """
+        plausible = candidate_emotion in PLAUSIBLE_TRANSITIONS.get(current_emotion, set())
+
+        if not plausible:
+            margin = candidate_confidence - self._prob_history[-1].get(current_emotion, 0.0)
+            # Implausible transitions need double the confidence and double the time
+            if margin <= (self.switch_confidence_threshold * 2):
+                return False
+            # Also require the streak to have lasted at least 2x the normal time
+            now = time.time()
+            if (now - self._streak_start_time) < (self.min_switch_time_s * 2):
+                return False
+
+        # ── Anti-bounce check (Bug 2 fix) ────────────────────────────
+        # Only reject bounces that happened within the last 3.0 seconds.
+        # Previously, the bounce buffer had no time expiry, permanently
+        # blocking return to any previous emotion.
+        now = time.time()
+        bounce_window = 3.0  # seconds
+
+        for prev_emotion, prev_time in reversed(self._bounce_buffer):
+            if now - prev_time > bounce_window:
+                break  # Older entries are expired — stop checking
+            if prev_emotion == candidate_emotion:
+                # This emotion was left within the last 3 seconds — likely a bounce
+                return False
+
+        return True
+
     def _apply_hysteresis(self, smoothed_probs: dict) -> tuple[str, float]:
         """
         Prevent rapid emotion switching using hysteresis.
         The current emotion "sticks" unless a new emotion consistently
-        dominates for several consecutive frames with enough margin.
+        dominates for a sustained time period with enough margin.
         """
+        now = time.time()
         top_emotion = max(smoothed_probs, key=smoothed_probs.get)
         top_confidence = smoothed_probs[top_emotion]
         current_confidence = smoothed_probs.get(self._current_emotion, 0.0)
 
-        # Track streak
+        # Track streak using real time (Improvement 10)
         if top_emotion == self._streak_emotion:
-            self._emotion_streak += 1
+            # Same emotion continues — streak_start_time stays
+            pass
         else:
             self._streak_emotion = top_emotion
-            self._emotion_streak = 1
+            self._streak_start_time = now
+
+        streak_duration = now - self._streak_start_time
 
         # Switch conditions:
         # 1. New emotion must beat current by threshold margin
-        # 2. Must be sustained for min_switch_frames
+        # 2. Must be sustained for min_switch_time_s (time-based, not frame-based)
         margin = top_confidence - current_confidence
         should_switch = (
-            self._emotion_streak >= self.min_switch_frames
+            streak_duration >= self.min_switch_time_s
             and margin > self.switch_confidence_threshold
         )
 
@@ -260,7 +353,11 @@ class EmotionClassifier:
             should_switch = True
 
         if should_switch and top_emotion != self._current_emotion:
-            self._current_emotion = top_emotion
+            if not self._validate_transition(self._current_emotion, top_emotion, top_confidence):
+                should_switch = False
+            else:
+                self._bounce_buffer.append((self._current_emotion, now))
+                self._current_emotion = top_emotion
 
         return self._current_emotion, smoothed_probs.get(self._current_emotion, 0.0)
 
@@ -268,11 +365,20 @@ class EmotionClassifier:
     # BLENDSHAPE-BASED CLASSIFICATION
     # ══════════════════════════════════════════════════════════════════
 
-    def _predict_blendshapes(self, blendshapes: dict[str, float]) -> dict:
+    def _predict_blendshapes(
+        self,
+        blendshapes: dict[str, float],
+        raw_blendshapes: dict[str, float] | None = None,
+    ) -> dict:
         """
         Classify emotion using MediaPipe's 52 blendshape coefficients.
         Much more accurate than geometry-based heuristics because MediaPipe's
         internal ML model already trained on millions of faces.
+
+        Args:
+            blendshapes: Baseline-subtracted blendshape values.
+            raw_blendshapes: Original (non-subtracted) values, used to compute
+                total activation for neutral scoring.
         """
         scores = {}
 
@@ -285,10 +391,14 @@ class EmotionClassifier:
             scores[emotion] = score
 
         # ── Neutral: inverse of total activation ──
+        # Use baseline-subtracted values to measure "extra" activation above rest.
+        # (Problem 4 fix): raised cap from 0.4 → 0.65 so fully neutral faces
+        # can reach ~80–90% confidence instead of being capped at ~30%.
         all_activations = [v for k, v in blendshapes.items() if k != "_neutral"]
         total_activation = sum(all_activations) if all_activations else 0
-        # More activation = less neutral
-        scores["neutral"] = max(0.0, 0.4 - total_activation * 0.08)
+
+        # Stronger neutral signal: starts at 0.65, drops with facial activation
+        scores["neutral"] = max(0.0, 0.65 - total_activation * 0.12)
 
         # ── Confidence: relaxed face + no tension indicators ──
         tension_sum = (

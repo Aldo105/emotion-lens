@@ -187,7 +187,9 @@ class CongruenceScorer:
         Contradictory micro-expressions = lower score.
         """
         if not self.micro_events:
-            return 60.0  # No micro-expressions = baseline moderate default
+            # No micro-expressions detected = no contradictions = near-perfect alignment.
+            # Previously returned 60.0, which penalized honest calm candidates by 14 points.
+            return 95.0
 
         # Look at recent micro-expressions (last 10)
         recent_micros = self.micro_events[-10:]

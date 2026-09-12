@@ -1752,7 +1752,7 @@ h1, h2, h3, h4 {
     color: var(--warning);
 }
 
-/* Toggle switch for suppression question */
+/* ── Toggle switch for survey suppression question ── */
 .survey-toggle-row {
     display: flex;
     align-items: center;
@@ -1805,4 +1805,101 @@ h1, h2, h3, h4 {
 .survey-actions .btn-survey-skip:hover {
     background: rgba(255, 255, 255, 0.05);
     color: var(--text-main);
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   Noise Filter Indicator (moved from inline HTML)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.noise-indicator {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    z-index: 10;
+    backdrop-filter: blur(10px);
+    animation: fadeIn 0.3s ease;
+}
+.noise-indicator.speaking { background: rgba(59, 130, 246, 0.8); color: white; }
+.noise-indicator.yawning  { background: rgba(245, 158, 11, 0.8); color: white; }
+.noise-indicator.tic      { background: rgba(239, 68, 68, 0.8);  color: white; }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   Interview Analysis modal components
+   (moved from inline HTML)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.analysis-dimensions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+}
+.dimension-card {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 12px;
+    text-align: center;
+}
+.dimension-score {
+    font-size: 1.8rem;
+    font-weight: 700;
+}
+.dimension-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+.dimension-bar {
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.1);
+    margin-top: 8px;
+    overflow: hidden;
+}
+.dimension-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.5s ease;
+}
+.analysis-overall {
+    text-align: center;
+    padding: 16px;
+    margin: 12px 0;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+}
+.analysis-overall .score-big {
+    font-size: 2.5rem;
+    font-weight: 800;
+}
+.pattern-item,
+.flag-item,
+.recommendation-item {
+    padding: 10px 14px;
+    margin: 6px 0;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid;
+}
+.pattern-item.positive      { border-color: #10b981; }
+.pattern-item.negative      { border-color: #ef4444; }
+.pattern-item.medium        { border-color: #f59e0b; }
+.flag-item.high             { border-color: #ef4444; }
+.flag-item.medium           { border-color: #f59e0b; }
+.flag-item.low              { border-color: #6b7280; }
+.recommendation-item.high   { border-color: #ef4444; background: rgba(239, 68, 68, 0.05); }
+.recommendation-item.medium { border-color: #f59e0b; }
+.recommendation-item.low    { border-color: #6b7280; }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   Performance: skip rendering off-screen view panels
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.view-panel:not(.active) {
+    content-visibility: auto;
+    contain-intrinsic-size: 0 600px; /* estimated height so scroll doesn't jump */
 }

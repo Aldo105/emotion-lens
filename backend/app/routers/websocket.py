@@ -10,6 +10,8 @@ Full processing pipeline:
 import asyncio
 import base64
 import json
+import os
+import threading
 import time
 import traceback
 
@@ -25,6 +27,9 @@ from backend.app.services.emotion_classifier import EmotionClassifier
 from backend.app.services.micro_expressions import MicroExpressionEngine
 from backend.app.services.congruence import CongruenceScorer
 from backend.app.services.heart_rate import HeartRateEstimator
+from backend.app.services.noise_filter import FacialNoiseFilter
+from backend.app.services.video_recorder import SessionVideoRecorder
+from backend.app.services.evm_renderer import EVMRenderer
 from backend.app.services import session_manager
 from backend.app.models.database import async_session_factory
 from backend.app.utils.image_preprocessing import AdaptivePreprocessor
@@ -307,6 +312,7 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
     congruence_scorer = CongruenceScorer()
     heart_rate_estimator = HeartRateEstimator(fps=20.0)
     preprocessor = AdaptivePreprocessor()
+    noise_filter = FacialNoiseFilter()
 
     frame_count = 0
     processed_frame_count = 0
@@ -315,11 +321,26 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
     calibration_start = None  # For recalibration timing
     current_skin_tone = "medium"  # Updated per-frame from quality check
 
+    # ── Throttle counters ─────────────────────────────────────────────
+    # Recomputing camera quality on every frame (20/s) is wasteful —
+    # lighting and position change slowly. Run it at ~2 Hz instead.
+    _last_quality_result: dict | None = None
+    _quality_check_interval = 10  # recompute every N processed frames
+
+    # Sending the preprocessed frame image back to the client on every frame
+    # wastes ~50-80 KB × 20/s = 1-1.6 MB/s of bandwidth that the frontend
+    # only uses when the user turns EVM on.  Send it at ~4 Hz instead.
+    _last_prep_frame_b64: str | None = None
+    _prep_frame_interval = 5  # re-encode + send every N processed frames
+
     # ── Database session persistence ─────────────────────────────────
     db_session = None
     analysis_session_id = None
     emotion_record_batch = []  # Batch records for efficient DB writes
     BATCH_SIZE = 10  # Flush to DB every N processed frames
+
+    # ── Video recorder (for EVM post-processing) ──────────────────────
+    video_recorder: SessionVideoRecorder | None = None
 
     try:
         # Create a database session and analysis session for persistence
@@ -332,6 +353,15 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
         )
         analysis_session_id = analysis_session.id
         await db_session.commit()
+
+        # Initialize video recorder if enabled
+        if settings.enable_video_recording:
+            video_recorder = SessionVideoRecorder(
+                session_id=analysis_session_id,
+                output_dir=settings.recordings_dir,
+                fps=20.0,
+                frame_size=(640, 480),
+            )
 
         # Send initial status
         await manager.send_json(websocket, WSStatusMessage(
@@ -396,17 +426,32 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
             preprocessed_frame = preprocessor.process(frame, skin_tone=current_skin_tone)
 
             # Step 1: Face Detection (MediaPipe) — on preprocessed frame
-            detection = face_detector.detect(preprocessed_frame)
+            # Pass real timestamp for accurate temporal tracking
+            real_ts_ms = int(timestamp * 1000)
+            detection = face_detector.detect(preprocessed_frame, timestamp_ms=real_ts_ms)
             if detection is None:
-                # No face detected -- send empty result
+                # No face detected -- still record the frame (with no bbox)
+                if video_recorder and video_recorder.is_open:
+                    video_recorder.write_frame(frame, timestamp=timestamp, face_bbox=None)
+                # Send empty result
                 await manager.send_json(websocket, WSStatusMessage(
                     type="status",
                     message="No face detected",
                 ).model_dump())
                 continue
 
+            # Record raw frame with face bbox for EVM post-processing
+            if video_recorder and video_recorder.is_open:
+                video_recorder.write_frame(
+                    frame, timestamp=timestamp, face_bbox=detection["bbox"]
+                )
+
             # Step 1.5: Camera Quality + Quality Gate
-            camera_quality = _compute_camera_quality(preprocessed_frame, detection)
+            # Throttled: recompute every _quality_check_interval frames (~2 Hz).
+            # Camera quality (brightness, sharpness, pose) changes slowly.
+            if _last_quality_result is None or frame_count % _quality_check_interval == 0:
+                _last_quality_result = _compute_camera_quality(preprocessed_frame, detection)
+            camera_quality = _last_quality_result
             current_skin_tone = camera_quality.get("skin_tone", "medium")
 
             # Quality gate — discard frames too poor for reliable analysis
@@ -452,6 +497,13 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                         variability=au_analyzer.baseline_variability,
                     )
                     congruence_scorer.set_baseline(au_analyzer.baseline_aus)
+                    noise_filter.set_baseline(au_analyzer.baseline_aus)
+
+                    # Set emotion classifier baseline from blendshapes (Problem 5 fix)
+                    # so resting facial morphology is subtracted from predictions
+                    if detection.get("blendshapes"):
+                        emotion_classifier.set_baseline(detection["blendshapes"])
+
                 baseline_calibrated = True
                 calibration_start = None  # Reset recalibration timer
 
@@ -459,6 +511,12 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                     type="calibration_complete",
                     message="Baseline calibration complete. Analysis active.",
                 ).model_dump())
+
+            # Step 3.5: Noise Filtering (speech, yawns, tics, scratching)
+            noise_state = noise_filter.analyze(
+                current_aus=action_units,
+                timestamp=timestamp,
+            )
 
             # Step 4: Emotion Classification (with quality penalty)
             emotion_result = emotion_classifier.predict(
@@ -475,6 +533,7 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                     timestamp=timestamp,
                     dominant_emotion=emotion_result["emotion"],
                     camera_quality_score=camera_quality["score"],
+                    noise_state=noise_state,
                 )
                 if raw_event:
                     micro_event = MicroExpressionEvent(
@@ -507,6 +566,14 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
             if hr_result["signal_ready"]:
                 action_units["hr_stress"] = hr_result["stress_indicator"]
 
+                # Store HR reading for EVM video overlay
+                if video_recorder and video_recorder.is_open:
+                    video_recorder.record_hr(
+                        timestamp=timestamp,
+                        bpm=hr_result.get("bpm", 0.0),
+                        confidence=hr_result.get("confidence", 0.0),
+                    )
+
             # Generate magnified frame if requested
             evm_frame_b64 = None
             if request_evm:
@@ -522,13 +589,18 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                 except Exception as e:
                     print(f"[ERR] EVM magnification failed: {e}")
 
-            # Encode preprocessed frame back to base64 JPEG (visible CLAHE/gamma)
-            preprocessed_frame_b64 = None
-            try:
-                _, prep_buffer = cv2.imencode('.jpg', preprocessed_frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
-                preprocessed_frame_b64 = "data:image/jpeg;base64," + base64.b64encode(prep_buffer).decode('utf-8')
-            except Exception as e:
-                print(f"[ERR] Preprocessed frame encoding failed: {e}")
+            # Encode preprocessed frame back to base64 JPEG (visible CLAHE/gamma).
+            # Throttled: re-encode only every _prep_frame_interval frames (~4 Hz)
+            # to avoid ~50-80 KB×20/s = 1 MB/s of extra encoding + bandwidth.
+            if frame_count % _prep_frame_interval == 0:
+                try:
+                    _, prep_buffer = cv2.imencode(
+                        '.jpg', preprocessed_frame, [cv2.IMWRITE_JPEG_QUALITY, 80]
+                    )
+                    _last_prep_frame_b64 = "data:image/jpeg;base64," + base64.b64encode(prep_buffer).decode('utf-8')
+                except Exception as e:
+                    print(f"[ERR] Preprocessed frame encoding failed: {e}")
+            preprocessed_frame_b64 = _last_prep_frame_b64
 
             # Step 6: Congruence Scoring
             congruence_result = congruence_scorer.compute(
@@ -561,6 +633,12 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                 camera_quality=camera_quality,
                 is_calibrating=is_calibrating,
                 calibration_progress=round(calibration_progress, 2),
+                noise_state={
+                    "is_speaking": noise_state.is_speaking,
+                    "is_yawning": noise_state.is_yawning,
+                    "is_tic": noise_state.is_tic,
+                    "noise_type": noise_state.noise_type,
+                } if noise_state else None,
             )
 
             await manager.send_json(websocket, result.model_dump())
@@ -645,5 +723,31 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                 print(f"[WARN] Failed to finalize session: {e}")
             finally:
                 await db_session.close()
+
+        # ── Close video recorder and launch EVM rendering ─────────────
+        if video_recorder and video_recorder.is_open:
+            try:
+                raw_path, meta_path = video_recorder.close()
+                output_path = os.path.join(
+                    settings.recordings_dir,
+                    f"{analysis_session_id}_evm.mp4",
+                )
+                renderer = EVMRenderer(
+                    amplification=settings.evm_amplification,
+                    freq_low=settings.evm_freq_low,
+                    freq_high=settings.evm_freq_high,
+                    pyramid_levels=settings.evm_pyramid_levels,
+                    delete_raw=settings.evm_delete_raw_after_render,
+                )
+                # Run rendering in background thread (non-blocking)
+                threading.Thread(
+                    target=renderer.render,
+                    args=(raw_path, meta_path, output_path),
+                    daemon=True,
+                    name=f"evm-render-{analysis_session_id}",
+                ).start()
+                print(f"[OK] EVM rendering started in background for session {analysis_session_id}")
+            except Exception as e:
+                print(f"[WARN] Failed to start EVM rendering: {e}")
 
         face_detector.close()

@@ -11,9 +11,14 @@ concealed emotions. They last 40-500ms and typically involve specific
 Action Unit combinations.
 """
 
+from __future__ import annotations
 import time
 from collections import deque
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from backend.app.services.noise_filter import NoiseState
 
 import numpy as np
 from scipy.signal import find_peaks
@@ -108,7 +113,11 @@ class MicroExpressionEngine:
 
         # Habitual movement tracking
         self.habitual_counts: dict[str, int] = {au: 0 for au in HABITUAL_AUS}
-        self.habitual_threshold = 10  # If AU fires > this many times in calibration, it's habitual
+        # (Problem 7 fix): percentage of calibration frames, not absolute count.
+        # Previously, 10 absolute frames (0.5s at 20fps) in a 30s calibration
+        # permanently suppressed the AU. Now requires >= 15% of calibration time.
+        self.habitual_ratio_threshold = 0.15  # AU active in >= 15% of calibration = habitual
+        self._calibration_frame_count = 0     # Total calibration frames (for percentage calc)
         self._calibration_frames: list[dict] = []  # Accumulated calibration AU frames
 
         # Active onset tracking (potential micro-expressions in progress)
@@ -163,6 +172,8 @@ class MicroExpressionEngine:
         # (record_calibration_frame already incremented counts, but
         #  re-process in case set_baseline is called with new data)
         if self._calibration_frames:
+            # Store total frame count for percentage-based habitual check
+            self._calibration_frame_count = len(self._calibration_frames)
             # Reset and recount from stored frames
             self.habitual_counts = {au: 0 for au in HABITUAL_AUS}
             for frame in self._calibration_frames:
@@ -197,6 +208,7 @@ class MicroExpressionEngine:
         timestamp: float,
         dominant_emotion: str = "neutral",
         camera_quality_score: float = 1.0,
+        noise_state: 'NoiseState | None' = None,
     ) -> MicroExpressionEvent | None:
         """
         Analyze current AU readings for micro-expression patterns.
@@ -216,6 +228,18 @@ class MicroExpressionEngine:
 
         # Apply EMA smoothing before buffering
         smoothed_aus = self._smooth_aus(current_aus)
+
+        # ── Noise filtering ──────────────────────────────────────────────
+        if noise_state is not None:
+            # Skip entirely during yawns, scratching, or forced blinks
+            if noise_state.is_yawning or noise_state.is_scratching or noise_state.is_forced_blink:
+                return None
+            
+            # During speech, only analyze upper-face AUs
+            if noise_state.upper_face_only:
+                filtered = {k: v for k, v in smoothed_aus.items() 
+                            if k in noise_state.filtered_aus_for_micro}
+                smoothed_aus = filtered
 
         # Add to rolling buffer
         reading = AUReading(timestamp=timestamp, values=smoothed_aus)
@@ -441,8 +465,9 @@ class MicroExpressionEngine:
 
     def _is_habitual(self, au_name: str) -> bool:
         """Check if an AU activation is a habitual movement for this person."""
-        if au_name in self.habitual_counts:
-            return self.habitual_counts[au_name] >= self.habitual_threshold
+        if au_name in self.habitual_counts and self._calibration_frame_count > 0:
+            ratio = self.habitual_counts[au_name] / self._calibration_frame_count
+            return ratio >= self.habitual_ratio_threshold
         return False
 
     def _match_emotion_pattern(self, activated_aus: list[str]) -> tuple[str | None, float]:
