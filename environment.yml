@@ -1,0 +1,50 @@
+name: emotion-lens
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+
+dependencies:
+  # Python
+  - python=3.11
+
+  # Core ML / Computer Vision
+  - pytorch>=2.1
+  - torchvision>=0.16
+  - pytorch-cuda=12.1        # NVIDIA CUDA support
+  - numpy>=1.24
+  - scipy>=1.11              # Signal processing for heart rate (EVM/rPPG)
+  - opencv>=4.8
+  - pillow>=10.0
+  - scikit-learn>=1.3
+
+  # pip-only packages
+  - pip
+  - pip:
+    # Web Framework
+    - fastapi>=0.104
+    - uvicorn[standard]>=0.24
+    - python-multipart>=0.0.6
+    - websockets>=12.0
+
+    # MediaPipe (face detection)
+    - mediapipe>=0.10.8
+
+    # Database
+    - sqlalchemy>=2.0
+    - aiosqlite>=0.19
+
+    # PDF Report Generation
+    - reportlab>=4.0
+    - weasyprint>=60.0
+
+    # Utilities
+    - pydantic>=2.5
+    - pydantic-settings>=2.1
+    - python-dotenv>=1.0
+    - aiofiles>=23.2
+
+    # Development
+    - pytest>=7.4
+    - httpx>=0.25           # For testing FastAPI

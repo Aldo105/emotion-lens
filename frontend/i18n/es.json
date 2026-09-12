@@ -1,0 +1,142 @@
+{
+  "app": {
+    "name": "EmotionLens",
+    "tagline": "Análisis Facial de Emociones y Micro-Expresiones en Tiempo Real"
+  },
+
+  "nav": {
+    "live": "Análisis en Vivo",
+    "sessions": "Sesiones",
+    "compare": "Comparar",
+    "upload": "Subir Video"
+  },
+
+  "live": {
+    "startSession": "Iniciar Sesión",
+    "endSession": "Finalizar Sesión",
+    "disconnected": "Desconectado",
+    "connecting": "Conectando...",
+    "connected": "Conectado",
+    "calibrating": "Calibrando línea base... Por favor mantenga una expresión neutral.",
+    "dominantEmotion": "Emoción Dominante",
+    "heartRate": "Ritmo Cardíaco (rPPG)",
+    "bpm": "LPM",
+    "stressLevel": "Nivel de Estrés:",
+    "stressLow": "Bajo",
+    "stressMedium": "Moderado",
+    "stressHigh": "Alto",
+    "congruenceScore": "Puntuación de Congruencia",
+    "waiting": "Esperando...",
+    "stability": "Estabilidad",
+    "alignment": "Alineación",
+    "baseline": "Línea Base",
+    "physio": "Fisiológico",
+    "emotionTimeline": "Línea de Tiempo Emocional",
+    "microExpressionLog": "Registro de Micro-Expresiones",
+    "detected": "Detectados",
+    "noMicroExpressions": "No se han detectado micro-expresiones aún.",
+    "interviewerNotes": "Notas del Entrevistador",
+    "notePlaceholder": "Escriba una nota (ej., 'Pregunta sobre brechas en el CV')",
+    "addNote": "Agregar",
+    "showPulse": "Mostrar Pulso (EVM)",
+    "noFaceDetected": "Rostro no detectado"
+  },
+
+  "sessions": {
+    "title": "Historial de Sesiones",
+    "subtitle": "Revise sesiones de análisis de entrevistas anteriores",
+    "noSessions": "Sin sesiones aún",
+    "noSessionsDesc": "Inicie un análisis en vivo o suba un video para crear su primera sesión.",
+    "loading": "Cargando sesiones...",
+    "couldNotLoad": "No se pudieron cargar las sesiones",
+    "retry": "Reintentar",
+    "viewReport": "Ver Reporte",
+    "pdf": "PDF",
+    "csv": "CSV",
+    "dominantEmotion": "Emoción Dominante",
+    "congruence": "Congruencia",
+    "duration": "Duración",
+    "active": "Activa",
+    "completed": "Completada",
+    "cancelled": "Cancelada",
+    "processing": "Procesando",
+    "deleteConfirm": "¿Está seguro de que desea eliminar esta sesión? Esta acción no se puede deshacer.",
+    "deleteSuccess": "Sesión eliminada exitosamente",
+    "reportFailed": "Error al cargar el reporte"
+  },
+
+  "compare": {
+    "title": "Comparar Sesiones",
+    "subtitle": "Análisis lado a lado de dos candidatos",
+    "candidateA": "Candidato A",
+    "candidateB": "Candidato B",
+    "selectSession": "Seleccione una sesión...",
+    "compareBtn": "Comparar Sesiones",
+    "comparing": "Comparando...",
+    "selectTwo": "Seleccione dos sesiones para comparar",
+    "selectTwoDesc": "Elija candidatos de los menús desplegables y haga clic en Comparar.",
+    "selectBoth": "Por favor seleccione dos sesiones para comparar.",
+    "selectDifferent": "Por favor seleccione dos sesiones diferentes.",
+    "comparisonFailed": "Error en la comparación",
+    "keyMetrics": "Comparación de Métricas Clave",
+    "topEmotions": "Emociones Principales",
+    "congruence": "Congruencia",
+    "microExpr": "Micro-Expr."
+  },
+
+  "upload": {
+    "title": "Subir Video",
+    "subtitle": "Suba un video de entrevista grabado para análisis sin conexión",
+    "dragDrop": "Arrastre y suelte su video aquí",
+    "orBrowse": "o haga clic para explorar archivos",
+    "hint": "Soporta MP4, WebM, MOV · Máximo 500 MB",
+    "uploadBtn": "Subir Video",
+    "uploading": "Subiendo...",
+    "uploadProgress": "Progreso de Subida",
+    "processingVideo": "Procesando Video",
+    "uploadingVideo": "Subiendo video...",
+    "uploadComplete": "¡Subida completa! Procesando video...",
+    "uploadFailed": "Error al subir",
+    "invalidType": "Por favor seleccione un archivo de video (mp4, webm, mov, etc.).",
+    "fileTooLarge": "Archivo demasiado grande. El tamaño máximo es",
+    "processedSuccess": "¡Video procesado exitosamente!",
+    "resultsReady": "Los resultados de su análisis están listos para ver.",
+    "viewResults": "Ver Resultados →"
+  },
+
+  "report": {
+    "sessionReport": "Reporte de Sesión",
+    "candidate": "Candidato",
+    "unknown": "Desconocido",
+    "emotionDistribution": "Distribución de Emociones",
+    "downloadPdf": "Descargar PDF",
+    "downloadCsv": "Descargar CSV",
+    "close": "Cerrar",
+    "noData": "Sin datos"
+  },
+
+  "emotions": {
+    "happy": "Feliz",
+    "sad": "Triste",
+    "angry": "Enojado",
+    "surprise": "Sorpresa",
+    "disgust": "Disgusto",
+    "fear": "Miedo",
+    "neutral": "Neutral",
+    "nervousness": "Nervioso",
+    "confidence": "Confiado"
+  },
+
+  "disclaimer": {
+    "title": "Aviso Ético",
+    "text": "EmotionLens es una herramienta analítica diseñada para fines de investigación y educación. La tecnología de detección de emociones tiene limitaciones y sesgos inherentes. Los resultados nunca deben usarse como base única para decisiones de contratación, evaluación de carácter o determinación de veracidad. Todo análisis debe ser interpretado por profesionales calificados dentro de marcos éticos apropiados. Esta herramienta no reemplaza el juicio humano.",
+    "acknowledge": "Entendido",
+    "learnMore": "Saber Más"
+  },
+
+  "settings": {
+    "language": "Idioma",
+    "english": "English",
+    "spanish": "Español"
+  }
+}

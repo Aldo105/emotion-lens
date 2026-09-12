@@ -1,0 +1,606 @@
+"""
+EmotionLens — Report Generator Service
+
+Generates professional PDF and CSV reports from session analysis data.
+
+PDF reports include:
+  - Title page with session metadata
+  - Emotion distribution table
+  - Congruence summary statistics
+  - Micro-expression event log
+  - Interviewer notes table
+  - Key moments section
+
+CSV reports provide a flat emotion timeline suitable for external analysis.
+"""
+
+import csv
+import io
+import os
+from datetime import datetime
+from typing import Optional
+
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import mm
+from reportlab.platypus import (
+    SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer,
+    PageBreak,
+)
+
+
+# ── Color Scheme ─────────────────────────────────────────────────────
+
+BRAND_DARK = colors.HexColor("#1a1a2e")
+BRAND_PRIMARY = colors.HexColor("#16213e")
+BRAND_ACCENT = colors.HexColor("#0f3460")
+BRAND_HIGHLIGHT = colors.HexColor("#e94560")
+ROW_LIGHT = colors.HexColor("#f5f5f5")
+ROW_WHITE = colors.white
+HEADER_TEXT = colors.white
+BODY_TEXT = colors.HexColor("#333333")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# PDF REPORT
+# ═══════════════════════════════════════════════════════════════════════
+
+def generate_pdf_report(session_data: dict, output_path: str) -> str:
+    """
+    Generate a professional PDF report from session analysis data.
+
+    Args:
+        session_data: Complete session data dict (same shape as the
+            ``GET /api/reports/{session_id}/data`` response).
+        output_path: Absolute path for the output PDF file.
+
+    Returns:
+        The output_path on success.
+    """
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    doc = SimpleDocTemplate(
+        output_path,
+        pagesize=A4,
+        topMargin=20 * mm,
+        bottomMargin=20 * mm,
+        leftMargin=15 * mm,
+        rightMargin=15 * mm,
+    )
+
+    styles = getSampleStyleSheet()
+
+    # Custom styles
+    title_style = ParagraphStyle(
+        "ReportTitle",
+        parent=styles["Title"],
+        fontSize=22,
+        textColor=BRAND_DARK,
+        spaceAfter=6 * mm,
+    )
+    heading_style = ParagraphStyle(
+        "SectionHeading",
+        parent=styles["Heading2"],
+        fontSize=14,
+        textColor=BRAND_ACCENT,
+        spaceBefore=8 * mm,
+        spaceAfter=4 * mm,
+    )
+    body_style = ParagraphStyle(
+        "BodyText",
+        parent=styles["BodyText"],
+        fontSize=10,
+        textColor=BODY_TEXT,
+        leading=14,
+    )
+    small_style = ParagraphStyle(
+        "SmallText",
+        parent=styles["BodyText"],
+        fontSize=8,
+        textColor=colors.gray,
+    )
+
+    elements: list = []
+    session = session_data.get("session", {})
+    summary = session_data.get("summary")
+
+    # ── Title Page ───────────────────────────────────────────────────
+    elements.append(Spacer(1, 20 * mm))
+    elements.append(Paragraph("EmotionLens — Session Report", title_style))
+    elements.append(Spacer(1, 6 * mm))
+
+    meta_rows = [
+        ["Session Name", session.get("name", "—")],
+        ["Candidate", session.get("candidate_name") or "—"],
+        ["Date", _format_datetime(session.get("created_at"))],
+        ["Duration", _format_duration(session.get("duration_seconds"))],
+        ["Status", session.get("status", "—")],
+        ["Input Type", session.get("input_type", "—")],
+    ]
+    meta_table = Table(meta_rows, colWidths=[50 * mm, 120 * mm])
+    meta_table.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+        ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 0), (-1, -1), 10),
+        ("TEXTCOLOR", (0, 0), (0, -1), BRAND_ACCENT),
+        ("TEXTCOLOR", (1, 0), (1, -1), BODY_TEXT),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("ALIGN", (0, 0), (0, -1), "RIGHT"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+    ]))
+    elements.append(meta_table)
+
+    # ── Emotion Distribution ─────────────────────────────────────────
+    if summary and summary.get("emotion_distribution"):
+        elements.append(Paragraph("Emotion Distribution", heading_style))
+
+        dist = summary["emotion_distribution"]
+        emo_header = ["Emotion", "Percentage"]
+        emo_rows = [emo_header]
+        for emotion, pct in sorted(dist.items(), key=lambda x: x[1], reverse=True):
+            emo_rows.append([
+                emotion.capitalize(),
+                f"{pct * 100:.1f}%",
+            ])
+
+        if summary.get("dominant_emotion"):
+            emo_rows.append(["Dominant Emotion", summary["dominant_emotion"].capitalize()])
+
+        emo_table = Table(emo_rows, colWidths=[80 * mm, 80 * mm])
+        emo_table.setStyle(_table_style(len(emo_rows)))
+        elements.append(emo_table)
+
+    # ── Congruence Summary ───────────────────────────────────────────
+    if summary and summary.get("average_congruence") is not None:
+        elements.append(Paragraph("Congruence / Trustworthiness", heading_style))
+
+        cong_rows = [
+            ["Metric", "Score"],
+            ["Average Congruence", f"{summary['average_congruence']:.1f} / 100"],
+            ["Minimum Congruence", f"{summary.get('min_congruence', 0):.1f}"],
+            ["Maximum Congruence", f"{summary.get('max_congruence', 0):.1f}"],
+        ]
+
+        if summary.get("average_nervousness") is not None:
+            cong_rows.append(["Avg Nervousness", f"{summary['average_nervousness']:.3f}"])
+        if summary.get("average_confidence") is not None:
+            cong_rows.append(["Avg Confidence", f"{summary['average_confidence']:.3f}"])
+        if summary.get("nervousness_peaks") is not None:
+            cong_rows.append(["Nervousness Peaks", str(summary["nervousness_peaks"])])
+        if summary.get("average_model_confidence") is not None:
+            cong_rows.append(["Avg Model Confidence", f"{summary['average_model_confidence']:.3f}"])
+
+        cong_table = Table(cong_rows, colWidths=[80 * mm, 80 * mm])
+        cong_table.setStyle(_table_style(len(cong_rows)))
+        elements.append(cong_table)
+
+    # ── Micro-Expression Log ─────────────────────────────────────────
+    micros = session_data.get("micro_expressions", [])
+    if micros:
+        elements.append(Paragraph("Micro-Expression Log", heading_style))
+        elements.append(Paragraph(
+            f"Total: {len(micros)} events detected",
+            body_style,
+        ))
+        elements.append(Spacer(1, 3 * mm))
+
+        micro_header = ["Time (s)", "Emotion", "Duration (ms)", "Contradictory", "Description"]
+        micro_rows = [micro_header]
+        for m in micros:
+            micro_rows.append([
+                f"{m.get('timestamp', 0):.1f}",
+                m.get("detected_emotion", "—"),
+                f"{m.get('duration_ms', 0):.0f}",
+                "Yes" if m.get("is_contradictory") else "No",
+                _truncate(m.get("description", ""), 50),
+            ])
+
+        micro_table = Table(
+            micro_rows,
+            colWidths=[22 * mm, 28 * mm, 28 * mm, 28 * mm, 64 * mm],
+        )
+        micro_table.setStyle(_table_style(len(micro_rows)))
+        elements.append(micro_table)
+
+    # ── Interviewer Notes ────────────────────────────────────────────
+    notes = session_data.get("notes", [])
+    if notes:
+        elements.append(Paragraph("Interviewer Notes", heading_style))
+
+        note_header = ["Time (s)", "Tag", "Content", "Emotion", "Congruence"]
+        note_rows = [note_header]
+        for n in notes:
+            note_rows.append([
+                f"{n.get('timestamp', 0):.1f}",
+                n.get("tag") or "—",
+                _truncate(n.get("content", ""), 45),
+                n.get("emotion_at_time") or "—",
+                f"{n.get('congruence_at_time', 0):.0f}" if n.get("congruence_at_time") else "—",
+            ])
+
+        note_table = Table(
+            note_rows,
+            colWidths=[22 * mm, 25 * mm, 60 * mm, 28 * mm, 28 * mm],
+        )
+        note_table.setStyle(_table_style(len(note_rows)))
+        elements.append(note_table)
+
+    # ── Key Moments ──────────────────────────────────────────────────
+    key_moments = (summary or {}).get("key_moments", [])
+    if key_moments:
+        elements.append(Paragraph("Key Moments", heading_style))
+
+        km_header = ["Time (s)", "Type", "Detail"]
+        km_rows = [km_header]
+        for km in key_moments[:30]:  # Cap at 30 rows
+            km_rows.append([
+                f"{km.get('timestamp', 0):.1f}",
+                km.get("type", "—"),
+                _truncate(km.get("detail", ""), 65),
+            ])
+
+        km_table = Table(km_rows, colWidths=[25 * mm, 35 * mm, 110 * mm])
+        km_table.setStyle(_table_style(len(km_rows)))
+        elements.append(km_table)
+
+    # ── Comparative Analysis: Emotions vs Micro-Expressions ──────────
+    if micros:
+        elements.append(PageBreak())
+        elements.append(Paragraph(
+            "Comparative Analysis: Emotions vs Micro-Expressions",
+            heading_style,
+        ))
+        elements.append(Paragraph(
+            "This table correlates each detected micro-expression with the "
+            "emotion being displayed at that moment, revealing potential "
+            "emotional incongruences during the session.",
+            body_style,
+        ))
+        elements.append(Spacer(1, 3 * mm))
+
+        # Build the main comparison table
+        comp_header = [
+            "Time", "Displayed\nEmotion", "Micro-Expression\nDetected",
+            "AUs Involved", "Duration", "Contradiction", "Interpretation",
+        ]
+        comp_rows = [comp_header]
+
+        for m in micros:
+            ts = m.get("timestamp", 0)
+            mins = int(ts // 60)
+            secs = int(ts % 60)
+            time_str = f"{mins:02d}:{secs:02d}"
+
+            dominant = (m.get("dominant_emotion_at_time") or "neutral").capitalize()
+            detected = (m.get("detected_emotion") or "unknown").capitalize()
+            aus = ", ".join(m.get("action_units_involved", []))
+            duration = f"{m.get('duration_ms', 0):.0f}ms"
+            is_contra = m.get("is_contradictory", False)
+            contradiction_str = "YES" if is_contra else "No"
+
+            # Generate interpretation based on the data
+            if is_contra:
+                interpretation = (
+                    f"Subject showed {dominant.lower()} but briefly "
+                    f"revealed {detected.lower()} — possible suppression"
+                )
+            else:
+                interpretation = (
+                    f"Congruent — {detected.lower()} reinforces "
+                    f"the displayed {dominant.lower()}"
+                )
+
+            comp_rows.append([
+                time_str, dominant, detected,
+                _truncate(aus, 20), duration,
+                contradiction_str, _truncate(interpretation, 45),
+            ])
+
+        comp_table = Table(
+            comp_rows,
+            colWidths=[14 * mm, 22 * mm, 22 * mm, 22 * mm, 16 * mm, 20 * mm, 54 * mm],
+        )
+
+        # Custom style with color-coded contradiction column
+        comp_style_cmds = _table_style(len(comp_rows)).getCommands()
+
+        # Color-code the contradiction column: red for YES, green for No
+        for i in range(1, len(comp_rows)):
+            is_yes = comp_rows[i][5] == "YES"
+            if is_yes:
+                comp_style_cmds.append(
+                    ("TEXTCOLOR", (5, i), (5, i), colors.HexColor("#c0392b"))
+                )
+                comp_style_cmds.append(
+                    ("FONTNAME", (5, i), (5, i), "Helvetica-Bold")
+                )
+            else:
+                comp_style_cmds.append(
+                    ("TEXTCOLOR", (5, i), (5, i), colors.HexColor("#27ae60"))
+                )
+
+        comp_table.setStyle(TableStyle(comp_style_cmds))
+        elements.append(comp_table)
+
+        # ── Summary sub-table: Contradiction pairs ───────────────────
+        contra_pairs: dict[str, int] = {}
+        congruent_count = 0
+        for m in micros:
+            if m.get("is_contradictory"):
+                dominant = (m.get("dominant_emotion_at_time") or "?").capitalize()
+                detected = (m.get("detected_emotion") or "?").capitalize()
+                pair_key = f"{dominant} -> {detected}"
+                contra_pairs[pair_key] = contra_pairs.get(pair_key, 0) + 1
+            else:
+                congruent_count += 1
+
+        if contra_pairs:
+            elements.append(Spacer(1, 6 * mm))
+            elements.append(Paragraph(
+                "Contradiction Summary",
+                ParagraphStyle(
+                    "SubHeading", parent=heading_style,
+                    fontSize=12, spaceBefore=2 * mm,
+                ),
+            ))
+            elements.append(Paragraph(
+                "Frequency of emotion contradictions detected during the session. "
+                "A higher count suggests more emotional suppression in that pattern.",
+                body_style,
+            ))
+            elements.append(Spacer(1, 2 * mm))
+
+            sum_header = ["Displayed Emotion -> Hidden Emotion", "Occurrences", "Interpretation"]
+            sum_rows = [sum_header]
+
+            interpretations = {
+                "Happiness": "social masking",
+                "Neutral": "emotional suppression",
+                "Sadness": "concealed frustration",
+                "Fear": "hidden anxiety",
+                "Anger": "suppressed aggression",
+                "Surprise": "concealed reaction",
+                "Disgust": "hidden aversion",
+            }
+
+            for pair, count in sorted(contra_pairs.items(), key=lambda x: x[1], reverse=True):
+                # Extract displayed emotion for interpretation
+                displayed = pair.split(" -> ")[0]
+                interp = interpretations.get(displayed, "emotional incongruence")
+                sum_rows.append([pair, str(count), f"Possible {interp}"])
+
+            sum_rows.append(["Congruent (non-contradictory)", str(congruent_count), "Authentic expression"])
+
+            sum_table = Table(sum_rows, colWidths=[65 * mm, 25 * mm, 80 * mm])
+            sum_table.setStyle(_table_style(len(sum_rows)))
+            elements.append(sum_table)
+
+    # ── Subject Validation ───────────────────────────────────────────
+    feedback = session_data.get("feedback")
+    if feedback and feedback.get("overall_accuracy_rating") is not None:
+        elements.append(Spacer(1, 4 * mm))
+        elements.append(Paragraph("Subject Validation & Feedback", heading_style))
+        elements.append(Paragraph(
+            "This section presents post-session self-report feedback completed by the subject, "
+            "allowing for validation of the automated analysis.",
+            body_style,
+        ))
+        elements.append(Spacer(1, 3 * mm))
+
+        overall_rating = feedback["overall_accuracy_rating"]
+        self_reported = feedback.get("self_reported_emotion") or "—"
+        dom_emo = (summary or {}).get("dominant_emotion") or "—"
+        match_str = "—"
+        if self_reported != "—" and dom_emo != "—":
+            match_str = "YES" if self_reported.lower() == dom_emo.lower() else "No"
+            
+        suppression = "Yes" if feedback.get("attempted_suppression") else "No"
+        
+        # Calculate moment validations
+        moment_vals = feedback.get("moment_validations") or []
+        total_vals = len(moment_vals)
+        correct_vals = sum(1 for mv in moment_vals if mv.get("verdict") == "correct")
+        if total_vals > 0:
+            val_str = f"{correct_vals} / {total_vals} correct ({correct_vals / total_vals * 100:.0f}%)"
+        else:
+            val_str = "No events validated"
+
+        feedback_rows = [
+            ["Metric", "Value"],
+            ["Overall Self-Reported Accuracy", f"{overall_rating * 100:.0f}%"],
+            ["Self-Reported Predominant Emotion", self_reported.capitalize()],
+            ["Displayed Dominant Emotion", dom_emo.capitalize()],
+            ["Emotion Match", match_str],
+            ["Attempted Emotional Suppression", suppression],
+            ["Moment Validations", val_str],
+        ]
+
+        feedback_table = Table(feedback_rows, colWidths=[80 * mm, 80 * mm])
+        feedback_style_cmds = _table_style(len(feedback_rows)).getCommands()
+        
+        # Color-code Match
+        for i in range(1, len(feedback_rows)):
+            if feedback_rows[i][0] == "Emotion Match":
+                if match_str == "YES":
+                    feedback_style_cmds.append(("TEXTCOLOR", (1, i), (1, i), colors.HexColor("#27ae60")))
+                    feedback_style_cmds.append(("FONTNAME", (1, i), (1, i), "Helvetica-Bold"))
+                elif match_str == "No":
+                    feedback_style_cmds.append(("TEXTCOLOR", (1, i), (1, i), colors.HexColor("#c0392b")))
+                    feedback_style_cmds.append(("FONTNAME", (1, i), (1, i), "Helvetica-Bold"))
+                    
+        feedback_table.setStyle(TableStyle(feedback_style_cmds))
+        elements.append(feedback_table)
+        
+        if feedback.get("free_text_comments"):
+            elements.append(Spacer(1, 4 * mm))
+            elements.append(Paragraph("Subject Comments:", ParagraphStyle("CommentSub", parent=small_style, fontName="Helvetica-Bold", fontSize=9)))
+            elements.append(Paragraph(feedback["free_text_comments"], body_style))
+
+    # ── Footer ───────────────────────────────────────────────────────
+    elements.append(Spacer(1, 10 * mm))
+    elements.append(Paragraph(
+        f"Generated by EmotionLens on {datetime.now().strftime('%Y-%m-%d %H:%M')}. "
+        "This report is an analytical aid and does not constitute a definitive "
+        "assessment of character or truthfulness.",
+        small_style,
+    ))
+
+    # Build PDF
+    doc.build(elements)
+    return output_path
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# CSV REPORT
+# ═══════════════════════════════════════════════════════════════════════
+
+def generate_csv_report(session_data: dict, output_path: str) -> str:
+    """
+    Generate a CSV report with the emotion timeline.
+
+    Columns: timestamp, emotion, confidence, congruence_score, action_units
+
+    Args:
+        session_data: Complete session data dict.
+        output_path: Absolute path for the output CSV file.
+
+    Returns:
+        The output_path on success.
+    """
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    timeline = session_data.get("emotion_timeline", [])
+
+    with open(output_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            "timestamp", "emotion", "confidence",
+            "congruence_score", "action_units",
+        ])
+
+        for record in timeline:
+            action_units_str = ""
+            if record.get("action_units"):
+                action_units_str = "; ".join(
+                    f"{k}={v}" for k, v in record["action_units"].items()
+                )
+
+            writer.writerow([
+                record.get("timestamp", ""),
+                record.get("emotion", ""),
+                record.get("confidence", ""),
+                record.get("congruence_score", ""),
+                action_units_str,
+            ])
+
+    return output_path
+
+
+def generate_csv_string(session_data: dict) -> str:
+    """
+    Generate a CSV string (for streaming responses) instead of writing
+    to disk.
+
+    Returns:
+        CSV content as a string.
+    """
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "timestamp", "emotion", "confidence",
+        "congruence_score", "action_units",
+    ])
+
+    timeline = session_data.get("emotion_timeline", [])
+    for record in timeline:
+        action_units_str = ""
+        if record.get("action_units"):
+            action_units_str = "; ".join(
+                f"{k}={v}" for k, v in record["action_units"].items()
+            )
+
+        writer.writerow([
+            record.get("timestamp", ""),
+            record.get("emotion", ""),
+            record.get("confidence", ""),
+            record.get("congruence_score", ""),
+            action_units_str,
+        ])
+
+    return output.getvalue()
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# HELPERS
+# ═══════════════════════════════════════════════════════════════════════
+
+def _table_style(row_count: int) -> TableStyle:
+    """
+    Build a clean, professional table style with dark headers
+    and alternating row colors.
+    """
+    style_commands = [
+        # Header row
+        ("BACKGROUND", (0, 0), (-1, 0), BRAND_ACCENT),
+        ("TEXTCOLOR", (0, 0), (-1, 0), HEADER_TEXT),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), 9),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
+        ("TOPPADDING", (0, 0), (-1, 0), 6),
+
+        # Body rows
+        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 1), (-1, -1), 8),
+        ("TEXTCOLOR", (0, 1), (-1, -1), BODY_TEXT),
+        ("BOTTOMPADDING", (0, 1), (-1, -1), 4),
+        ("TOPPADDING", (0, 1), (-1, -1), 4),
+
+        # Grid
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cccccc")),
+        ("LINEBELOW", (0, 0), (-1, 0), 1, BRAND_DARK),
+
+        # Alignment
+        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+    ]
+
+    # Alternating row colors
+    for i in range(1, row_count):
+        bg = ROW_LIGHT if i % 2 == 0 else ROW_WHITE
+        style_commands.append(("BACKGROUND", (0, i), (-1, i), bg))
+
+    return TableStyle(style_commands)
+
+
+def _format_datetime(iso_str: Optional[str]) -> str:
+    """Format an ISO datetime string into a human-readable form."""
+    if not iso_str:
+        return "—"
+    try:
+        dt = datetime.fromisoformat(iso_str)
+        return dt.strftime("%Y-%m-%d  %H:%M:%S")
+    except (ValueError, TypeError):
+        return str(iso_str)
+
+
+def _format_duration(seconds: Optional[float]) -> str:
+    """Format duration in seconds into HH:MM:SS."""
+    if seconds is None:
+        return "—"
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = int(seconds % 60)
+    if h > 0:
+        return f"{h}h {m}m {s}s"
+    if m > 0:
+        return f"{m}m {s}s"
+    return f"{s}s"
+
+
+def _truncate(text: str, max_len: int) -> str:
+    """Truncate text to max_len, appending '…' if truncated."""
+    if len(text) <= max_len:
+        return text
+    return text[: max_len - 1] + "…"
