@@ -78,8 +78,11 @@ class Settings(BaseSettings):
     # Applied offline after session ends to produce a downloadable video
     # where skin color changes from blood flow are clearly visible.
     evm_amplification: float = 40.0     # Color magnification factor (30-60 recommended)
-    evm_freq_low: float = 0.8           # Hz (48 BPM) — bandpass lower cutoff
-    evm_freq_high: float = 2.0          # Hz (120 BPM) — bandpass upper cutoff
+    # 0.7-3.0 Hz (42-180 BPM): wide enough for situational stress during an
+    # interview, not just resting HR. The rPPG literature's typical working
+    # band (see backend/app/references.py, EVM_FREQ_BAND).
+    evm_freq_low: float = 0.7           # Hz (42 BPM) — bandpass lower cutoff
+    evm_freq_high: float = 3.0          # Hz (180 BPM) — bandpass upper cutoff
     evm_pyramid_levels: int = 4         # Gaussian pyramid depth (3-5)
     evm_delete_raw_after_render: bool = True  # Delete raw video after EVM render
 

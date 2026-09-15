@@ -52,29 +52,39 @@ class MicroExpressionEvent:
 # Which AU combinations suggest which emotions in micro-expression context
 
 MICRO_EXPR_PATTERNS = {
+    # AU5 (Upper Lid Raiser) is now computed (action_units.py) and added
+    # below to fear/anger/surprise, which EMFACS lists it in but the code
+    # previously omitted entirely — biasing those three toward false
+    # negatives. See backend/app/references.py, MICRO_EXPR_PATTERNS.
     "fear": {
+        # EMFACS: 1+2+4+5+7+20+25/26
         "required_aus": ["AU1", "AU4"],
-        "supporting_aus": ["AU2", "AU20", "AU25"],
+        "supporting_aus": ["AU2", "AU5", "AU20", "AU25"],
         "min_required": 2,
     },
     "anger": {
+        # EMFACS: 4+5+7+23
         "required_aus": ["AU4", "AU7"],
-        "supporting_aus": ["AU23", "AU24"],
+        "supporting_aus": ["AU5", "AU23", "AU24"],
         "min_required": 2,
     },
     "disgust": {
+        # EMFACS: 9+15+16 (+6,11,17). AU25 was listed as supporting but
+        # isn't part of the EMFACS disgust prototype — dropped.
         "required_aus": ["AU9"],
-        "supporting_aus": ["AU15", "AU25"],
+        "supporting_aus": ["AU15"],
         "min_required": 1,
     },
     "sadness": {
+        # EMFACS: 1+4+15
         "required_aus": ["AU1", "AU15"],
-        "supporting_aus": ["AU17"],
+        "supporting_aus": ["AU4", "AU17"],
         "min_required": 2,
     },
     "surprise": {
+        # EMFACS: 1+2+5+26
         "required_aus": ["AU2", "AU25"],
-        "supporting_aus": ["AU26"],
+        "supporting_aus": ["AU1", "AU5", "AU26"],
         "min_required": 2,
     },
     "contempt": {
@@ -82,6 +92,10 @@ MICRO_EXPR_PATTERNS = {
         "supporting_aus": [],
         "min_required": 1,  # Unilateral AU12 is key
     },
+    # NOT an EMFACS prototype — this AU combination is a project heuristic,
+    # not a published expression pattern. Kept because downstream code
+    # matches on the "stress" label, but it should be read as descriptive
+    # (lip tightening + press), not as a validated stress signature.
     "stress": {
         "required_aus": ["AU23", "AU24"],
         "supporting_aus": ["AU4", "AU7"],
@@ -268,7 +282,7 @@ class MicroExpressionEngine:
         Core detection logic: look for rapid onset-apex-offset patterns.
         """
         # Analyze each trackable AU for onset/offset patterns
-        aus_to_track = ["AU1", "AU2", "AU4", "AU6", "AU7", "AU9",
+        aus_to_track = ["AU1", "AU2", "AU4", "AU5", "AU6", "AU7", "AU9",
                         "AU12", "AU14", "AU15", "AU17", "AU20",
                         "AU23", "AU24", "AU25", "AU26"]
 
@@ -531,8 +545,8 @@ class MicroExpressionEngine:
         if detected_emotion != dominant_emotion and dominant_emotion != "neutral":
             score += 30  # Big boost for contradictory micro-expressions
 
-        # Factor 4: Duration (sweet spot is 100-250ms)
-        if 100 <= duration_ms <= 250:
+        # Factor 4: Duration (modal range per Yan et al. 2013 is 80-200ms)
+        if 80 <= duration_ms <= 200:
             score += 20  # Optimal micro-expression duration
         elif 40 <= duration_ms <= 500:
             score += 10  # Acceptable range

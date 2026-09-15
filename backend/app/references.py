@@ -210,59 +210,76 @@ CONSTANTS: tuple[ConstantEvidence, ...] = (
              "de 500 ms. La cota inferior de 40 ms es conservadora y compatible.",
     ),
     ConstantEvidence(
-        name="Bonificación por duración 'óptima' (100–250 ms)",
+        name="Bonificación por duración 'óptima'",
         location="micro_expressions.py:535",
-        current_value="100–250 ms",
+        current_value="80–200 ms",
         tier=Tier.VALIDATED,
         refs=("yan2013duration",),
-        note="Yan et al. reportan que la mayoría de las muestras se concentran entre "
-             "80 y 200 ms. La ventana del código debe ajustarse a ese rango modal.",
+        note="Corregido (Fase 1.5): Yan et al. sitúan la moda de duración en 80–200 ms; "
+             "el código usaba 100–250 ms. Ya coincide con la fuente.",
     ),
 
     # ── Patrones AU → emoción ─────────────────────────────────────────
     ConstantEvidence(
-        name="MICRO_EXPR_PATTERNS",
-        location="micro_expressions.py:54-90",
-        current_value="6 emociones + 'stress'",
+        name="MICRO_EXPR_PATTERNS (6 prototipos EMFACS)",
+        location="micro_expressions.py:54-97",
+        current_value="miedo, ira, asco, tristeza, sorpresa, desprecio",
+        tier=Tier.VALIDATED,
+        refs=("ekman2002facs",),
+        note="Corregido (Fase 1.3): se agregó AU5 a miedo/ira/sorpresa y AU1 a sorpresa "
+             "(EMFACS los incluye y el código los omitía, sesgando esas tres emociones "
+             "hacia falsos negativos); se agregó AU4 a tristeza; se quitó AU25 de asco "
+             "(no pertenece a su prototipo EMFACS). Los 6 patrones ahora coinciden con "
+             "los prototipos publicados. La categoría 'stress' es un componente aparte, "
+             "ver la entrada siguiente.",
+    ),
+    ConstantEvidence(
+        name="Patrón 'stress' (no-EMFACS)",
+        location="micro_expressions.py:94-99",
+        current_value="AU23+AU24 (req.), AU4+AU7 (sup.)",
         tier=Tier.HEURISTIC,
-        refs=("ekman2002facs", "barrett2019reconsidered"),
-        note="Los prototipos EMFACS existen y son citables, pero los del código están "
-             "incompletos: falta AU5 en miedo, ira y sorpresa; falta AU4 en tristeza; "
-             "AU25 no pertenece al prototipo de asco. La categoría 'stress' (AU23+AU24) "
-             "no es un prototipo EMFACS: es una invención del proyecto.",
+        refs=(),
+        note="No es un prototipo EMFACS publicado: es invención del proyecto. Se decidió "
+             "mantenerlo (código externo depende de la etiqueta 'stress') pero marcarlo "
+             "explícitamente como heurístico en el propio código, en vez de eliminarlo "
+             "o presentarlo como si tuviera el mismo respaldo que los otros 6.",
     ),
     ConstantEvidence(
         name="AU5 (Upper Lid Raiser)",
-        location="action_units.py — AUSENTE",
-        current_value="no implementado",
+        location="action_units.py:249-267",
+        current_value="clip((ratio − 0.10) × 10.0, 0, 1)",
         tier=Tier.HEURISTIC,
         refs=("ekman2002facs",),
-        note="AU5 aparece en 3 de los 6 prototipos EMFACS de emoción básica, pero el "
-             "analizador no lo calcula. Su ausencia sesga la detección de miedo, ira y "
-             "sorpresa hacia falsos negativos.",
+        note="Implementado (Fase 1.4): AU5 aparece en 3 de los 6 prototipos EMFACS de "
+             "emoción básica y antes no se calculaba, sesgando miedo/ira/sorpresa hacia "
+             "falsos negativos. Que el AU exista y sea geométricamente medible está "
+             "respaldado; el umbral numérico concreto (0.10, ×10.0) es heurístico, igual "
+             "que el resto de las ~30 constantes geométricas de este archivo — pendiente "
+             "de calibración contra DISFA (Fase 3).",
     ),
 
     # ── Parpadeo ──────────────────────────────────────────────────────
     ConstantEvidence(
         name="Umbral EAR de parpadeo",
-        location="action_units.py:88",
-        current_value="0.15",
-        tier=Tier.HEURISTIC,
+        location="action_units.py:88, 428-452",
+        current_value="0.20, promedio de 2 pares verticales por ojo",
+        tier=Tier.VALIDATED,
         refs=("soukupova2016ear",),
-        note="El umbral canónico publicado es 0.20, y la fórmula EAR estándar usa dos "
-             "pares verticales de landmarks; el código usa un solo par. Ambos puntos son "
-             "corregibles contra la fuente.",
+        note="Corregido (Fase 1.1): el umbral canónico publicado es 0.20 (antes 0.15), y "
+             "la fórmula EAR ahora promedia dos pares verticales de landmarks por ojo "
+             "como especifica Soukupová & Čech, en vez de un solo par.",
     ),
     ConstantEvidence(
         name="Normalización de blink_rate",
-        location="action_units.py:466",
-        current_value="clip((bpm - 15) / 25, 0, 1)",
-        tier=Tier.HEURISTIC,
+        location="action_units.py:442-483",
+        current_value="clip((bpm - ancla) / 25, 0, 1); ancla = basal del sujeto o 26 ppm",
+        tier=Tier.VALIDATED,
         refs=("bentivoglio1997blink", "plos2025blink"),
-        note="Anclar en 15 ppm asume tasa de reposo. Bentivoglio et al. reportan ~17 ppm "
-             "en reposo pero ~26 ppm en conversación. Una entrevista ES una conversación, "
-             "así que un candidato con parpadeo normal se lee hoy como 'elevado'. "
-             "El ancla debe ser la norma conversacional.",
+        note="Corregido (Fase 1.2): el ancla ya no asume tasa de reposo (15-17 ppm). Usa "
+             "26 ppm (norma conversacional, Bentivoglio et al.) como respaldo antes de "
+             "calibrar, y el basal propio del sujeto (medido durante los 30s de "
+             "calibración) en cuanto está disponible — la normalización intra-sujeto que "
+             "el rango individual amplio (4-48 ppm) exige.",
     ),
     ConstantEvidence(
         name="Cortes de blink_score",
@@ -287,12 +304,42 @@ CONSTANTS: tuple[ConstantEvidence, ...] = (
     ),
     ConstantEvidence(
         name="Banda de frecuencia EVM",
-        location="config.py:81-82",
-        current_value="0.8–2.0 Hz (48–120 BPM)",
+        location="config.py:81-85",
+        current_value="0.7–3.0 Hz (42–180 BPM)",
         tier=Tier.VALIDATED,
         refs=("wu2012evm", "dehaan2013chrom"),
-        note="Compatible con la banda de pulso usada en la literatura de rPPG. "
-             "Considerar ampliar a 0.7–3.0 Hz para cubrir taquicardia situacional.",
+        note="Ampliada (Fase 1.6) de 0.8–2.0 Hz (48–120 BPM) a 0.7–3.0 Hz para cubrir "
+             "taquicardia situacional en entrevistas, dentro del rango habitual de la "
+             "literatura rPPG.",
+    ),
+    ConstantEvidence(
+        name="Umbral de movimiento (motion_threshold)",
+        location="heart_rate.py:61",
+        current_value="15.0 (píxeles normalizados por diagonal de frame)",
+        tier=Tier.HEURISTIC,
+        refs=(),
+        note="Corregido de 5.0 a 15.0 tras diagnosticar que el valor anterior descartaba "
+             "casi todos los frames: a 640×480 el umbral raw era de solo ~4 px, por "
+             "debajo del jitter propio de los landmarks de MediaPipe en reposo (~2-5 px), "
+             "así que el buffer nunca se llenaba y el BPM quedaba fijo en 0. No existe un "
+             "valor publicado para este umbral — 15.0 es una estimación empírica con "
+             "margen sobre el jitter conocido, pendiente de validar contra grabaciones "
+             "con movimiento real etiquetado.",
+    ),
+    ConstantEvidence(
+        name="EMA de deriva del ROI de referencia nasal",
+        location="heart_rate.py:174-186",
+        current_value="alpha = 0.01",
+        tier=Tier.HEURISTIC,
+        refs=(),
+        note="Corrige un bug distinto del umbral de movimiento: el código restaba el "
+             "valor RGB crudo del puente nasal al de la frente para cancelar ruido de "
+             "iluminación, lo que con frecuencia daba medias negativas y disparaba la "
+             "guarda de _compute_chrom_signal (BPM atascado en 0). Ahora se resta solo "
+             "la deriva del ROI de referencia respecto a su propio basal (EMA con "
+             "alpha=0.01), preservando el nivel absoluto de brillo de la frente que "
+             "CHROM necesita. El valor de alpha es una elección empírica sin fuente "
+             "publicada.",
     ),
     ConstantEvidence(
         name="Mezcla de estrés fisiológico",
@@ -367,7 +414,7 @@ CONSTANTS: tuple[ConstantEvidence, ...] = (
     # ── Geometría de AUs ──────────────────────────────────────────────
     ConstantEvidence(
         name="Constantes de normalización geométrica de AUs",
-        location="action_units.py:262-422 (~30 constantes)",
+        location="action_units.py:249-441 (~31 constantes, incl. AU5)",
         current_value="p. ej. (ratio − 0.12) × 8.0",
         tier=Tier.HEURISTIC,
         refs=("mavadati2013disfa", "yan2014casme2"),

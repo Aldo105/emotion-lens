@@ -58,7 +58,7 @@ class HeartRateEstimator:
         freq_low: float = 0.7,    # 42 BPM minimum
         freq_high: float = 4.0,   # 240 BPM maximum
         amplification_factor: float = 50.0,
-        motion_threshold: float = 5.0,  # Normalized pixel displacement threshold
+        motion_threshold: float = 15.0,  # Normalized pixel displacement threshold
     ):
         """
         Args:
@@ -67,8 +67,13 @@ class HeartRateEstimator:
             freq_low: Low cutoff frequency in Hz (0.7 = 42 BPM).
             freq_high: High cutoff frequency in Hz (4.0 = 240 BPM).
             amplification_factor: Color amplification factor for visual output.
-            motion_threshold: Maximum landmark displacement (in normalized pixels)
-                              before a frame is rejected as motion-corrupted.
+            motion_threshold: Maximum landmark displacement (in normalized pixels,
+                              i.e. already scaled by frame diagonal) before a frame
+                              is rejected as motion-corrupted. MediaPipe's own
+                              landmark jitter is ~2-5 raw px even when still, which
+                              is why this must sit comfortably above that noise
+                              floor rather than at raw-pixel scale (see
+                              backend/app/references.py, HEART_RATE_MOTION_THRESHOLD).
         """
         self.fps = fps
         self.freq_low = freq_low
@@ -111,6 +116,12 @@ class HeartRateEstimator:
         self._prev_motion_landmarks: list[tuple[float, float]] | None = None
         self._motion_frames_skipped = 0
         self._last_motion_detected = False
+
+        # Slow-moving baseline of the nose-bridge reference ROI, used to
+        # remove illumination drift without collapsing the forehead's
+        # absolute brightness level (see _extract_nose_bridge_signal usage
+        # in process_frame).
+        self._ref_baseline: tuple[float, float, float] | None = None
 
     def process_frame(
         self,
@@ -159,11 +170,30 @@ class HeartRateEstimator:
         ref_rgb = self._extract_nose_bridge_signal(frame, landmarks, frame_shape)
         if ref_rgb is not None:
             ref_r, ref_g, ref_b = ref_rgb
-            # Subtract reference signal to remove common-mode noise
-            # (lighting changes, camera auto-exposure)
-            r_mean = r_mean - ref_r
-            g_mean = g_mean - ref_g
-            b_mean = b_mean - ref_b
+            if self._ref_baseline is None:
+                self._ref_baseline = (ref_r, ref_g, ref_b)
+            base_r, base_g, base_b = self._ref_baseline
+
+            # Subtract only the *drift* of the reference ROI relative to its
+            # own baseline — not its raw level. Subtracting the raw nose
+            # value (as before) routinely made r/g/b_mean negative (nose is
+            # usually brighter than forehead), which tripped the near-zero
+            # guard in _compute_chrom_signal and made bpm stick at 0. Drift
+            # correction removes the same common-mode illumination change
+            # while keeping r/g/b_mean near the forehead's real ~0-255 level,
+            # which CHROM's per-channel mean normalization assumes.
+            r_mean = r_mean - (ref_r - base_r)
+            g_mean = g_mean - (ref_g - base_g)
+            b_mean = b_mean - (ref_b - base_b)
+
+            # Track slow lighting drift with an exponential moving average
+            # so genuine illumination changes are still cancelled over time.
+            ema = 0.01
+            self._ref_baseline = (
+                (1 - ema) * base_r + ema * ref_r,
+                (1 - ema) * base_g + ema * ref_g,
+                (1 - ema) * base_b + ema * ref_b,
+            )
 
         # Step 4: If motion detected, skip adding to buffer
         if motion_detected:
