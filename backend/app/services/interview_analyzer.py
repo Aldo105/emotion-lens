@@ -1,5 +1,5 @@
 import numpy as np
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
 
 
@@ -48,6 +48,36 @@ class InterviewAnalysisResult:
     question_correlations: list[dict]
     recommendations: list[dict]
     noise_stats: Optional[dict]
+    event_timeline: list[dict] = field(default_factory=list)
+    task_analysis: list[dict] = field(default_factory=list)
+
+
+# ── Event tag vocabulary ─────────────────────────────────────────────
+# Markers the moderator drops during a session. The same timeline serves
+# both use cases: UX testing marks tasks and usability errors, HR process
+# review marks questions — the reaction analysis underneath is identical.
+TAG_TASK_START = "task_start"
+TAG_TASK_END = "task_end"
+TAG_ERROR = "error"
+TAG_CONFUSION = "confusion"
+TAG_KEY_QUESTION = "key_question"
+
+EVENT_TAG_LABELS = {
+    TAG_TASK_START: "Inicio de tarea",
+    TAG_TASK_END: "Fin de tarea",
+    TAG_ERROR: "Error del usuario",
+    TAG_CONFUSION: "Confusion observada",
+    TAG_KEY_QUESTION: "Pregunta clave",
+}
+
+# Windows used to compare emotional state around a marked event.
+PRE_EVENT_WINDOW_S = 3.0
+POST_EVENT_WINDOW_S = 7.0
+
+# A marked event counts as a friction point when the reaction after it is
+# clearly worse than before — a nervousness jump or a congruence drop.
+FRICTION_NERVOUSNESS_DELTA = 0.15
+FRICTION_CONGRUENCE_DELTA = -10.0
 
 
 class InterviewBehaviorAnalyzer:
@@ -277,6 +307,16 @@ class InterviewBehaviorAnalyzer:
         transition_events = self._detect_emotion_transitions(timestamps, emotions)
         patterns.extend(transition_events)
 
+        # 10. Event timeline + task friction — the moderator's markers
+        # (tasks, errors, confusion, key questions) correlated against what
+        # the face was doing around each one.
+        event_timeline = self._build_event_timeline(
+            timestamps, emotions, nervousness, congruence_scores, interviewer_notes
+        )
+        task_analysis = self._build_task_analysis(
+            timestamps, emotions, nervousness, congruence_scores, interviewer_notes
+        )
+
         # Dimension Scoring (0-100)
         
         # 1. technical_mastery
@@ -356,14 +396,227 @@ class InterviewBehaviorAnalyzer:
                 "text": "Se observó pérdida progresiva de seguridad durante la entrevista."
             })
 
+        # Surface the worst task as a recommendation — it's the single most
+        # actionable output for a usability review.
+        if task_analysis:
+            worst = max(task_analysis, key=lambda t: t["friction_score"])
+            if worst["friction_score"] >= 35:
+                recommendations.append({
+                    "category": "usability",
+                    "priority": "high" if worst["friction_score"] >= 60 else "medium",
+                    "text": (
+                        f"La tarea con mayor friccion fue \"{worst['task_name']}\" "
+                        f"({worst['friction_score']:.0f}/100), entre "
+                        f"{worst['start_video_time']} y {worst['end_video_time']}. "
+                        f"Revisar ese tramo del video."
+                    ),
+                })
+
         return InterviewAnalysisResult(
             dimension_scores=dimension_scores,
             behavioral_patterns=patterns,
             red_flags=red_flags,
             question_correlations=correlations,
             recommendations=recommendations,
-            noise_stats=noise_stats
+            noise_stats=noise_stats,
+            event_timeline=event_timeline,
+            task_analysis=task_analysis,
         )
+
+    @staticmethod
+    def _window_stats(
+        timestamps: np.ndarray,
+        emotions: list,
+        nervousness: np.ndarray,
+        congruence: np.ndarray,
+        start: float,
+        end: float,
+    ) -> dict | None:
+        """Aggregate emotional state over a time window. None if no frames fall in it."""
+        mask = (timestamps >= start) & (timestamps <= end)
+        if not np.any(mask):
+            return None
+
+        window_emotions = [emotions[i] for i, m in enumerate(mask) if m]
+        return {
+            "dominant_emotion": max(set(window_emotions), key=window_emotions.count),
+            "nervousness": float(np.mean(nervousness[mask])),
+            "peak_nervousness": float(np.max(nervousness[mask])),
+            "peak_nervousness_time": float(timestamps[mask][int(np.argmax(nervousness[mask]))]),
+            "congruence": float(np.mean(congruence[mask])),
+        }
+
+    def _build_event_timeline(
+        self,
+        timestamps: np.ndarray,
+        emotions: list,
+        nervousness: np.ndarray,
+        congruence: np.ndarray,
+        notes: list,
+    ) -> list[dict]:
+        """
+        For every tagged marker, compare the emotional state just before it
+        with the state just after, so a reviewer can jump straight to the
+        moments where something actually changed.
+        """
+        events = []
+
+        for note in notes:
+            tag = note.get("tag")
+            if tag not in EVENT_TAG_LABELS:
+                continue
+
+            t = float(note.get("timestamp") or 0.0)
+            before = self._window_stats(
+                timestamps, emotions, nervousness, congruence,
+                t - PRE_EVENT_WINDOW_S, t,
+            )
+            after = self._window_stats(
+                timestamps, emotions, nervousness, congruence,
+                t, t + POST_EVENT_WINDOW_S,
+            )
+            if before is None or after is None:
+                # Marker landed outside the analyzed window (e.g. during
+                # calibration, before any emotion record was persisted).
+                continue
+
+            nerv_change = after["nervousness"] - before["nervousness"]
+            cong_change = after["congruence"] - before["congruence"]
+            is_friction = (
+                nerv_change >= FRICTION_NERVOUSNESS_DELTA
+                or cong_change <= FRICTION_CONGRUENCE_DELTA
+                or tag in (TAG_ERROR, TAG_CONFUSION)
+            )
+
+            if nerv_change >= FRICTION_NERVOUSNESS_DELTA:
+                interpretation = (
+                    f"El nerviosismo subio {nerv_change:+.2f} despues de este momento — "
+                    f"posible punto de friccion, revisar el video."
+                )
+            elif cong_change <= FRICTION_CONGRUENCE_DELTA:
+                interpretation = (
+                    f"La congruencia cayo {cong_change:+.1f} puntos despues de este momento — "
+                    f"revisar que lo provoco."
+                )
+            elif tag in (TAG_ERROR, TAG_CONFUSION):
+                interpretation = (
+                    "Marcado manualmente por el moderador; la reaccion emocional "
+                    "medida no fue pronunciada."
+                )
+            else:
+                interpretation = "Sin cambio emocional relevante tras este momento."
+
+            events.append({
+                "timestamp": t,
+                "video_time": _format_video_time(t),
+                "tag": tag,
+                "label": EVENT_TAG_LABELS[tag],
+                "content": note.get("content") or "",
+                "emotion_before": before["dominant_emotion"],
+                "emotion_after": after["dominant_emotion"],
+                "nervousness_change": round(nerv_change, 3),
+                "congruence_change": round(cong_change, 1),
+                "is_friction_point": bool(is_friction),
+                "interpretation": interpretation,
+            })
+
+        events.sort(key=lambda e: e["timestamp"])
+        return events
+
+    def _build_task_analysis(
+        self,
+        timestamps: np.ndarray,
+        emotions: list,
+        nervousness: np.ndarray,
+        congruence: np.ndarray,
+        notes: list,
+    ) -> list[dict]:
+        """
+        Pair task_start markers with the next task_end and score each task
+        by how much friction the participant showed while working on it.
+
+        A task_start with no matching task_end is still reported (marked
+        incomplete) and measured up to the end of the session — an abandoned
+        task is usually the most interesting one in a usability test.
+        """
+        tagged = sorted(
+            [n for n in notes if n.get("tag") in EVENT_TAG_LABELS],
+            key=lambda n: float(n.get("timestamp") or 0.0),
+        )
+        starts = [n for n in tagged if n.get("tag") == TAG_TASK_START]
+        if not starts:
+            return []
+
+        session_end = float(timestamps[-1]) if len(timestamps) else 0.0
+        tasks = []
+
+        for start_note in starts:
+            start_t = float(start_note.get("timestamp") or 0.0)
+
+            end_note = next(
+                (n for n in tagged
+                 if n.get("tag") == TAG_TASK_END
+                 and float(n.get("timestamp") or 0.0) > start_t),
+                None,
+            )
+            completed = end_note is not None
+            end_t = float(end_note.get("timestamp")) if completed else session_end
+            if end_t <= start_t:
+                continue
+
+            stats = self._window_stats(
+                timestamps, emotions, nervousness, congruence, start_t, end_t
+            )
+            if stats is None:
+                continue
+
+            in_task = [
+                n for n in tagged
+                if start_t <= float(n.get("timestamp") or 0.0) <= end_t
+            ]
+            error_count = sum(1 for n in in_task if n.get("tag") == TAG_ERROR)
+            confusion_count = sum(1 for n in in_task if n.get("tag") == TAG_CONFUSION)
+
+            # Friction score (0-100). Weights are split between what the face
+            # showed (60) and what the moderator marked (40) so neither signal
+            # alone can dominate the ranking.
+            friction = (
+                stats["nervousness"] * 35
+                + stats["peak_nervousness"] * 25
+                + min(error_count, 3) / 3 * 25
+                + min(confusion_count, 2) / 2 * 15
+            )
+            friction = float(np.clip(friction, 0, 100))
+
+            if friction >= 60:
+                interpretation = "Friccion alta — candidata principal a rediseño/reformulacion."
+            elif friction >= 35:
+                interpretation = "Friccion moderada — vale la pena revisar el video."
+            else:
+                interpretation = "Sin señales de friccion relevantes."
+            if not completed:
+                interpretation = "Tarea sin marcar como completada. " + interpretation
+
+            tasks.append({
+                "task_name": (start_note.get("content") or "Tarea sin nombre").strip(),
+                "start": start_t,
+                "end": end_t,
+                "start_video_time": _format_video_time(start_t),
+                "end_video_time": _format_video_time(end_t),
+                "duration_seconds": round(end_t - start_t, 1),
+                "completed": completed,
+                "dominant_emotion": stats["dominant_emotion"],
+                "avg_nervousness": round(stats["nervousness"], 3),
+                "peak_nervousness": round(stats["peak_nervousness"], 3),
+                "peak_nervousness_time": _format_video_time(stats["peak_nervousness_time"]),
+                "avg_congruence": round(stats["congruence"], 1),
+                "error_count": error_count,
+                "confusion_count": confusion_count,
+                "friction_score": round(friction, 1),
+                "interpretation": interpretation,
+            })
+
+        return tasks
 
     @staticmethod
     def _detect_emotion_transitions(

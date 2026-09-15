@@ -138,23 +138,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (sessionActive) webcam.resizeCanvas();
     });
 
-    // ── Add Note Logic ──
-    function addNote() {
-        const text = noteInput.value.trim();
-        if (!text) return;
-        
-        const time = timerDisplay.textContent;
+    // ── Add Note / Event Marker Logic ──
+    const MARKER_LABELS = {
+        task_start:   '▶️ Inicio tarea',
+        task_end:     '⏹️ Fin tarea',
+        error:        '⚠️ Error',
+        confusion:    '❓ Confusión',
+        key_question: '💬 Pregunta clave',
+    };
+
+    /** Seconds elapsed since the session started — what the backend correlates on. */
+    function elapsedSeconds() {
+        if (!sessionStartTime) return 0;
+        return (Date.now() - sessionStartTime.getTime()) / 1000;
+    }
+
+    function renderNote({ text, tag, time }) {
         const div = document.createElement('div');
-        div.className = 'note-item';
+        div.className = 'note-item' + (tag ? ' tagged' : '');
 
         const header = document.createElement('div');
         header.className = 'note-header';
         const timeSpan = document.createElement('span');
         timeSpan.textContent = `🕒 ${time}`;
-        const userSpan = document.createElement('span');
-        userSpan.textContent = 'User';
+        const tagSpan = document.createElement('span');
+        tagSpan.textContent = tag ? MARKER_LABELS[tag] || tag : 'User';
         header.appendChild(timeSpan);
-        header.appendChild(userSpan);
+        header.appendChild(tagSpan);
 
         const noteText = document.createElement('div');
         noteText.className = 'note-text';
@@ -162,14 +172,53 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         div.appendChild(header);
         div.appendChild(noteText);
-        
         notesList.prepend(div);
+    }
+
+    /**
+     * Persist the note. Without this the interviewer_notes table stays empty
+     * and every note-driven analysis (task friction, question correlation)
+     * silently has nothing to work with.
+     */
+    async function persistNote(content, tag, timestamp) {
+        const sessionId = ws.lastSessionId;
+        if (!sessionId) {
+            console.warn('[Notes] No active session id — note kept locally only');
+            return;
+        }
+        try {
+            const resp = await fetch(`${CONFIG.API_URL}/notes/${sessionId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content, tag, timestamp }),
+            });
+            if (!resp.ok) console.warn('[Notes] Save failed:', resp.status);
+        } catch (err) {
+            console.warn('[Notes] Save failed:', err);
+        }
+    }
+
+    function addNote(tag = null) {
+        const typed = noteInput.value.trim();
+        // A marker doesn't need typed text; a plain note does.
+        const text = typed || (tag ? MARKER_LABELS[tag] : '');
+        if (!text) return;
+
+        renderNote({ text, tag, time: timerDisplay.textContent });
+        persistNote(text, tag, elapsedSeconds());
         noteInput.value = '';
     }
 
-    btnAddNote.addEventListener('click', addNote);
+    btnAddNote.addEventListener('click', () => addNote());
     noteInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') addNote();
+    });
+
+    document.querySelectorAll('#event-markers .btn-marker').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (!sessionActive) return;
+            addNote(btn.dataset.tag);
+        });
     });
 
     // ══════════════════════════════════════════

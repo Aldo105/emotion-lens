@@ -626,6 +626,36 @@ h1, h2, h3, h4 {
     font-size: 0.95rem;
 }
 
+/* One-click event markers (task/error/confusion/question) */
+.event-markers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+.btn-marker {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    padding: 5px 10px;
+    font-size: 0.78rem;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.btn-marker:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--primary);
+    color: white;
+}
+.btn-marker:active {
+    transform: translateY(1px);
+}
+.note-item.tagged {
+    border-left: 3px solid var(--primary);
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    PHASE 7 — Navigation, Views, Sessions, Compare, Upload
    ═══════════════════════════════════════════════════════════════════ */

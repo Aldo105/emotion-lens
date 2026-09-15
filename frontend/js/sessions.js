@@ -131,6 +131,7 @@ class SessionManager {
             const report = await res.json();
             this.showDetailModal(report, id);
             this.renderAnalysis(report.interview_analysis);
+            this.renderTasksAndEvents(report.interview_analysis);
             this.renderValidation(report.feedback);
         } catch (err) {
             console.error('Failed to load session report:', err);
@@ -220,6 +221,13 @@ class SessionManager {
                         <div class="analysis-recommendations" id="detail-recommendations"></div>
                     </div>
 
+                    <!-- Task Friction / Event Timeline -->
+                    <div id="detail-tasks-section" style="display: none;">
+                        <h3 class="detail-section-title">🎯 Tareas y Eventos</h3>
+                        <div id="detail-tasks"></div>
+                        <div id="detail-events"></div>
+                    </div>
+
                     <!-- Human Validation Section -->
                     <div id="detail-validation-section" style="display: none;">
                         <h3 class="detail-section-title">🔍 Validación Humana</h3>
@@ -245,6 +253,78 @@ class SessionManager {
         modal.addEventListener('click', (e) => {
             if (e.target === modal) this.closeModal();
         });
+    }
+
+    renderTasksAndEvents(analysis) {
+        const section = document.getElementById('detail-tasks-section');
+        const tasksEl = document.getElementById('detail-tasks');
+        const eventsEl = document.getElementById('detail-events');
+        if (!section || !tasksEl || !eventsEl) return;
+
+        const tasks = (analysis && analysis.task_analysis) || [];
+        const events = (analysis && analysis.event_timeline) || [];
+
+        if (tasks.length === 0 && events.length === 0) {
+            section.style.display = 'none';
+            return;
+        }
+        section.style.display = 'block';
+
+        // Tasks ranked by friction — the highest one is what to redesign first.
+        if (tasks.length > 0) {
+            const ranked = [...tasks].sort((a, b) => b.friction_score - a.friction_score);
+            tasksEl.innerHTML = '<h4 style="margin:12px 0 8px;">Fricción por tarea</h4>' +
+                ranked.map(t => {
+                    const color = t.friction_score >= 60 ? '#ef4444'
+                                : t.friction_score >= 35 ? '#f59e0b' : '#10b981';
+                    return `
+                    <div class="pattern-item" style="border-left:3px solid ${color};">
+                        <div style="display:flex; justify-content:space-between; align-items:baseline;">
+                            <strong>${this._escape(t.task_name)}</strong>
+                            <span style="color:${color}"><b>${Math.round(t.friction_score)}</b>/100</span>
+                        </div>
+                        <div style="font-size:0.82rem; color:var(--text-secondary); margin-top:4px;">
+                            ${t.start_video_time}–${t.end_video_time} · ${Math.round(t.duration_seconds)}s
+                            ${t.completed ? '' : ' · <b>sin completar</b>'}
+                            · ${t.error_count} error(es) · ${t.confusion_count} confusión(es)
+                        </div>
+                        <div style="font-size:0.82rem; color:var(--text-secondary);">
+                            Pico de nerviosismo ${t.peak_nervousness} en ${t.peak_nervousness_time}
+                        </div>
+                        <div style="font-size:0.85rem; margin-top:4px;">${this._escape(t.interpretation)}</div>
+                    </div>`;
+                }).join('');
+        } else {
+            tasksEl.innerHTML = '';
+        }
+
+        // Only friction points are worth a reviewer's time here.
+        const friction = events.filter(e => e.is_friction_point);
+        if (friction.length > 0) {
+            eventsEl.innerHTML = '<h4 style="margin:16px 0 8px;">Puntos de fricción marcados</h4>' +
+                friction.map(e => `
+                    <div class="pattern-item medium">
+                        <div style="display:flex; justify-content:space-between;">
+                            <strong>${this._escape(e.label)}</strong>
+                            <span style="opacity:0.75;">⏱ ${e.video_time}</span>
+                        </div>
+                        <div style="font-size:0.85rem; margin-top:4px;">${this._escape(e.content)}</div>
+                        <div style="font-size:0.82rem; color:var(--text-secondary); margin-top:4px;">
+                            ${e.emotion_before} → ${e.emotion_after}
+                            · nerviosismo ${e.nervousness_change >= 0 ? '+' : ''}${e.nervousness_change}
+                            · congruencia ${e.congruence_change >= 0 ? '+' : ''}${e.congruence_change}
+                        </div>
+                        <div style="font-size:0.82rem; margin-top:4px;">${this._escape(e.interpretation)}</div>
+                    </div>`).join('');
+        } else {
+            eventsEl.innerHTML = '';
+        }
+    }
+
+    _escape(text) {
+        const div = document.createElement('div');
+        div.textContent = text == null ? '' : String(text);
+        return div.innerHTML;
     }
 
     renderValidation(feedback) {

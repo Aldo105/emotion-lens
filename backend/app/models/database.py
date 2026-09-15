@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import (
     Column, Integer, String, Float, Text, Boolean,
-    DateTime, ForeignKey, JSON, create_engine
+    DateTime, ForeignKey, JSON, create_engine, inspect as sa_inspect
 )
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import (
@@ -254,6 +254,16 @@ class InterviewAnalysis(Base):
     recommendations = Column(JSON, nullable=True)
     # [{"category": "technical", "priority": "high", "text": "..."}]
 
+    # Moderator-marked events correlated with the emotional reaction around
+    # each one (JSON list)
+    event_timeline = Column(JSON, nullable=True)
+    # [{"timestamp": 42.0, "tag": "error", "emotion_before": "neutral",
+    #   "emotion_after": "angry", "is_friction_point": true, ...}]
+
+    # Per-task friction analysis, from task_start/task_end markers (JSON list)
+    task_analysis = Column(JSON, nullable=True)
+    # [{"task_name": "Completar el registro", "friction_score": 72.4, ...}]
+
     # Noise filtering stats
     noise_events_filtered = Column(Integer, default=0)
     speaking_time_ratio = Column(Float, nullable=True)
@@ -279,10 +289,38 @@ async_session_factory = sessionmaker(
 )
 
 
+def _add_missing_columns(conn) -> None:
+    """
+    Add columns that exist on the models but not yet in the database.
+
+    create_all() only creates missing *tables*, so a database created before
+    a column was introduced keeps working but silently lacks it. This walks
+    the declared models and ALTERs in anything missing, which is enough for
+    the additive-only changes this project makes and avoids forcing anyone
+    to delete their existing sessions to pick up a new field.
+    """
+    inspector = sa_inspect(conn)
+    existing_tables = set(inspector.get_table_names())
+
+    for table in Base.metadata.sorted_tables:
+        if table.name not in existing_tables:
+            continue  # create_all will handle it
+        existing_columns = {c["name"] for c in inspector.get_columns(table.name)}
+        for column in table.columns:
+            if column.name in existing_columns:
+                continue
+            col_type = column.type.compile(conn.dialect)
+            conn.exec_driver_sql(
+                f'ALTER TABLE "{table.name}" ADD COLUMN "{column.name}" {col_type}'
+            )
+            print(f"[MIGRATE] Added {table.name}.{column.name}")
+
+
 async def init_db():
-    """Create all tables if they don't exist."""
+    """Create all tables if they don't exist, then add any missing columns."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_add_missing_columns)
     print("[OK] Database initialized")
 
 

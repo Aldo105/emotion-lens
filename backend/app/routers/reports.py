@@ -170,6 +170,8 @@ async def _get_report_data(session_id: int, db: AsyncSession) -> dict:
             "red_flags": analysis.red_flags if analysis else [],
             "question_correlations": analysis.question_correlations if analysis else [],
             "recommendations": analysis.recommendations if analysis else [],
+            "event_timeline": analysis.event_timeline if analysis else [],
+            "task_analysis": analysis.task_analysis if analysis else [],
             "noise_events_filtered": analysis.noise_events_filtered if analysis else 0,
             "speaking_time_ratio": analysis.speaking_time_ratio if analysis else None,
         } if analysis else None,

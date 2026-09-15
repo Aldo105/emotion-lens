@@ -87,8 +87,15 @@ async def end_session(db: AsyncSession, session_id: int) -> Session:
     session.ended_at = datetime.now(timezone.utc)
 
     if session.created_at:
-        delta = session.ended_at - session.created_at
-        session.duration_seconds = delta.total_seconds()
+        # created_at comes back from SQLite without tzinfo even though it was
+        # written as UTC-aware, so it has to be re-tagged before subtracting —
+        # otherwise this raises and (because callers wrap end_session in a
+        # try/except) the session silently never completes and no summary or
+        # behavioral analysis is ever generated.
+        created_at = session.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        session.duration_seconds = (session.ended_at - created_at).total_seconds()
 
     # Generate the aggregate summary before committing
     await generate_summary(db, session_id)
@@ -358,6 +365,8 @@ async def generate_summary(db: AsyncSession, session_id: int) -> SessionSummary:
         analysis.red_flags = result.red_flags
         analysis.question_correlations = result.question_correlations
         analysis.recommendations = result.recommendations
+        analysis.event_timeline = result.event_timeline
+        analysis.task_analysis = result.task_analysis
         analysis.noise_events_filtered = (result.noise_stats or {}).get("noise_events_filtered", 0)
         analysis.speaking_time_ratio = (result.noise_stats or {}).get("speaking_time_ratio")
         

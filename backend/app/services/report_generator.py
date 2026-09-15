@@ -878,6 +878,76 @@ def generate_pdf_report(session_data: dict, output_path: str) -> str:
             elements.append(corr_table)
             elements.append(Spacer(1, 6 * mm))
 
+        # Section 4b: Task Friction — ranked worst-first, since the top row
+        # is the actionable output of a usability review.
+        tasks = analysis.get("task_analysis") or []
+        if tasks:
+            elements.append(Paragraph("Task Friction", heading_style))
+            elements.append(Paragraph(
+                "Friction combines what the face showed (average and peak nervousness) "
+                "with what the moderator marked (errors, confusion) during each task.",
+                small_style,
+            ))
+            elements.append(Spacer(1, 2 * mm))
+
+            task_rows = [["Task", "Window", "Duration", "Errors", "Confusion", "Friction"]]
+            for t in sorted(tasks, key=lambda x: x.get("friction_score", 0), reverse=True):
+                window = f"{t.get('start_video_time', '')}-{t.get('end_video_time', '')}"
+                if not t.get("completed", True):
+                    window += " *"
+                task_rows.append([
+                    _truncate(str(t.get("task_name", "")), 32),
+                    window,
+                    f"{t.get('duration_seconds', 0):.0f}s",
+                    str(t.get("error_count", 0)),
+                    str(t.get("confusion_count", 0)),
+                    f"{t.get('friction_score', 0):.0f}/100",
+                ])
+
+            task_table = Table(task_rows,
+                               colWidths=[52*mm, 28*mm, 20*mm, 18*mm, 24*mm, 24*mm])
+            task_cmds = _table_style(len(task_rows)).getCommands()
+            for i in range(1, len(task_rows)):
+                try:
+                    score = float(task_rows[i][5].split("/")[0])
+                except ValueError:
+                    continue
+                color = (colors.red if score >= 60
+                         else colors.orange if score >= 35
+                         else colors.green)
+                task_cmds.append(("TEXTCOLOR", (5, i), (5, i), color))
+                task_cmds.append(("FONTNAME",  (5, i), (5, i), "Helvetica-Bold"))
+            task_table.setStyle(TableStyle(task_cmds))
+            elements.append(task_table)
+
+            if any(not t.get("completed", True) for t in tasks):
+                elements.append(Spacer(1, 2 * mm))
+                elements.append(Paragraph(
+                    "* Task was never marked as completed.", small_style))
+            elements.append(Spacer(1, 6 * mm))
+
+        # Section 4c: Marked friction points
+        friction_events = [e for e in (analysis.get("event_timeline") or [])
+                           if e.get("is_friction_point")]
+        if friction_events:
+            elements.append(Paragraph("Marked Friction Points", heading_style))
+            ev_rows = [["Time", "Marker", "Note", "Emotion", "Nervous", "Congr."]]
+            for e in friction_events:
+                ev_rows.append([
+                    e.get("video_time", ""),
+                    _truncate(str(e.get("label", "")), 18),
+                    _truncate(str(e.get("content", "")), 30),
+                    f"{e.get('emotion_before', '')}->{e.get('emotion_after', '')}",
+                    f"{e.get('nervousness_change', 0):+.2f}",
+                    f"{e.get('congruence_change', 0):+.1f}",
+                ])
+
+            ev_table = Table(ev_rows,
+                             colWidths=[16*mm, 30*mm, 48*mm, 36*mm, 20*mm, 20*mm])
+            ev_table.setStyle(_table_style(len(ev_rows)))
+            elements.append(ev_table)
+            elements.append(Spacer(1, 6 * mm))
+
         # Section 5: Recommendations
         recommendations = analysis.get("recommendations", [])
         if recommendations:

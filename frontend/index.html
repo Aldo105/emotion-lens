@@ -263,6 +263,16 @@
                             <input type="text" id="note-input" placeholder="Type a note (e.g., 'Asked about gaps in resume')" data-i18n-placeholder="live.notePlaceholder">
                             <button class="btn btn-secondary" id="btn-add-note" data-i18n="live.addNote">Add</button>
                         </div>
+                        <!-- One-click markers: during a live session there is no
+                             time to type, and the task/friction analysis is built
+                             from these. Text in the field becomes the marker name. -->
+                        <div class="event-markers" id="event-markers">
+                            <button class="btn-marker" data-tag="task_start" title="Marca el inicio de una tarea (el texto del campo se usa como nombre)">▶️ Inicio tarea</button>
+                            <button class="btn-marker" data-tag="task_end" title="Marca que la tarea se completó">⏹️ Fin tarea</button>
+                            <button class="btn-marker" data-tag="error" title="El usuario cometió un error o falló">⚠️ Error</button>
+                            <button class="btn-marker" data-tag="confusion" title="Se observó confusión o duda">❓ Confusión</button>
+                            <button class="btn-marker" data-tag="key_question" title="Pregunta clave de la entrevista">💬 Pregunta clave</button>
+                        </div>
                         <div class="notes-list" id="notes-list">
                             <!-- Items injected by JS -->
                         </div>
