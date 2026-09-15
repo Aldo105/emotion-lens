@@ -113,6 +113,9 @@ class SessionManager {
                     <button class="btn btn-secondary btn-sm" onclick="sessionManager.downloadEVM('${session.id}')" title="Descargar Video EVM">
                         🎥 EVM
                     </button>
+                    <button class="btn btn-secondary btn-sm" onclick="sessionManager.downloadMicroHighlights('${session.id}')" title="Descargar video de validación de microexpresiones">
+                        🔬 Microexpresiones
+                    </button>
                     <button class="btn btn-danger btn-sm" onclick="sessionManager.deleteSession('${session.id}')">
                         🗑️
                     </button>
@@ -221,6 +224,7 @@ class SessionManager {
                     <button class="btn btn-primary" onclick="sessionManager.downloadPDF('${sessionId}')">📄 Download PDF</button>
                     <button class="btn btn-secondary" onclick="sessionManager.downloadCSV('${sessionId}')">📊 Download CSV</button>
                     <button class="btn btn-secondary" onclick="sessionManager.downloadEVM('${sessionId}')">🎥 Video EVM</button>
+                    <button class="btn btn-secondary" onclick="sessionManager.downloadMicroHighlights('${sessionId}')">🔬 Video Microexpresiones</button>
                     <button class="btn btn-secondary" onclick="sessionManager.closeModal()">Close</button>
                 </div>
             </div>
@@ -281,10 +285,12 @@ class SessionManager {
         if (patterns.length > 0) {
             patternsEl.innerHTML = '<h4 style="margin: 12px 0 8px;">Behavioral Patterns</h4>' +
                 patterns.map(p => {
-                    const isPositive = ['stress_recovery', 'authentic_engagement'].includes(p.type);
+                    const isPositive = p.is_positive || ['stress_recovery', 'authentic_engagement'].includes(p.type);
                     const cls = isPositive ? 'positive' : (p.severity === 'medium' ? 'medium' : 'negative');
+                    const timeBadge = (p.timestamp !== null && p.timestamp !== undefined)
+                        ? `<span style="float:right; opacity:0.75;">⏱ ${this.formatDuration(p.timestamp)}</span>` : '';
                     return `<div class="pattern-item ${cls}">
-                        <strong>${isPositive ? '✅' : '⚠️'} ${p.type.replace(/_/g, ' ').toUpperCase()}</strong>
+                        <strong>${isPositive ? '✅' : '⚠️'} ${p.type.replace(/_/g, ' ').toUpperCase()}</strong>${timeBadge}
                         <div style="font-size: 0.85rem; margin-top: 4px;">${p.description}</div>
                         ${p.context_question ? `<div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px;">Context: ${p.context_question}</div>` : ''}
                     </div>`;
@@ -386,6 +392,32 @@ class SessionManager {
         } catch (err) {
             console.error('Error al solicitar video EVM:', err);
             this.showToast('Error al verificar video EVM: ' + err.message, 'error');
+        }
+    }
+
+    async downloadMicroHighlights(id) {
+        try {
+            this.showToast('Verificando disponibilidad del video de microexpresiones...', 'info');
+            const res = await fetch(`${CONFIG.API_URL}/reports/${id}/micro-highlights-status`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+
+            if (data.status === 'ready') {
+                const sizeInfo = data.size_mb ? ` (${data.size_mb} MB)` : '';
+                this.showToast(`Iniciando descarga de video de microexpresiones${sizeInfo}...`, 'success');
+                window.open(`${CONFIG.API_URL}/reports/${id}/micro-highlights-video`, '_blank');
+            } else if (data.status === 'rendering') {
+                const pct = Math.round((data.progress || 0) * 100);
+                const phase = data.phase ? ` [${data.phase}]` : '';
+                this.showToast(`El video de microexpresiones se está procesando: ${pct}%${phase}. Intenta en unos momentos.`, 'info');
+            } else if (data.status === 'failed') {
+                this.showToast('El procesamiento del video de microexpresiones falló para esta sesión.', 'error');
+            } else {
+                this.showToast('No se detectaron microexpresiones en esta sesión, o el video aún no está disponible.', 'warning');
+            }
+        } catch (err) {
+            console.error('Error al solicitar video de microexpresiones:', err);
+            this.showToast('Error al verificar video de microexpresiones: ' + err.message, 'error');
         }
     }
 

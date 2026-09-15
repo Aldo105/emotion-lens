@@ -83,6 +83,17 @@ class Settings(BaseSettings):
     evm_pyramid_levels: int = 4         # Gaussian pyramid depth (3-5)
     evm_delete_raw_after_render: bool = True  # Delete raw video after EVM render
 
+    # ── Micro-Expression EVM Validation ───────────────────────────────
+    # Offline highlight reel: short, amplified, slow-motion clips of every
+    # detected micro-expression, for human visual validation.
+    micro_evm_amplification: float = 12.0    # Lower than pulse (30-60) to avoid artifacts
+    micro_evm_freq_low: float = 2.0          # Hz — matches fast micro-expression transients
+    micro_evm_freq_high: float = 12.0        # Hz
+    micro_evm_pyramid_levels: int = 2        # Shallower than pulse (4) to keep spatial detail
+    micro_evm_clip_padding_sec: float = 0.75 # Seconds of context before/after each event
+    micro_evm_max_clips: int = 15            # Cap clips per session (keeps video short)
+    micro_evm_slowmo_factor: int = 4         # Frame duplication factor for visibility
+
     # ── Reports ──────────────────────────────────────────────────────
     reports_dir: str = str(BASE_DIR / "data" / "reports")
 
@@ -110,7 +121,7 @@ def get_device() -> str:
             import torch
             if torch.cuda.is_available():
                 device_name = torch.cuda.get_device_name(settings.gpu_device_id)
-                vram = torch.cuda.get_device_properties(settings.gpu_device_id).total_mem
+                vram = torch.cuda.get_device_properties(settings.gpu_device_id).total_memory
                 vram_gb = vram / (1024 ** 3)
                 print(f"[OK] GPU detected: {device_name} ({vram_gb:.1f} GB VRAM)")
                 return "cuda"
@@ -138,7 +149,7 @@ def initialize_gpu() -> str:
             if settings.gpu_memory_fraction < 1.0:
                 total_mem = torch.cuda.get_device_properties(
                     settings.gpu_device_id
-                ).total_mem
+                ).total_memory
                 max_mem = int(total_mem * settings.gpu_memory_fraction)
                 torch.cuda.set_per_process_memory_fraction(
                     settings.gpu_memory_fraction,

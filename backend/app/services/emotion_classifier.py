@@ -17,6 +17,7 @@ import time
 from collections import deque
 from pathlib import Path
 
+import cv2
 import numpy as np
 
 from backend.app.config import settings
@@ -147,6 +148,37 @@ class EmotionClassifier:
             print(f"[INFO] No trained model found at {model_path}")
             print("[INFO] Using blendshape/heuristic mode for emotion classification")
 
+    # ══════════════════════════════════════════════════════════════════
+    # FACE CROP PREPROCESSING (for CNN mode)
+    # ══════════════════════════════════════════════════════════════════
+
+    _CNN_IMG_SIZE = 224
+    _CNN_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(3, 1, 1)
+    _CNN_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(3, 1, 1)
+
+    @staticmethod
+    def preprocess_face(frame_bgr: np.ndarray, bbox: dict) -> np.ndarray | None:
+        """
+        Crop the detected face from a BGR frame and prepare it for the CNN:
+        resize to 224x224, BGR->RGB, scale to [0,1], ImageNet normalize,
+        HWC->CHW, add batch dim. Matches the preprocessing used in
+        backend/ml/train_emotion_cnn.py.
+        """
+        x1 = max(0, bbox.get("x_min", 0))
+        y1 = max(0, bbox.get("y_min", 0))
+        x2 = bbox.get("x_max", 0)
+        y2 = bbox.get("y_max", 0)
+        crop = frame_bgr[y1:y2, x1:x2]
+        if crop.size == 0:
+            return None
+
+        size = EmotionClassifier._CNN_IMG_SIZE
+        resized = cv2.resize(crop, (size, size))
+        rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
+        chw = rgb.transpose(2, 0, 1)
+        chw = (chw - EmotionClassifier._CNN_MEAN) / EmotionClassifier._CNN_STD
+        return chw[np.newaxis, ...].astype(np.float32)
+
     def set_baseline(self, blendshapes: dict[str, float]) -> None:
         """
         Set the resting-face baseline blendshapes from calibration.
@@ -184,7 +216,10 @@ class EmotionClassifier:
             from torchvision import models
 
             model = models.mobilenet_v2(weights=None)
-            model.classifier[1] = nn.Linear(model.last_channel, len(EMOTION_LABELS))
+            # 7 classes, not 9: "nervousness"/"confidence" have no equivalent
+            # in any public FER dataset -- they're merged in from the AU/
+            # blendshape heuristic at inference time (see _merge_cnn_with_derived).
+            model.classifier[1] = nn.Linear(model.last_channel, len(FER7_LABELS))
             state_dict = torch.load(model_path, map_location=self.device, weights_only=True)
             model.load_state_dict(state_dict)
             model.to(self.device)
@@ -225,7 +260,22 @@ class EmotionClassifier:
         """
         # Step 1: Get raw probabilities from the best available source
         if self.mode == "cnn" and face_image is not None:
-            raw_result = self._predict_cnn(face_image)
+            cnn_result = self._predict_cnn(face_image)
+            # The CNN only knows FER2013's 7 basic emotions -- "nervousness"
+            # and "confidence" have no equivalent in any public FER dataset,
+            # so they're carved in from the AU/blendshape signal instead of
+            # being learned. See _merge_cnn_with_derived.
+            merged_probs = self._merge_cnn_with_derived(
+                cnn_result["probabilities"], action_units, blendshapes
+            )
+            top_emotion = max(merged_probs, key=merged_probs.get)
+            raw_result = {
+                "emotion": top_emotion,
+                "confidence": merged_probs[top_emotion],
+                "probabilities": merged_probs,
+                "model_confidence": cnn_result["model_confidence"],
+                "mode": "cnn",
+            }
         elif blendshapes is not None and len(blendshapes) > 0:
             # Subtract baseline before scoring (Problem 5 fix)
             adjusted_bs = self._subtract_baseline(blendshapes)
@@ -501,13 +551,15 @@ class EmotionClassifier:
             probabilities = torch.softmax(output, dim=1)[0]
             probs_np = probabilities.cpu().numpy()
 
-        prob_dict = {label: float(probs_np[i]) for i, label in enumerate(EMOTION_LABELS)}
+        # 7 classes -- see the note in _load_cnn_model / predict() about
+        # why "nervousness"/"confidence" aren't part of the CNN's output.
+        prob_dict = {label: float(probs_np[i]) for i, label in enumerate(FER7_LABELS)}
         top_idx = int(np.argmax(probs_np))
-        top_emotion = EMOTION_LABELS[top_idx]
+        top_emotion = FER7_LABELS[top_idx]
         top_confidence = float(probs_np[top_idx])
 
         entropy = -np.sum(probs_np * np.log(probs_np + 1e-10))
-        max_entropy = np.log(len(EMOTION_LABELS))
+        max_entropy = np.log(len(FER7_LABELS))
         model_confidence = float(1.0 - (entropy / max_entropy))
 
         return {
@@ -517,6 +569,96 @@ class EmotionClassifier:
             "model_confidence": model_confidence,
             "mode": "cnn",
         }
+
+    # ══════════════════════════════════════════════════════════════════
+    # CNN + AU/BLENDSHAPE HYBRID MERGE
+    # ══════════════════════════════════════════════════════════════════
+
+    def _derived_nervousness_confidence(
+        self,
+        action_units: dict[str, float] | None,
+        blendshapes: dict[str, float] | None,
+    ) -> tuple[float, float]:
+        """
+        Estimate nervousness/confidence "activation" in [0,1] from AUs or
+        blendshapes -- same signals _predict_heuristic / _predict_blendshapes
+        already use for these two labels, since no public FER dataset has
+        them and the CNN can't learn them.
+        """
+        if blendshapes:
+            bs = self._subtract_baseline(blendshapes)
+
+            def b(name: str) -> float:
+                return bs.get(name, 0.0)
+
+            nervousness = (
+                b("mouthPressLeft") * 0.15 + b("mouthPressRight") * 0.15 +
+                b("mouthDimpleLeft") * 0.10 + b("mouthDimpleRight") * 0.10 +
+                b("eyeSquintLeft") * 0.10 + b("eyeSquintRight") * 0.10 +
+                b("jawClench") * 0.15 + b("mouthPucker") * 0.15
+            )
+            tension_sum = (
+                b("browDownLeft") + b("browDownRight") +
+                b("mouthPressLeft") + b("mouthPressRight") + b("jawClench")
+            )
+            relaxed = max(0.0, 1.0 - tension_sum * 0.5)
+            eye_open = (b("eyeWideLeft") + b("eyeWideRight")) * 0.5
+            confidence = relaxed * 0.7 + eye_open * 0.1
+        elif action_units:
+            def au(name: str) -> float:
+                return action_units.get(name, 0.0)
+
+            nervousness = (
+                au("AU14") * 0.25 + au("AU24") * 0.30 +
+                au("AU7") * 0.20 + au("blink_rate") * 0.25
+            )
+            low_brow_tension = max(0.0, 1.0 - au("AU4"))
+            low_lip_tension = max(0.0, 1.0 - au("AU24"))
+            confidence = (
+                low_brow_tension * 0.30 + low_lip_tension * 0.25 +
+                au("gaze_stability") * 0.45
+            )
+        else:
+            return 0.0, 0.0
+
+        return float(np.clip(nervousness, 0.0, 1.0)), float(np.clip(confidence, 0.0, 1.0))
+
+    def _merge_cnn_with_derived(
+        self,
+        cnn_probs: dict[str, float],
+        action_units: dict[str, float] | None,
+        blendshapes: dict[str, float] | None,
+    ) -> dict[str, float]:
+        """
+        Fold the AU/blendshape-derived nervousness/confidence signal into
+        the CNN's 7-class distribution to produce the full 9-label output.
+
+        When there's no nervousness/confidence signal, the CNN's 7 classes
+        pass through almost unchanged. When there is, probability mass is
+        carved out of the 7 CNN classes (proportionally, so the CNN's
+        relative ranking among them is preserved) and handed to whichever
+        of nervousness/confidence is more strongly indicated. The reserved
+        share is capped at 0.5 so a strong nervousness/confidence signal
+        can't fully drown out what the CNN actually saw in the face.
+        """
+        nervousness, confidence = self._derived_nervousness_confidence(action_units, blendshapes)
+        total_signal = nervousness + confidence
+
+        reserved = min(0.5, total_signal * 0.5)
+        scale = 1.0 - reserved
+
+        merged = {label: prob * scale for label, prob in cnn_probs.items()}
+        if total_signal > 1e-6:
+            merged["nervousness"] = reserved * (nervousness / total_signal)
+            merged["confidence"] = reserved * (confidence / total_signal)
+        else:
+            merged["nervousness"] = 0.0
+            merged["confidence"] = 0.0
+
+        total = sum(merged.values())
+        if total > 0:
+            merged = {label: value / total for label, value in merged.items()}
+        return merged
 
     def _empty_prediction(self) -> dict:
         """Return an empty prediction when no input is available."""

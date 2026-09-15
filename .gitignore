@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Environment / secrets
+.env
+.env.local
+
+# Runtime data (regenerated locally, not source)
+data/emotion_lens.db
+data/emotion_lens.db-journal
+data/recordings/
+data/uploads/
+data/reports/
+
+# ML artifacts -- large/binary, regenerate via backend/ml/train_emotion_cnn.py
+backend/ml/saved_models/*.pt
+backend/ml/saved_models/*.pth
+
+# Editor / OS
+.vscode/*
+!.vscode/settings.json
+.DS_Store
+Thumbs.db

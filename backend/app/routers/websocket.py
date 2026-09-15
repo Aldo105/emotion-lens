@@ -18,6 +18,7 @@ import traceback
 import cv2
 import numpy as np
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from sqlalchemy import select
 
 from backend.app.config import settings
 from backend.app.models.schemas import WSFrameResult, WSStatusMessage, MicroExpressionEvent
@@ -30,9 +31,64 @@ from backend.app.services.heart_rate import HeartRateEstimator
 from backend.app.services.noise_filter import FacialNoiseFilter
 from backend.app.services.video_recorder import SessionVideoRecorder
 from backend.app.services.evm_renderer import EVMRenderer
+from backend.app.services.micro_expression_highlight_renderer import MicroExpressionHighlightRenderer
 from backend.app.services import session_manager
-from backend.app.models.database import async_session_factory
+from backend.app.models.database import async_session_factory, MicroExpression as MicroExpressionRow
 from backend.app.utils.image_preprocessing import AdaptivePreprocessor
+
+
+def _render_session_videos(
+    raw_path: str,
+    meta_path: str,
+    micro_events: list[dict],
+    evm_output_path: str,
+    highlights_output_path: str,
+    delete_raw: bool,
+) -> None:
+    """
+    Runs both offline renders (pulse EVM + micro-expression highlight reel)
+    against the same raw session recording, then cleans up the raw files.
+
+    Must run BEFORE any raw video cleanup — both renderers need the same
+    raw_path/meta_path, so deletion is deferred to this function regardless
+    of each renderer's own delete_raw setting.
+    """
+    evm_renderer = EVMRenderer(
+        amplification=settings.evm_amplification,
+        freq_low=settings.evm_freq_low,
+        freq_high=settings.evm_freq_high,
+        pyramid_levels=settings.evm_pyramid_levels,
+        delete_raw=False,
+    )
+    try:
+        evm_renderer.render(raw_path, meta_path, evm_output_path)
+    except Exception as e:
+        print(f"[WARN] Pulse EVM rendering failed: {e}")
+
+    highlight_renderer = MicroExpressionHighlightRenderer(
+        amplification=settings.micro_evm_amplification,
+        freq_low=settings.micro_evm_freq_low,
+        freq_high=settings.micro_evm_freq_high,
+        pyramid_levels=settings.micro_evm_pyramid_levels,
+        clip_padding_sec=settings.micro_evm_clip_padding_sec,
+        max_clips=settings.micro_evm_max_clips,
+        slowmo_factor=settings.micro_evm_slowmo_factor,
+    )
+    try:
+        # Handles the empty-events case internally (writes "not_available"
+        # progress immediately instead of leaving the frontend polling).
+        highlight_renderer.render(raw_path, meta_path, micro_events, highlights_output_path)
+    except Exception as e:
+        print(f"[WARN] Micro-expression highlight rendering failed: {e}")
+
+    if delete_raw:
+        for path in [raw_path, meta_path, meta_path.replace("_meta.npz", "_hr.json")]:
+            try:
+                if os.path.exists(path):
+                    os.remove(path)
+                    print(f"[OK] Cleaned up: {path}")
+            except Exception as e:
+                print(f"[WARN] Failed to delete {path}: {e}")
 
 router = APIRouter()
 
@@ -433,11 +489,34 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                 # No face detected -- still record the frame (with no bbox)
                 if video_recorder and video_recorder.is_open:
                     video_recorder.write_frame(frame, timestamp=timestamp, face_bbox=None)
-                # Send empty result
-                await manager.send_json(websocket, WSStatusMessage(
-                    type="status",
-                    message="No face detected",
-                ).model_dump())
+
+                # No bbox means we can't run the full camera-quality check,
+                # but overall frame brightness is cheap (one grayscale mean)
+                # and this is exactly when lighting/framing problems are
+                # worst -- give actionable feedback instead of a silent
+                # "no face" the frontend otherwise ignores.
+                frame_brightness = float(np.mean(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))) / 255.0
+                if frame_brightness < 0.15:
+                    warnings = ["No se detecta tu rostro — el ambiente esta muy oscuro"]
+                    suggestions = ["Enciende una luz frente a ti o acercate a una ventana"]
+                elif frame_brightness > 0.90:
+                    warnings = ["No se detecta tu rostro — hay demasiada luz o reflejo"]
+                    suggestions = ["Reduce el brillo o alejate de la fuente de luz"]
+                else:
+                    warnings = ["No se detecta tu rostro"]
+                    suggestions = ["Centra tu rostro frente a la camara, a un brazo de distancia"]
+
+                await manager.send_json(websocket, {
+                    "type": "quality_warning",
+                    "camera_quality": {
+                        "score": 0.0,
+                        "brightness": round(frame_brightness, 3),
+                        "warnings": warnings,
+                        "suggestions": suggestions,
+                        "quality_gate": "fail",
+                    },
+                    "message": warnings[0],
+                })
                 continue
 
             # Record raw frame with face bbox for EVM post-processing
@@ -519,7 +598,16 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
             )
 
             # Step 4: Emotion Classification (with quality penalty)
+            # Only pay for the face-crop + normalize when a CNN is actually
+            # loaded -- blendshape/heuristic mode doesn't need face_image.
+            face_image = None
+            if emotion_classifier.mode == "cnn":
+                face_image = EmotionClassifier.preprocess_face(
+                    preprocessed_frame, detection["bbox"]
+                )
+
             emotion_result = emotion_classifier.predict(
+                face_image=face_image,
                 action_units=action_units,
                 blendshapes=detection.get("blendshapes"),
                 quality_penalty=quality_penalty,
@@ -701,6 +789,7 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
         manager.disconnect(websocket)
     finally:
         # ── Finalize session on disconnect ────────────────────────────
+        micro_events: list[dict] = []
         if db_session and analysis_session_id:
             try:
                 # Flush any remaining batched records
@@ -718,36 +807,62 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                     db=db_session,
                     session_id=analysis_session_id,
                 )
+
+                # Fetch top micro-expressions for the highlight video, as plain
+                # dicts — extracted before closing the session so they can be
+                # handed to the background render thread.
+                result = await db_session.execute(
+                    select(MicroExpressionRow)
+                    .where(MicroExpressionRow.session_id == analysis_session_id)
+                    .order_by(MicroExpressionRow.relevance_score.desc())
+                    .limit(settings.micro_evm_max_clips)
+                )
+                micro_events = [
+                    {
+                        "timestamp": row.timestamp,
+                        "duration_ms": row.duration_ms,
+                        "detected_emotion": row.detected_emotion,
+                        "dominant_emotion_at_time": row.dominant_emotion_at_time,
+                        "action_units_involved": row.action_units_involved,
+                        "relevance_score": row.relevance_score,
+                        "is_contradictory": row.is_contradictory,
+                    }
+                    for row in result.scalars().all()
+                ]
+
                 await db_session.commit()
             except Exception as e:
                 print(f"[WARN] Failed to finalize session: {e}")
             finally:
                 await db_session.close()
 
-        # ── Close video recorder and launch EVM rendering ─────────────
+        # ── Close video recorder and launch offline rendering ─────────
         if video_recorder and video_recorder.is_open:
             try:
                 raw_path, meta_path = video_recorder.close()
-                output_path = os.path.join(
+                evm_output_path = os.path.join(
                     settings.recordings_dir,
                     f"{analysis_session_id}_evm.mp4",
                 )
-                renderer = EVMRenderer(
-                    amplification=settings.evm_amplification,
-                    freq_low=settings.evm_freq_low,
-                    freq_high=settings.evm_freq_high,
-                    pyramid_levels=settings.evm_pyramid_levels,
-                    delete_raw=settings.evm_delete_raw_after_render,
+                highlights_output_path = os.path.join(
+                    settings.recordings_dir,
+                    f"{analysis_session_id}_micro_highlights.mp4",
                 )
-                # Run rendering in background thread (non-blocking)
+                # Run both renders in one background thread (non-blocking).
+                # Raw video cleanup is deferred until both finish — see
+                # _render_session_videos.
                 threading.Thread(
-                    target=renderer.render,
-                    args=(raw_path, meta_path, output_path),
+                    target=_render_session_videos,
+                    args=(
+                        raw_path, meta_path, micro_events,
+                        evm_output_path, highlights_output_path,
+                        settings.evm_delete_raw_after_render,
+                    ),
                     daemon=True,
-                    name=f"evm-render-{analysis_session_id}",
+                    name=f"session-render-{analysis_session_id}",
                 ).start()
-                print(f"[OK] EVM rendering started in background for session {analysis_session_id}")
+                print(f"[OK] Offline rendering started in background for session {analysis_session_id}")
             except Exception as e:
-                print(f"[WARN] Failed to start EVM rendering: {e}")
+                print(f"[WARN] Failed to start offline rendering: {e}")
 
         face_detector.close()

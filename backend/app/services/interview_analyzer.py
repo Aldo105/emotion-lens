@@ -2,6 +2,44 @@ import numpy as np
 from dataclasses import dataclass
 from typing import Optional, List, Dict, Any
 
+
+def _format_video_time(seconds: float) -> str:
+    """Format elapsed session time as MM:SS for human review."""
+    seconds = max(0, int(round(seconds or 0)))
+    return f"{seconds // 60:02d}:{seconds % 60:02d}"
+
+
+# Plain-language interpretation for notable emotion-state transitions.
+# These are hypotheses, not conclusions — every entry is meant to point a
+# human reviewer at a specific moment in the video, not to replace their
+# judgment (see the project's ethical framework: results must never be the
+# sole basis for an assessment).
+TRANSITION_INTERPRETATIONS: dict[tuple[str, str], dict] = {
+    ("happy", "angry"):        {"text": "Cambio abrupto de alegria a enojo — posible reaccion a un comentario o pregunta especifica.", "severity": "high", "positive": False},
+    ("happy", "sad"):          {"text": "Cambio de alegria a tristeza — podria reflejar una respuesta genuina a un tema sensible.", "severity": "medium", "positive": False},
+    ("happy", "nervousness"):  {"text": "De alegria a nerviosismo — posible incomodidad ante un cambio de tema o pregunta.", "severity": "medium", "positive": False},
+    ("happy", "fear"):         {"text": "De alegria a temor — cambio marcado, revisar que lo provoco.", "severity": "high", "positive": False},
+    ("neutral", "nervousness"):{"text": "De neutral a nerviosismo — posible senal de tension ante la pregunta actual.", "severity": "medium", "positive": False},
+    ("neutral", "fear"):       {"text": "De neutral a miedo — reaccion notable, revisar el estimulo que la provoco.", "severity": "high", "positive": False},
+    ("neutral", "angry"):      {"text": "De neutral a enojo — posible reaccion a una pregunta incomoda.", "severity": "medium", "positive": False},
+    ("confidence", "nervousness"): {"text": "De confianza a nerviosismo — posible perdida de seguridad, comun ante preguntas dificiles.", "severity": "medium", "positive": False},
+    ("confidence", "fear"):    {"text": "De confianza a temor — cambio marcado, podria indicar una pregunta inesperada o incomoda.", "severity": "high", "positive": False},
+    ("confidence", "sad"):     {"text": "De confianza a tristeza — cambio de estado notable, revisar contexto.", "severity": "medium", "positive": False},
+    ("nervousness", "confidence"): {"text": "De nerviosismo a confianza — posible recuperacion tras superar un momento de tension.", "severity": "low", "positive": True},
+    ("nervousness", "fear"):   {"text": "De nerviosismo a miedo — escalada de tension, revisar contexto.", "severity": "high", "positive": False},
+    ("fear", "nervousness"):   {"text": "De miedo a nerviosismo — estado de tension sostenido.", "severity": "medium", "positive": False},
+    ("fear", "confidence"):    {"text": "De miedo a confianza — recuperacion notable tras un momento tenso.", "severity": "low", "positive": True},
+    ("sad", "angry"):          {"text": "De tristeza a enojo — podria indicar frustracion creciente.", "severity": "medium", "positive": False},
+    ("angry", "neutral"):      {"text": "De enojo a neutral — posible autorregulacion emocional.", "severity": "low", "positive": True},
+    ("angry", "sad"):          {"text": "De enojo a tristeza — cambio de estado, revisar contexto.", "severity": "medium", "positive": False},
+    ("surprise", "fear"):      {"text": "De sorpresa a miedo — reaccion intensa, revisar que la provoco.", "severity": "high", "positive": False},
+    ("surprise", "angry"):     {"text": "De sorpresa a enojo — posible reaccion defensiva ante informacion inesperada.", "severity": "medium", "positive": False},
+    ("surprise", "happy"):     {"text": "De sorpresa a alegria — reaccion positiva ante algo inesperado.", "severity": "low", "positive": True},
+    ("disgust", "angry"):      {"text": "De disgusto a enojo — intensificacion emocional negativa.", "severity": "medium", "positive": False},
+    ("sad", "neutral"):        {"text": "De tristeza a neutral — posible recuperacion emocional.", "severity": "low", "positive": True},
+}
+
+
 @dataclass
 class InterviewAnalysisResult:
     dimension_scores: dict
@@ -231,6 +269,14 @@ class InterviewBehaviorAnalyzer:
                     "context_question": None
                 })
 
+        # 9. emotion_transitions — mood-change log for human review.
+        # Collapses the per-frame emotion stream into sustained segments
+        # (>= min_segment_duration each) so brief flicker isn't reported,
+        # then flags each transition between segments with a plain-language
+        # hypothesis and the exact video timestamp to jump to.
+        transition_events = self._detect_emotion_transitions(timestamps, emotions)
+        patterns.extend(transition_events)
+
         # Dimension Scoring (0-100)
         
         # 1. technical_mastery
@@ -318,3 +364,75 @@ class InterviewBehaviorAnalyzer:
             recommendations=recommendations,
             noise_stats=noise_stats
         )
+
+    @staticmethod
+    def _detect_emotion_transitions(
+        timestamps: np.ndarray,
+        emotions: list,
+        min_segment_duration: float = 1.0,
+        max_events: int = 40,
+    ) -> list[dict]:
+        """
+        Turn the per-frame emotion stream into a log of sustained mood
+        changes, each with a plain-language hypothesis and the exact video
+        timestamp — meant to point a human reviewer at specific moments,
+        not to stand on its own as a conclusion.
+
+        Frame-level noise is filtered by first collapsing consecutive
+        identical labels into segments and requiring both the outgoing and
+        incoming segment to last at least `min_segment_duration` seconds —
+        a single flickered frame won't produce an event.
+        """
+        if len(emotions) < 2:
+            return []
+
+        # Run-length encode into (emotion, start_time, end_time) segments.
+        segments = []
+        seg_emotion = emotions[0]
+        seg_start = timestamps[0]
+        for i in range(1, len(emotions)):
+            if emotions[i] != seg_emotion:
+                segments.append((seg_emotion, seg_start, timestamps[i - 1]))
+                seg_emotion = emotions[i]
+                seg_start = timestamps[i]
+        segments.append((seg_emotion, seg_start, timestamps[-1]))
+
+        events = []
+        for i in range(1, len(segments)):
+            prev_emotion, prev_start, prev_end = segments[i - 1]
+            cur_emotion, cur_start, cur_end = segments[i]
+
+            if prev_emotion == cur_emotion:
+                continue
+            if (prev_end - prev_start) < min_segment_duration:
+                continue
+            if (cur_end - cur_start) < min_segment_duration:
+                continue
+
+            info = TRANSITION_INTERPRETATIONS.get((prev_emotion, cur_emotion))
+            if info is None:
+                text = (
+                    f"Cambio de estado emocional de {prev_emotion} a {cur_emotion} — "
+                    f"se recomienda revision humana para interpretar el contexto."
+                )
+                severity, is_positive = "medium", False
+            else:
+                text, severity, is_positive = info["text"], info["severity"], info["positive"]
+
+            video_time = _format_video_time(cur_start)
+            events.append({
+                "type": "emotion_transition",
+                "timestamp": float(cur_start),
+                "severity": severity,
+                "description": (
+                    f"[{video_time}] {prev_emotion} -> {cur_emotion}: {text} "
+                    f"(minuto {video_time} del video, para revision humana)"
+                ),
+                "context_question": None,
+                "is_positive": is_positive,
+            })
+
+            if len(events) >= max_events:
+                break
+
+        return events

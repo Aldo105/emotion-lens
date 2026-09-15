@@ -327,3 +327,98 @@ async def download_evm_video(session_id: int, db: AsyncSession = Depends(get_db)
         detail="No hay video EVM disponible para esta sesión."
     )
 
+
+# ═══════════════════════════════════════════════════════════════════════
+# MICRO-EXPRESSION HIGHLIGHT VIDEO — DOWNLOAD & STATUS ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════════
+
+@router.get("/{session_id}/micro-highlights-status")
+async def get_micro_highlights_status(session_id: int):
+    """
+    Check rendering status and progress of the micro-expression highlight
+    video (amplified, slow-motion clips of each detected micro-expression,
+    for human visual validation).
+    Returns:
+        status: "ready" | "rendering" | "not_available" | "failed"
+        progress: float (0.0 to 1.0)
+        phase: string describing current step
+        size_mb: float (if ready)
+    """
+    highlights_path = os.path.join(settings.recordings_dir, f"{session_id}_micro_highlights.mp4")
+    raw_path = os.path.join(settings.recordings_dir, f"{session_id}_raw.mp4")
+    progress_path = os.path.join(settings.recordings_dir, f"{session_id}_micro_highlights_progress.json")
+
+    if os.path.exists(highlights_path):
+        size_mb = os.path.getsize(highlights_path) / (1024 * 1024)
+        return {
+            "status": "ready",
+            "progress": 1.0,
+            "phase": "done",
+            "size_mb": round(size_mb, 2),
+        }
+
+    if os.path.exists(progress_path):
+        try:
+            with open(progress_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return {
+                    "status": data.get("status", "rendering"),
+                    "progress": data.get("progress", 0.0),
+                    "phase": data.get("phase", "processing"),
+                    "size_mb": None,
+                }
+        except Exception:
+            pass
+
+    if os.path.exists(raw_path):
+        return {
+            "status": "rendering",
+            "progress": 0.0,
+            "phase": "queued",
+            "size_mb": None,
+        }
+
+    return {
+        "status": "not_available",
+        "progress": 0.0,
+        "phase": "none",
+        "size_mb": None,
+    }
+
+
+@router.get("/{session_id}/micro-highlights-video")
+async def download_micro_highlights_video(session_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Download the micro-expression highlight MP4 video — amplified,
+    slow-motion clips of each detected micro-expression, annotated with
+    the detected emotion, AUs, duration and relevance score, for human
+    visual validation of what the Action Unit engine flagged.
+    """
+    highlights_path = os.path.join(settings.recordings_dir, f"{session_id}_micro_highlights.mp4")
+    raw_path = os.path.join(settings.recordings_dir, f"{session_id}_raw.mp4")
+
+    if os.path.exists(highlights_path):
+        result = await db.execute(select(Session).where(Session.id == session_id))
+        session = result.scalar_one_or_none()
+        session_name = session.name if session and session.name else f"session_{session_id}"
+        safe_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in session_name)
+        filename = f"EmotionLens_Microexpresiones_{safe_name}.mp4"
+
+        return FileResponse(
+            highlights_path,
+            media_type="video/mp4",
+            filename=filename,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        )
+
+    if os.path.exists(raw_path):
+        raise HTTPException(
+            status_code=202,
+            detail="El video de microexpresiones se está procesando actualmente. Intenta nuevamente en unos momentos."
+        )
+
+    raise HTTPException(
+        status_code=404,
+        detail="No hay video de microexpresiones disponible para esta sesión (no se detectaron microexpresiones o aún no ha sido procesado)."
+    )
+

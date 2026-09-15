@@ -760,7 +760,7 @@ def generate_pdf_report(session_data: dict, output_path: str) -> str:
             pat_rows   = [pat_header]
             for p in patterns:
                 sev      = p.get("severity", "low").lower()
-                time_str = f"{p.get('timestamp', 0):.1f}s"
+                time_str = _format_video_time(p.get("timestamp", 0))
                 pat_type = p.get("type", "—").replace("_", " ").title()
                 pat_rows.append([
                     time_str,
@@ -1043,3 +1043,9 @@ def _truncate(text: str, max_len: int) -> str:
     if len(text) <= max_len:
         return text
     return text[: max_len - 1] + "…"
+
+
+def _format_video_time(seconds) -> str:
+    """Format elapsed session time as MM:SS for human review."""
+    seconds = max(0, int(round(seconds or 0)))
+    return f"{seconds // 60:02d}:{seconds % 60:02d}"
