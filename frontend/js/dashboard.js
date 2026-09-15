@@ -252,8 +252,13 @@ class DashboardUI {
 
     updateHeartRate(hrData) {
         if (!hrData || !hrData.signal_ready) {
-            this.elHrBpm.textContent       = '--';
-            this.elHrStressText.textContent = 'Calibrando...';
+            this.elHrBpm.textContent = '--';
+            // Once the estimator is producing spectra, a blank reading means the
+            // pulse signal is too weak to trust rather than still warming up —
+            // saying "Calibrando" forever reads as a malfunction.
+            const estimating = hrData && hrData.bpm_confidence > 0;
+            this.elHrStressText.textContent = estimating ? 'Señal débil' : 'Calibrando...';
+            this.elHrStressText.style.color = 'var(--text-muted)';
             return;
         }
 

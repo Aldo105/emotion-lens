@@ -32,7 +32,7 @@ import cv2
 import numpy as np
 
 try:
-    from scipy.signal import butter, filtfilt
+    from scipy.signal import butter, detrend, filtfilt
     from scipy.fft import fft, fftfreq
     SCIPY_AVAILABLE = True
 except ImportError:
@@ -53,19 +53,31 @@ class HeartRateEstimator:
 
     def __init__(
         self,
-        buffer_seconds: float = 10.0,
+        buffer_seconds: float = 12.0,
         fps: float = 15.0,
         freq_low: float = 0.7,    # 42 BPM minimum
-        freq_high: float = 4.0,   # 240 BPM maximum
+        freq_high: float = 2.5,   # 150 BPM maximum
         amplification_factor: float = 50.0,
         motion_threshold: float = 15.0,  # Normalized pixel displacement threshold
+        min_estimation_seconds: float = 8.0,
+        min_confidence: float = 0.40,
+        max_bpm_change_per_second: float = 8.0,
+        stale_after_seconds: float = 5.0,
+        max_raw_spread_bpm: float = 12.0,
+        estimation_interval_seconds: float = 0.5,
     ):
         """
         Args:
             buffer_seconds: How many seconds of signal to keep for analysis.
             fps: Expected frames per second (for frequency calculations).
             freq_low: Low cutoff frequency in Hz (0.7 = 42 BPM).
-            freq_high: High cutoff frequency in Hz (4.0 = 240 BPM).
+            freq_high: High cutoff frequency in Hz (2.5 = 150 BPM). Deliberately
+                       narrower than the 4.0 Hz (240 BPM) rPPG literature ceiling:
+                       240 BPM is unreachable for a seated subject, and every
+                       extra Hz of band is extra room for a noise peak to win the
+                       argmax. Widening this reintroduces readings of 190-220 BPM
+                       under webcam noise (see references.py, "Banda del
+                       estimador rPPG en vivo").
             amplification_factor: Color amplification factor for visual output.
             motion_threshold: Maximum landmark displacement (in normalized pixels,
                               i.e. already scaled by frame diagonal) before a frame
@@ -74,6 +86,31 @@ class HeartRateEstimator:
                               is why this must sit comfortably above that noise
                               floor rather than at raw-pixel scale (see
                               backend/app/references.py, HEART_RATE_MOTION_THRESHOLD).
+            min_estimation_seconds: Required time span of buffered signal before
+                              any BPM is reported. Measured from timestamps rather
+                              than frame count so it holds at any real frame rate.
+            min_confidence: Minimum spectral peak-to-band-power ratio for an
+                              estimate to be accepted into the smoothing history.
+            max_bpm_change_per_second: Physiological rate-of-change ceiling used to
+                              reject implausible jumps between updates.
+            stale_after_seconds: If no estimate clears min_confidence for this long,
+                              report signal_ready=False instead of showing a stale
+                              number.
+            max_raw_spread_bpm: Maximum interquartile spread of recent unsmoothed
+                              estimates for the reading to count as a real pulse.
+                              A genuine pulse puts its peak at the same frequency
+                              window after window; noise that happens to clear the
+                              confidence gate lands somewhere different each time.
+                              Without this check, heavy noise produced a rock-steady
+                              but wrong reading (~105 BPM for a true 72), which
+                              reads as more trustworthy than an obviously jumpy one.
+            estimation_interval_seconds: Minimum wall-clock gap between spectral
+                              estimates. Per-frame estimation re-ran the FFT 20
+                              times a second over windows overlapping by ~95%,
+                              so the resulting values were correlated by
+                              construction and made the spread check above
+                              uninformative. Spacing them out lets the history
+                              span near-independent windows at a tenth of the cost.
         """
         self.fps = fps
         self.freq_low = freq_low
@@ -81,6 +118,12 @@ class HeartRateEstimator:
         self.amplification_factor = amplification_factor
         self.buffer_size = int(buffer_seconds * fps)
         self.motion_threshold = motion_threshold
+        self.min_estimation_seconds = min_estimation_seconds
+        self.min_confidence = min_confidence
+        self.max_bpm_change_per_second = max_bpm_change_per_second
+        self.stale_after_seconds = stale_after_seconds
+        self.max_raw_spread_bpm = max_raw_spread_bpm
+        self.estimation_interval_seconds = estimation_interval_seconds
 
         # Signal buffers — multi-channel for CHROM
         self._red_signal: deque[float] = deque(maxlen=self.buffer_size)
@@ -88,8 +131,16 @@ class HeartRateEstimator:
         self._blue_signal: deque[float] = deque(maxlen=self.buffer_size)
         self._timestamps: deque[float] = deque(maxlen=self.buffer_size)
 
-        # Heart rate history for smoothing
+        # Both histories are sized in estimates, which now arrive on a fixed
+        # time interval rather than once per frame: 10 estimates of smoothing
+        # (~5s) and 20 of spread (~10s, nearly the whole signal buffer, so the
+        # oldest and newest come from windows that barely overlap).
         self._hr_history: deque[float] = deque(maxlen=10)
+
+        # Unsmoothed accepted estimates, kept separately to measure how tightly
+        # the spectral peak repeats. _hr_history cannot serve this purpose: the
+        # rate-of-change limit deliberately removes the very spread being tested.
+        self._raw_history: deque[float] = deque(maxlen=20)
 
         # Forehead ROI landmark indices (MediaPipe Face Mesh)
         # These form a polygon covering the forehead area
@@ -111,6 +162,17 @@ class HeartRateEstimator:
         self._last_bpm = 0.0
         self._signal_quality = 0.0
         self._warned_fs_low = False
+
+        # Timestamp of the last estimate that cleared min_confidence, used to
+        # decide whether the displayed BPM has gone stale, and of the last
+        # accepted update, used for the rate-of-change limit.
+        self._last_valid_ts: float | None = None
+        self._last_update_ts: float | None = None
+
+        # Spectral estimation is throttled, so the last computed values are
+        # reused on the frames in between.
+        self._last_estimate_ts: float | None = None
+        self._last_signal_quality = 0.0
 
         # Motion artifact rejection state
         self._prev_motion_landmarks: list[tuple[float, float]] | None = None
@@ -213,9 +275,17 @@ class HeartRateEstimator:
         self._blue_signal.append(b_mean)
         self._timestamps.append(timestamp)
 
-        # Step 6: Need minimum data to estimate HR
-        min_samples = int(self.fps * 3)  # At least 3 seconds
-        if len(self._green_signal) < min_samples:
+        # Step 6: Require a long enough *time span* of signal, measured from the
+        # timestamps rather than a frame count so the requirement holds at any
+        # real frame rate. The previous 3-second threshold gave the FFT a
+        # resolution of only 20 BPM per bin at 20 FPS, so a reading could land
+        # on 60, 80, 100 ... and nothing in between.
+        buffer_span = (
+            self._timestamps[-1] - self._timestamps[0]
+            if len(self._timestamps) > 1
+            else 0.0
+        )
+        if buffer_span < self.min_estimation_seconds or len(self._green_signal) < 40:
             return {
                 "bpm": 0.0,
                 "bpm_confidence": 0.0,
@@ -226,34 +296,91 @@ class HeartRateEstimator:
                 "signal_quality": 0.0,
             }
 
-        self._ready = True
+        # Step 7: Estimate heart rate using CHROM algorithm, on a fixed interval
+        # rather than every frame. Between estimates the previous values stand.
+        due = (
+            self._last_estimate_ts is None
+            or (timestamp - self._last_estimate_ts) >= self.estimation_interval_seconds
+        )
+        if due:
+            self._last_estimate_ts = timestamp
+            bpm, confidence = self._estimate_heart_rate()
+            self._last_signal_quality = self._compute_signal_quality()
 
-        # Step 7: Estimate heart rate using CHROM algorithm
-        bpm, confidence = self._estimate_heart_rate()
-
-        # Step 8: Smooth the BPM output
-        if bpm > 0:
-            self._hr_history.append(bpm)
+            # Step 8: Accept the estimate only when the spectral peak stands out
+            # from the noise floor, then hold it to a physiological rate of
+            # change. Previously any bpm > 0 entered the history regardless of
+            # confidence, so a noise peak anywhere in the band was displayed as
+            # a real reading.
+            if bpm > 0 and confidence >= self.min_confidence:
+                self._raw_history.append(bpm)
+                self._hr_history.append(self._limit_rate_of_change(bpm, timestamp))
+                self._last_valid_ts = timestamp
+                self._last_update_ts = timestamp
+        else:
+            confidence = self._signal_quality
 
         smoothed_bpm = float(np.median(self._hr_history)) if self._hr_history else 0.0
         self._last_bpm = smoothed_bpm
 
-        # Step 9: Compute stress indicator from HR variability
-        stress = self._compute_stress_indicator()
+        # A number is only shown while a recent confident estimate backs it.
+        # Showing the last good value indefinitely would read as current to the
+        # interviewer long after the signal was lost.
+        is_fresh = (
+            self._last_valid_ts is not None
+            and (timestamp - self._last_valid_ts) <= self.stale_after_seconds
+        )
+        self._ready = bool(self._hr_history) and is_fresh and self._peak_is_consistent()
 
-        # Step 10: Compute signal quality (SNR)
-        signal_quality = self._compute_signal_quality()
+        # Step 9: Compute stress indicator from HR level
+        stress = self._compute_stress_indicator()
         self._signal_quality = confidence
 
         return {
             "bpm": round(smoothed_bpm, 1),
             "bpm_confidence": round(confidence, 3),
-            "signal_ready": True,
+            "signal_ready": self._ready,
             "raw_signal_value": round(g_mean, 4),
             "stress_indicator": round(stress, 3),
             "motion_detected": False,
-            "signal_quality": round(signal_quality, 3),
+            "signal_quality": round(self._last_signal_quality, 3),
         }
+
+    def _peak_is_consistent(self) -> bool:
+        """
+        Whether recent unsmoothed estimates agree closely enough to be a pulse.
+
+        The confidence gate alone cannot separate a weak pulse from structured
+        noise: under heavy noise both score around 0.38-0.40. What does separate
+        them is repetition — a real pulse lands on the same frequency window
+        after window, so the interquartile spread of recent estimates stays
+        small, while noise peaks scatter across the band.
+        """
+        if len(self._raw_history) < 8:
+            return False
+
+        raw = np.array(self._raw_history)
+        spread = float(np.percentile(raw, 75) - np.percentile(raw, 25))
+        return spread <= self.max_raw_spread_bpm
+
+    def _limit_rate_of_change(self, bpm: float, timestamp: float) -> float:
+        """
+        Clamp a new estimate to a physiologically reachable change since the
+        last accepted one.
+
+        Heart rate cannot move 60 BPM in a second, so a jump that large is
+        always an estimation artifact rather than a measurement. Clamping lets
+        the estimate converge on a genuine shift over a second or two while
+        refusing to follow single-frame spikes.
+        """
+        if self._last_bpm <= 0 or self._last_update_ts is None:
+            return bpm
+
+        elapsed = max(timestamp - self._last_update_ts, 1e-3)
+        max_delta = self.max_bpm_change_per_second * elapsed
+        return float(
+            np.clip(bpm, self._last_bpm - max_delta, self._last_bpm + max_delta)
+        )
 
     def get_magnified_frame(
         self,
@@ -598,17 +725,17 @@ class HeartRateEstimator:
         if chrom_signal is None:
             return 0.0, 0.0
 
-        # Detrend the signal (remove DC component and slow drift)
-        signal = chrom_signal - np.mean(chrom_signal)
-
-        # Apply bandpass filter
-        filtered = self._bandpass_filter(signal)
-        if filtered is None:
-            return 0.0, 0.0
+        # Remove DC and linear drift. The Butterworth bandpass is deliberately
+        # not applied here: the band mask below already isolates the frequencies
+        # of interest, while the filter's own response peaks inside that band,
+        # which biased noise-only spectra toward a repeatable ~105 BPM peak that
+        # the consistency check could not tell apart from a real pulse. The
+        # filter is still used for the visual magnification path.
+        filtered = detrend(chrom_signal, type="linear")
 
         # Compute FFT
         n = len(filtered)
-        
+
         # Estimate actual FPS from timestamps
         if len(self._timestamps) > 1:
             time_span = self._timestamps[-1] - self._timestamps[0]
@@ -616,33 +743,48 @@ class HeartRateEstimator:
         else:
             actual_fps = self.fps
 
-        freqs = fftfreq(n, d=1.0 / actual_fps)
-        fft_values = np.abs(fft(filtered))
+        # Hann window before the transform. A rectangular window's abrupt edges
+        # leak the pulse peak's energy into neighbouring bins, which is part of
+        # why the argmax hopped between adjacent frequencies frame to frame.
+        windowed = filtered * np.hanning(n)
+
+        # Zero-pad to evaluate the spectrum on a 4x finer grid. This adds no
+        # information, but it removes the bin quantization that otherwise forces
+        # the reported BPM onto multiples of 60*fs/n (20 BPM at 3s/20FPS).
+        n_fft = n * 4
+
+        freqs = fftfreq(n_fft, d=1.0 / actual_fps)
+        fft_power = np.abs(fft(windowed, n=n_fft)) ** 2
 
         # Only look at positive frequencies in our band of interest
         valid_mask = (freqs > self.freq_low) & (freqs < self.freq_high)
         valid_freqs = freqs[valid_mask]
-        valid_fft = fft_values[valid_mask]
+        valid_power = fft_power[valid_mask]
 
-        if len(valid_fft) == 0:
+        if len(valid_power) == 0:
             return 0.0, 0.0
 
         # Find dominant frequency
-        peak_idx = np.argmax(valid_fft)
+        peak_idx = int(np.argmax(valid_power))
         peak_freq = valid_freqs[peak_idx]
-        peak_power = valid_fft[peak_idx]
 
         # Convert frequency to BPM
         bpm = peak_freq * 60.0
 
-        # Confidence = ratio of peak power to total power (signal-to-noise)
-        total_power = np.sum(valid_fft)
-        confidence = float(peak_power / total_power) if total_power > 0 else 0.0
+        # Confidence = fraction of in-band power concentrated around the peak.
+        # Defined over a fixed frequency neighbourhood (in Hz) rather than a bin
+        # count so it stays comparable regardless of window length or padding;
+        # a peak-to-total-bin ratio would shrink fourfold purely from the
+        # zero-padding above. Pure tone -> near 1.0, white noise -> ~0.2.
+        total_power = float(np.sum(valid_power))
+        if total_power <= 0:
+            return 0.0, 0.0
 
-        # Sanity check BPM range
-        if bpm < 40 or bpm > 200:
-            confidence *= 0.3  # Low confidence for extreme values
+        peak_band = np.abs(valid_freqs - peak_freq) <= 0.2
+        confidence = float(np.sum(valid_power[peak_band]) / total_power)
 
+        # The band itself is now restricted to physiologically reachable rates,
+        # so a peak inside it needs no additional range penalty.
         return float(bpm), float(np.clip(confidence, 0.0, 1.0))
 
     def _bandpass_filter(self, signal: np.ndarray) -> np.ndarray | None:
@@ -689,38 +831,29 @@ class HeartRateEstimator:
 
     def _compute_stress_indicator(self) -> float:
         """
-        Compute a stress indicator based on heart rate variability (HRV).
-        
-        Physiological basis (corrected):
-        - **High HRV** (high std of R-R intervals) indicates good vagal tone
-          and parasympathetic activity → RELAXATION.
-        - **Low HRV** (low std) indicates sympathetic dominance → STRESS.
-        
-        This is consistent with established cardiology research: reduced HRV
-        is a marker of stress, anxiety, and poor cardiovascular health.
-        
-        Combined factors:
-        - Factor 1: Elevated heart rate (higher HR = more stress)
-        - Factor 2: Low variability = stress (INVERTED from naive assumption)
+        Compute a stress indicator from the heart rate level.
+
+        Only the HR-level term survives here. The previous version also scored
+        the standard deviation of this same BPM history as if it were heart rate
+        variability, which it never was: HRV requires beat-to-beat R-R
+        intervals, whereas this history holds spectral estimates from
+        overlapping windows. Its spread measures estimator noise, so the rule
+        "low spread = stress" actually rewarded a poor camera signal — which
+        produces wild estimates — with a "relaxed" reading. Smoothing the BPM
+        output removed that spread almost entirely, which would have pinned the
+        term near its maximum and reported constant stress instead.
+
+        The direction that remains (elevated HR accompanies sympathetic
+        activation) is the part with support; the cutoffs are still heuristic
+        (see references.py, "Mezcla de estrés fisiológico").
         """
         if len(self._hr_history) < 3:
             return 0.0
 
-        hr_values = np.array(self._hr_history)
-        mean_hr = np.mean(hr_values)
-        std_hr = np.std(hr_values)
+        mean_hr = float(np.mean(self._hr_history))
 
-        # Factor 1: Elevated heart rate
-        # 60-80 = calm (0.0), 80-100 = moderate (0.3-0.5), >100 = stressed (0.7-1.0)
-        hr_stress = float(np.clip((mean_hr - 70) / 50.0, 0.0, 1.0))
-
-        # Factor 2: LOW variability = stress (physiologically correct)
-        # High std (>8) = relaxed (0.0), Low std (<2) = stressed (1.0)
-        variability_stress = float(np.clip(1.0 - (std_hr / 10.0), 0.0, 1.0))
-
-        # Combined stress indicator
-        stress = hr_stress * 0.6 + variability_stress * 0.4
-        return float(np.clip(stress, 0.0, 1.0))
+        # 70 = calm baseline, 120 = clearly elevated
+        return float(np.clip((mean_hr - 70) / 50.0, 0.0, 1.0))
 
     def _compute_signal_quality(self) -> float:
         """
@@ -801,7 +934,7 @@ class HeartRateEstimator:
     ) -> dict:
         """Build a result dict with current stress and signal quality."""
         stress = self._compute_stress_indicator() if signal_ready else 0.0
-        signal_quality = self._compute_signal_quality() if signal_ready else 0.0
+        signal_quality = self._last_signal_quality if signal_ready else 0.0
         return {
             "bpm": bpm,
             "bpm_confidence": confidence,

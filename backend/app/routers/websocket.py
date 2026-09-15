@@ -653,7 +653,7 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                     video_recorder.record_hr(
                         timestamp=timestamp,
                         bpm=hr_result.get("bpm", 0.0),
-                        confidence=hr_result.get("confidence", 0.0),
+                        confidence=hr_result.get("bpm_confidence", 0.0),
                     )
 
             # Generate magnified frame if requested
@@ -696,7 +696,10 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                 congruence_score=congruence_result["score"],
                 congruence_breakdown=congruence_result["breakdown"],
                 micro_expression=micro_event,
-                heart_rate=hr_result if hr_result["signal_ready"] else None,
+                # Sent even when not signal_ready: the frontend needs to tell
+                # "still filling the signal buffer" apart from "signal too weak
+                # to trust", and both arrive as signal_ready=False.
+                heart_rate=hr_result,
                 evm_frame=evm_frame_b64,
                 camera_quality=camera_quality,
                 is_calibrating=is_calibrating,

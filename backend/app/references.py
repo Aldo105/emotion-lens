@@ -313,6 +313,97 @@ CONSTANTS: tuple[ConstantEvidence, ...] = (
              "literatura rPPG.",
     ),
     ConstantEvidence(
+        name="Banda del estimador rPPG en vivo",
+        location="heart_rate.py:58-59",
+        current_value="0.7–2.5 Hz (42–150 BPM)",
+        tier=Tier.HEURISTIC,
+        refs=("dehaan2013chrom",),
+        note="Ojo: la entrada anterior ('Banda de frecuencia EVM') es la del "
+             "renderizador offline en config.py; ésta es la del estimador que "
+             "produce el BPM que ve el entrevistador, que usaba sus propios "
+             "valores por defecto (0.7–4.0 Hz = 42–240 BPM) y no estaba "
+             "registrada. Se estrechó el techo a 2.5 Hz tras medir que, con "
+             "ruido de webcam, el pico del pulso deja de dominar el espectro y "
+             "el argmax se iba a picos de ruido repartidos por toda la banda, "
+             "produciendo lecturas de 190–220 BPM (inalcanzables sentado) y un "
+             "rango mostrado de hasta 169 BPM para un pulso real de 72. El piso "
+             "de 0.7 Hz es el habitual en la literatura rPPG; el techo de 2.5 Hz "
+             "es una decisión de dominio (sujeto sentado en entrevista), ajustada "
+             "en simulación sintética, no contra ground truth humano — de ahí el "
+             "nivel heurístico. Ensancharla reintroduce el síntoma.",
+    ),
+    ConstantEvidence(
+        name="Ventana mínima de estimación rPPG",
+        location="heart_rate.py:62, 734-754",
+        current_value="8 s de span temporal; FFT con ventana Hann y zero-padding 4×",
+        tier=Tier.HEURISTIC,
+        refs=("dehaan2013chrom",),
+        note="La necesidad de una ventana larga no es opinable: la resolución del "
+             "FFT es fs/n, así que con los 3 s que se exigían antes (a 20 FPS) el "
+             "BPM reportado sólo podía caer en 60, 80, 100 … — saltos de 20 BPM "
+             "medidos, y con pulso real de 72 devolvía 80. Ahora se exige el span "
+             "medido por timestamps (no un conteo de frames, para que valga a "
+             "cualquier FPS real), y el zero-padding 4× interpola la rejilla "
+             "espectral para quitar esa cuantización. El valor 8 s es un "
+             "compromiso entre resolución y latencia de la primera lectura; la "
+             "literatura rPPG usa ventanas de 10–30 s. Además el FFT ya no se "
+             "aplica sobre la señal filtrada con Butterworth: la respuesta del "
+             "propio filtro tiene un máximo dentro de la banda y sesgaba los "
+             "espectros de ruido hacia un pico repetible de ~105 BPM, "
+             "indistinguible de un pulso real. El enmascaramiento de banda del "
+             "FFT cumple la función sin introducir ese sesgo.",
+    ),
+    ConstantEvidence(
+        name="Umbral de confianza espectral (min_confidence)",
+        location="heart_rate.py:63, 783",
+        current_value="0.40 (fracción de potencia en banda dentro de ±0.2 Hz del pico)",
+        tier=Tier.HEURISTIC,
+        refs=("dehaan2013chrom",),
+        note="Antes no había ningún filtro: cualquier estimación con bpm > 0 "
+             "entraba al historial con el mismo peso que una lectura buena, que "
+             "es lo que permitía que un pico de ruido se mostrara como pulso. La "
+             "forma de la métrica sigue la SNR de de Haan & Jeanne (potencia del "
+             "fundamental frente al resto de la banda) y se define sobre una "
+             "vecindad en Hz, no en bins, para que no cambie con el zero-padding. "
+             "El umbral 0.40 se eligió midiendo la distribución en simulación: "
+             "señal buena da 0.65–0.94, ruido sin pulso da ~0.36. No está "
+             "calibrado contra registros humanos con ECG de referencia, que es lo "
+             "que haría falta para subirlo de nivel.",
+    ),
+    ConstantEvidence(
+        name="Consistencia del pico entre ventanas",
+        location="heart_rate.py:66-67, 349-364",
+        current_value="IQR ≤ 12 BPM sobre 20 estimaciones espaciadas 0.5 s",
+        tier=Tier.HEURISTIC,
+        refs=(),
+        note="Necesario porque el umbral de confianza solo no separa un pulso "
+             "débil del ruido estructurado: con ruido alto ambos puntúan ~0.38. "
+             "Lo que sí los separa es la repetición — un pulso real pone el pico "
+             "en la misma frecuencia ventana tras ventana. Sin este criterio, el "
+             "ruido fuerte producía una lectura estable pero equivocada (~105 BPM "
+             "para un pulso real de 72), que es peor que una oscilante porque "
+             "parece confiable. Las estimaciones se espacian 0.5 s a propósito: "
+             "calculadas por frame, ventanas consecutivas comparten ~95% de las "
+             "muestras y su acuerdo mide el solape, no el pulso (medido: con "
+             "estimación por frame el criterio dejaba pasar el 35% de las "
+             "lecturas falsas; espaciadas, baja al 1–29%). Ni el IQR de 12 BPM ni "
+             "el intervalo de 0.5 s provienen de ninguna fuente.",
+    ),
+    ConstantEvidence(
+        name="Límite de cambio fisiológico del BPM",
+        location="heart_rate.py:64, 366-381",
+        current_value="8 BPM por segundo",
+        tier=Tier.HEURISTIC,
+        refs=(),
+        note="La dirección tiene respaldo fisiológico obvio (el ritmo cardíaco no "
+             "se mueve 60 BPM en un segundo, así que un salto así es artefacto de "
+             "estimación, no medición), pero el valor concreto de 8 BPM/s no "
+             "proviene de ninguna fuente. Actúa junto a la mediana de las últimas "
+             "~10 estimaciones: una lectura espuria aislada que supere el filtro "
+             "de confianza queda amortiguada en vez de desplazar el valor "
+             "mostrado.",
+    ),
+    ConstantEvidence(
         name="Umbral de movimiento (motion_threshold)",
         location="heart_rate.py:61",
         current_value="15.0 (píxeles normalizados por diagonal de frame)",
@@ -342,12 +433,23 @@ CONSTANTS: tuple[ConstantEvidence, ...] = (
              "publicada.",
     ),
     ConstantEvidence(
-        name="Mezcla de estrés fisiológico",
-        location="heart_rate.py:692",
-        current_value="hr_stress*0.6 + variability_stress*0.4",
+        name="Indicador de estrés fisiológico",
+        location="heart_rate.py:856",
+        current_value="clip((BPM medio − 70) / 50, 0, 1)",
         tier=Tier.HEURISTIC,
         refs=(),
-        note="Sin fuente. Los pesos 0.6/0.4 fueron elegidos por prueba y error.",
+        note="Antes era hr_stress*0.6 + variability_stress*0.4, con pesos elegidos "
+             "por prueba y error. Se eliminó el término de variabilidad, que "
+             "puntuaba la desviación estándar de este mismo historial de BPM como "
+             "si fuera HRV: la HRV real exige intervalos R-R latido a latido, "
+             "mientras que este historial contiene estimaciones espectrales de "
+             "ventanas solapadas, así que su dispersión mide ruido del estimador. "
+             "Con la regla 'poca variabilidad = estrés', eso premiaba con "
+             "'relajado' justamente a la señal de cámara mala (que produce "
+             "estimaciones erráticas) y, tras suavizar la salida de BPM, habría "
+             "quedado clavado en estrés máximo. Queda sólo el nivel de HR, cuya "
+             "dirección (HR elevado acompaña activación simpática) sí tiene "
+             "respaldo; los cortes 70/120 siguen sin fuente.",
     ),
 
     # ── Congruencia: el núcleo sin respaldo ───────────────────────────
