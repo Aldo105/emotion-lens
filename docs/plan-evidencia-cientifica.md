@@ -10,6 +10,10 @@ Estado de partida: **13 de 17 grupos de constantes carecen de respaldo publicado
 El inventario completo está en `backend/app/references.py` y se publica en
 `docs/bibliografia-cientifica.pdf`.
 
+**Estado tras la Fase 1: 7 VALIDADO / 0 CALIBRADO / 13 HEURÍSTICO (20 grupos —**
+**se añadieron 3 al documentar el patrón 'stress' y dos bugs de ritmo cardíaco**
+**encontrados en el camino).**
+
 ---
 
 ## Antes de la sesión de código: solicitar los datasets
@@ -45,56 +49,77 @@ python -m backend.scripts.generate_bibliography
 
 ---
 
-## Fase 1 — Correcciones directas contra la literatura
+## Fase 1 — Correcciones directas contra la literatura ✓ hecha
 
 No requiere datasets. Son casos donde existe un valor publicado y el código usa otro.
 
-### 1.1 Umbral de parpadeo (EAR)
-`action_units.py:88` usa `0.15`; Soukupová & Čech (2016) publican `0.20`. Además la
-fórmula EAR estándar promedia **dos** pares verticales de landmarks y el código usa
-uno solo. Corregir ambas cosas.
+### 1.1 Umbral de parpadeo (EAR) ✓
+`action_units.py:88` usaba `0.15`; Soukupová & Čech (2016) publican `0.20`. Además la
+fórmula EAR estándar promedia **dos** pares verticales de landmarks y el código usaba
+uno solo. **Corregido:** umbral a 0.20 y EAR ahora promedia dos pares por ojo.
 
-### 1.2 Ancla de la tasa de parpadeo ← **corrige un sesgo real**
-`action_units.py:466` normaliza con `(bpm - 15) / 25`, es decir contra la tasa de
+### 1.2 Ancla de la tasa de parpadeo ← **corrige un sesgo real** ✓
+`action_units.py:466` normalizaba con `(bpm - 15) / 25`, es decir contra la tasa de
 **reposo**. Bentivoglio et al. (1997) reportan ~17 ppm en reposo pero **~26 ppm en
-conversación**. Una entrevista es una conversación: hoy un candidato que parpadea
-con total normalidad se registra como "elevado", lo que baja su score fisiológico y
-por tanto su congruencia. Reanclar a la norma conversacional.
+conversación**. Una entrevista es una conversación: un candidato que parpadea con
+total normalidad se registraba como "elevado", lo que bajaba su score fisiológico y
+por tanto su congruencia. **Corregido:** ancla reubicada a 26 ppm (norma
+conversacional) como respaldo, reemplazada por el basal propio del sujeto en cuanto
+la calibración de 30s lo calcula — la normalización intra-sujeto que el rango
+individual amplio (4–48 ppm) exige.
 
-Además, el rango individual sano es enorme (4–48 ppm), así que lo correcto no es un
-corte absoluto sino normalizar contra el propio basal del sujeto medido durante la
-calibración.
-
-### 1.3 Prototipos AU→emoción incompletos
-`MICRO_EXPR_PATTERNS` (`micro_expressions.py:54-90`) no coincide con los prototipos
+### 1.3 Prototipos AU→emoción incompletos ✓
+`MICRO_EXPR_PATTERNS` (`micro_expressions.py:54-97`) no coincidía con los prototipos
 EMFACS publicados:
 
-| Emoción | EMFACS | En el código | Falta |
-|---|---|---|---|
-| Miedo | 1+2+4+5+7+20+25/26 | req 1,4 / sup 2,20,25 | **AU5** |
-| Ira | 4+5+7+23 | req 4,7 / sup 23,24 | **AU5** |
-| Sorpresa | 1+2+5+26 | req 2,25 / sup 26 | **AU1, AU5** |
-| Tristeza | 1+4+15 | req 1,15 / sup 17 | **AU4** |
-| Asco | 9+15+16 (+6,11,17) | req 9 / sup 15,25 | AU25 sobra |
-| Desprecio | 12+14 unilateral | igual | — |
+| Emoción | EMFACS | Antes | Faltaba | Estado |
+|---|---|---|---|---|
+| Miedo | 1+2+4+5+7+20+25/26 | req 1,4 / sup 2,20,25 | AU5 | ✓ agregado a sup |
+| Ira | 4+5+7+23 | req 4,7 / sup 23,24 | AU5 | ✓ agregado a sup |
+| Sorpresa | 1+2+5+26 | req 2,25 / sup 26 | AU1, AU5 | ✓ agregados a sup |
+| Tristeza | 1+4+15 | req 1,15 / sup 17 | AU4 | ✓ agregado a sup |
+| Asco | 9+15+16 (+6,11,17) | req 9 / sup 15,25 | AU25 sobraba | ✓ quitado |
+| Desprecio | 12+14 unilateral | igual | — | sin cambios |
 
 La categoría `"stress"` (AU23+AU24) **no es un prototipo EMFACS**: es invención del
-proyecto. O se elimina, o se marca explícitamente como heurística.
+proyecto. Se mantuvo (código externo depende de la etiqueta) pero **se marcó
+explícitamente como heurística** en el propio código y en `references.py`.
 
-### 1.4 Implementar AU5 (Upper Lid Raiser)
-`action_units.py` calcula 16 AUs pero **no AU5**, que aparece en 3 de los 6
-prototipos de emoción básica. Su ausencia sesga miedo, ira y sorpresa hacia falsos
-negativos. Es geométricamente calculable desde la malla (apertura del párpado
-superior respecto al iris).
+### 1.4 Implementar AU5 (Upper Lid Raiser) ✓
+`action_units.py` calculaba 16 AUs pero no AU5, que aparece en 3 de los 6
+prototipos de emoción básica. Su ausencia sesgaba miedo, ira y sorpresa hacia falsos
+negativos. **Implementado** geométricamente desde la malla (apertura del párpado
+superior respecto al iris, landmarks 468/473); el umbral numérico queda marcado
+HEURÍSTICO (pendiente de calibración contra DISFA, Fase 3), igual que las demás
+constantes geométricas de AUs.
 
-### 1.5 Ventana de duración modal
-La bonificación de "duración óptima" usa 100–250 ms; Yan et al. (2013) sitúan la
-moda en **80–200 ms**. Ajuste menor, pero citable.
+### 1.5 Ventana de duración modal ✓
+La bonificación de "duración óptima" usaba 100–250 ms; Yan et al. (2013) sitúan la
+moda en **80–200 ms**. **Corregido.**
 
-### 1.6 Banda rPPG
-`0.8–2.0 Hz` (48–120 BPM) es correcta pero estrecha para entrevistas con estrés
-situacional. Evaluar `0.7–3.0 Hz` (42–180 BPM), que es lo habitual en la literatura
-rPPG.
+### 1.6 Banda rPPG ✓
+`0.8–2.0 Hz` (48–120 BPM) era correcta pero estrecha para entrevistas con estrés
+situacional. **Ampliada** a `0.7–3.0 Hz` (42–180 BPM), lo habitual en la literatura
+rPPG (`config.py: evm_freq_low/high`).
+
+### Bugs encontrados durante la Fase 1 (no estaban en el plan original)
+
+Al diagnosticar por qué el ritmo cardíaco devolvía BPM = 0, aparecieron dos bugs de
+implementación — no de respaldo científico — en `heart_rate.py`:
+
+- **Resta del ROI de referencia:** se restaba el valor RGB crudo del puente nasal al
+  de la frente para cancelar ruido de iluminación. Como la nariz suele ser más
+  brillante, esto producía medias negativas que disparaban la guarda de
+  `_compute_chrom_signal` y dejaban el BPM fijo en 0. **Corregido:** ahora se resta
+  solo la *deriva* del ROI de referencia respecto a su propio basal (EMA), preservando
+  el nivel absoluto de brillo que CHROM necesita.
+- **Umbral de movimiento demasiado sensible:** a 640×480, el umbral de 5.0 equivalía
+  a solo ~4 px de desplazamiento — por debajo del jitter propio de MediaPipe
+  (~2–5 px) — así que casi todos los frames se descartaban y el buffer nunca se
+  llenaba. **Corregido:** subido a 15.0.
+
+Ambos quedan documentados como HEURÍSTICO en `references.py` (no existe un valor
+publicado para ninguno de los dos).
 
 ---
 
