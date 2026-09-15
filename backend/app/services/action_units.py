@@ -34,6 +34,9 @@ class ActionUnitAnalyzer:
         # Blink tracking
         self._blink_timestamps = []
         self._last_eye_ratio = None
+        self._raw_blink_rate = 0.0
+        self._blink_rate_raw_buffer: list[float] = []
+        self._baseline_raw_blink_rate: float | None = None
 
         # EMA smoothing (Fase 4.2)
         self._prev_smoothed_aus = None
@@ -82,10 +85,11 @@ class ActionUnitAnalyzer:
         aus["AU4"] = self._au4_brow_lowerer(lm, iod)
 
         # ── Eye Action Units ─────────────────────────────────────────
+        aus["AU5"] = self._au5_upper_lid_raiser(lm, iod)
         aus["AU6"] = self._au6_cheek_raiser(lm, iod)
         aus["AU7"] = self._au7_lid_tightener(lm, iod)
         eye_ratio = self._eye_aspect_ratio(lm)
-        aus["AU45"] = 1.0 if eye_ratio < 0.15 else 0.0  # Blink
+        aus["AU45"] = 1.0 if eye_ratio < 0.20 else 0.0  # Blink (Soukupová & Čech 2016)
 
         # ── Nose Action Units ────────────────────────────────────────
         aus["AU9"] = self._au9_nose_wrinkler(lm, iod)
@@ -208,6 +212,10 @@ class ActionUnitAnalyzer:
             self.baseline_aus[key] = float(np.mean(values))
             self.baseline_variability[key] = float(np.std(values)) if len(values) > 1 else 0.05
 
+        if self._blink_rate_raw_buffer:
+            self._baseline_raw_blink_rate = float(np.mean(self._blink_rate_raw_buffer))
+            self._blink_rate_raw_buffer.clear()
+
         self.baseline_set = True
         n_frames = len(self._baseline_buffer)
         self._baseline_buffer.clear()
@@ -282,6 +290,29 @@ class ActionUnitAnalyzer:
         ratio = avg / iod
         # Lower ratio = brows are closer to eyes = more furrowing
         return float(np.clip((0.16 - ratio) * 10.0, 0.0, 1.0))
+
+    # ── AU5: Upper Lid Raiser ────────────────────────────────────────
+    def _au5_upper_lid_raiser(self, lm: np.ndarray, iod: float) -> float:
+        """
+        Measures a widened stare — the upper eyelid pulled up past its
+        relaxed-open position, exposing more sclera above the iris.
+
+        Geometric proxy: distance from the upper-lid margin to the iris
+        center (requires MediaPipe's iris landmarks; returns 0.0 without
+        them rather than guessing). AU5 appears in 3 of the 6 EMFACS
+        basic-emotion prototypes (fear, anger, surprise); its absence
+        biased those toward false negatives. The (ratio - 0.10) * 10.0
+        constant is HEURISTIC (no published geometric calibration exists
+        for this ratio) — see backend/app/references.py, AU5_THRESHOLD.
+        """
+        if len(lm) <= 473:
+            return 0.0
+
+        left_lid_to_iris = self._dist(lm, 159, 468)
+        right_lid_to_iris = self._dist(lm, 386, 473)
+        avg = (left_lid_to_iris + right_lid_to_iris) / 2.0
+        ratio = avg / iod
+        return float(np.clip((ratio - 0.10) * 10.0, 0.0, 1.0))
 
     # ── AU6: Cheek Raiser ────────────────────────────────────────────
     def _au6_cheek_raiser(self, lm: np.ndarray, iod: float) -> float:
@@ -426,23 +457,45 @@ class ActionUnitAnalyzer:
     # ══════════════════════════════════════════════════════════════════
 
     def _eye_aspect_ratio(self, lm: np.ndarray) -> float:
-        """Eye aspect ratio (EAR) for blink detection."""
-        left_v1 = self._dist(lm, 159, 145)  # top-bottom (left eye)
-        left_h = self._dist(lm, 33, 133)    # left-right (left eye)
-        right_v1 = self._dist(lm, 386, 374)
-        right_h = self._dist(lm, 263, 362)
+        """
+        Eye aspect ratio (EAR) for blink detection, per Soukupová & Čech
+        (2016): EAR = (||p2-p6|| + ||p3-p5||) / (2 * ||p1-p4||) — the
+        standard formula averages *two* vertical eyelid distances, not
+        one. The previous version used a single vertical pair (159-145 /
+        386-374), which biases the ratio and required a non-standard
+        threshold to compensate.
+        """
+        # Left eye: p1=33 p2=160 p3=158 p4=133 p5=153 p6=144
+        left_v1 = self._dist(lm, 160, 144)
+        left_v2 = self._dist(lm, 158, 153)
+        left_h = self._dist(lm, 33, 133)
+
+        # Right eye: p1=362 p2=385 p3=387 p4=263 p5=373 p6=380
+        right_v1 = self._dist(lm, 385, 380)
+        right_v2 = self._dist(lm, 387, 373)
+        right_h = self._dist(lm, 362, 263)
 
         if left_h < 1e-6 or right_h < 1e-6:
             return 0.3  # Default open
 
-        left_ear = left_v1 / left_h
-        right_ear = right_v1 / right_h
+        left_ear = (left_v1 + left_v2) / (2.0 * left_h)
+        right_ear = (right_v1 + right_v2) / (2.0 * right_h)
         return (left_ear + right_ear) / 2.0
 
     def _compute_blink_rate(self, blink_au: float, timestamp: float) -> float:
         """
         Track blinks and compute blink rate (blinks per minute).
-        Normal: 15-20/min. Elevated: nervousness indicator.
+
+        Anchored against the *conversational* blink rate (~26/min,
+        Bentivoglio et al. 1997), not the resting rate (~17/min) the
+        previous version used. An interview is a conversation: a
+        candidate blinking at a perfectly normal conversational rate was
+        being scored as "elevated," pulling down their physiological
+        score and, through it, their congruence score. Once a subject
+        baseline exists (set_baseline() during calibration), it replaces
+        the population anchor — individual blink rate varies enormously
+        (4-48/min is within healthy range), so a fixed cutoff is only a
+        fallback, not the intended long-run behavior.
         """
         if blink_au > 0.5:  # Blink detected
             if not self._blink_timestamps or (timestamp - self._blink_timestamps[-1]) > 0.1:
@@ -461,9 +514,17 @@ class ActionUnitAnalyzer:
 
         window = min(timestamp, 60.0)
         blinks_per_min = len(self._blink_timestamps) * (60.0 / window)
+        self._raw_blink_rate = blinks_per_min
 
-        # Normalize: 15-20 bpm = normal (0.3-0.5), >30 = high nervousness (1.0)
-        return float(np.clip((blinks_per_min - 15) / 25.0, 0.0, 1.0))
+        if not self.baseline_set:
+            self._blink_rate_raw_buffer.append(blinks_per_min)
+
+        anchor = (
+            self._baseline_raw_blink_rate
+            if self._baseline_raw_blink_rate is not None
+            else 26.0  # conversational norm, Bentivoglio et al. (1997)
+        )
+        return float(np.clip((blinks_per_min - anchor) / 25.0, 0.0, 1.0))
 
     def _compute_gaze_stability(self, lm: np.ndarray) -> float:
         """
