@@ -27,6 +27,7 @@ from backend.app.models.database import (
 from backend.app.services.report_generator import (
     generate_pdf_report, generate_csv_string,
 )
+from backend.app.services.validation_metrics import compute_agreement_metrics
 
 router = APIRouter()
 
@@ -154,6 +155,7 @@ async def _get_report_data(session_id: int, db: AsyncSession) -> dict:
             "attempted_suppression": feedback.attempted_suppression if feedback else False,
             "moment_validations": feedback.moment_validations if feedback else [],
             "free_text_comments": feedback.free_text_comments if feedback else None,
+            "validation_metrics": compute_agreement_metrics(feedback.moment_validations),
         } if feedback else None,
         "interview_analysis": {
             "dimension_scores": {

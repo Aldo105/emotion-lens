@@ -650,12 +650,16 @@ def generate_pdf_report(session_data: dict, output_path: str) -> str:
 
         suppression = "Yes" if feedback.get("attempted_suppression") else "No"
 
-        moment_vals  = feedback.get("moment_validations") or []
-        total_vals   = len(moment_vals)
-        correct_vals = sum(1 for mv in moment_vals if mv.get("verdict") == "correct")
+        # Agreement counts only moments the reviewer actually ruled on --
+        # skipped and "unsure" moments are excluded from the rate rather
+        # than silently counted as disagreement.
+        val_metrics = feedback.get("validation_metrics") or {}
+        confirmed = val_metrics.get("confirmed", 0)
+        rejected = val_metrics.get("rejected", 0)
+        agreement = val_metrics.get("agreement_rate")
         val_str = (
-            f"{correct_vals} / {total_vals} correct ({correct_vals / total_vals * 100:.0f}%)"
-            if total_vals > 0 else "No events validated"
+            f"{confirmed} / {confirmed + rejected} confirmed ({agreement * 100:.0f}%)"
+            if agreement is not None else "No events validated"
         )
 
         feedback_rows = [
@@ -682,6 +686,46 @@ def generate_pdf_report(session_data: dict, output_path: str) -> str:
 
         feedback_table.setStyle(TableStyle(feedback_style_cmds))
         elements.append(feedback_table)
+
+        # ── Measured agreement breakdown ─────────────────────────────
+        # Whether the engine's own relevance score predicts which flags a
+        # human accepts. If high-relevance flags aren't confirmed more
+        # often than medium ones, the scoring isn't earning its keep.
+        bands = val_metrics.get("by_relevance_band") or {}
+        band_rows = [["Relevance Band", "Confirmed", "Rejected", "Unsure", "Agreement"]]
+        for band_key, band_label in (("high", "High (80-100)"),
+                                     ("medium", "Medium (60-79)"),
+                                     ("low", "Low (<60)"),
+                                     ("unknown", "Not recorded")):
+            band = bands.get(band_key)
+            if not band:
+                continue
+            rate = band.get("agreement_rate")
+            band_rows.append([
+                band_label,
+                str(band.get("confirmed", 0)),
+                str(band.get("rejected", 0)),
+                str(band.get("unsure", 0)),
+                f"{rate * 100:.0f}%" if rate is not None else "—",
+            ])
+
+        if len(band_rows) > 1:
+            elements.append(Spacer(1, 4 * mm))
+            elements.append(Paragraph(
+                "Measured agreement between system flags and human review. "
+                "Moments the reviewer skipped or marked unsure are excluded from the rate.",
+                small_style,
+            ))
+            elements.append(Spacer(1, 2 * mm))
+            band_table = Table(band_rows, colWidths=[45 * mm, 28 * mm, 28 * mm, 25 * mm, 34 * mm])
+            band_table.setStyle(_table_style(len(band_rows)))
+            elements.append(band_table)
+
+        unanswered = val_metrics.get("unanswered", 0)
+        if unanswered:
+            elements.append(Spacer(1, 2 * mm))
+            elements.append(Paragraph(
+                f"{unanswered} flagged moment(s) were not reviewed.", small_style))
 
         if feedback.get("free_text_comments"):
             elements.append(Spacer(1, 4 * mm))

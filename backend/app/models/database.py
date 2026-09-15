@@ -14,7 +14,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import (
-    DeclarativeBase, relationship, sessionmaker
+    DeclarativeBase, backref, relationship, sessionmaker
 )
 
 from backend.app.config import settings
@@ -211,7 +211,13 @@ class SessionFeedback(Base):
     free_text_comments = Column(Text, nullable=True)                # Optional comments
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
-    session = relationship("Session", backref="feedback")
+    # delete-orphan: without it, deleting a Session tries to NULL out this
+    # FK instead of removing the row, which fails the NOT NULL constraint
+    # and silently rolls back the whole delete.
+    session = relationship(
+        "Session",
+        backref=backref("feedback", cascade="all, delete-orphan"),
+    )
 
 
 class InterviewAnalysis(Base):
@@ -254,7 +260,10 @@ class InterviewAnalysis(Base):
 
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
-    session = relationship("Session", backref="interview_analysis")
+    session = relationship(
+        "Session",
+        backref=backref("interview_analysis", cascade="all, delete-orphan"),
+    )
 
 
 engine = create_async_engine(

@@ -5,11 +5,12 @@ Endpoints for submitting and retrieving subject post-session surveys.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, func
+from sqlalchemy import Integer, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.models.database import get_db, SessionFeedback, Session
 from backend.app.models.schemas import SessionFeedbackCreate, SessionFeedbackResponse
+from backend.app.services.validation_metrics import aggregate_agreement_metrics
 
 router = APIRouter()
 
@@ -77,7 +78,15 @@ async def get_feedback(
 async def get_global_accuracy_stats(
     db: AsyncSession = Depends(get_db),
 ):
-    """Get global aggregated accuracy statistics across all feedback sessions."""
+    """
+    Global accuracy statistics across all feedback sessions.
+
+    Two different things are reported and they should not be conflated:
+      - `self_reported`: the subject's overall impression of the system,
+        a single subjective slider per session.
+      - `measured_agreement`: how often an individual flagged moment
+        actually survived human review. This is the auditable number.
+    """
     result = await db.execute(
         select(
             func.avg(SessionFeedback.overall_accuracy_rating).label("avg_accuracy"),
@@ -86,13 +95,18 @@ async def get_global_accuracy_stats(
         )
     )
     row = result.fetchone()
-    
-    avg_acc = row[0] if row and row[0] is not None else 0.0
+
+    avg_acc = row[0] if row and row[0] is not None else None
     total_count = row[1] if row and row[1] is not None else 0
     total_supp = row[2] if row and row[2] is not None else 0
 
+    feedback_rows = (await db.execute(select(SessionFeedback))).scalars().all()
+
     return {
-        "average_accuracy": float(avg_acc),
-        "total_feedback_count": int(total_count),
-        "total_suppression_reported": int(total_supp),
+        "self_reported": {
+            "average_accuracy": float(avg_acc) if avg_acc is not None else None,
+            "total_feedback_count": int(total_count),
+            "total_suppression_reported": int(total_supp),
+        },
+        "measured_agreement": aggregate_agreement_metrics(feedback_rows),
     }

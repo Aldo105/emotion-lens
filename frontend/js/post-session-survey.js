@@ -164,7 +164,7 @@ class PostSessionSurvey {
             card.innerHTML = `
                 <div class="moment-info">
                     <span class="moment-time">${timeStr}</span>
-                    ${m.emotion || 'Microexpresion'} ${m.contradictory ? '(contradictoria)' : ''}
+                    ${m.detected_emotion || 'Microexpresion'} ${m.is_contradictory ? '(contradictoria)' : ''}
                 </div>
                 <div class="survey-moment-btns">
                     <button data-idx="${i}" data-verdict="correct">✅</button>
@@ -174,10 +174,15 @@ class PostSessionSurvey {
             `;
             container.appendChild(card);
 
-            // Init validation result
+            // Init validation result. relevance_score and is_contradictory
+            // ride along so agreement can be broken down by them later --
+            // that's how we find out whether the relevance score actually
+            // predicts which flags a human will accept.
             this.results.momentValidations.push({
                 timestamp: m.timestamp,
-                emotion: m.emotion,
+                emotion: m.detected_emotion,
+                relevance_score: m.relevance_score ?? null,
+                is_contradictory: m.is_contradictory ?? null,
                 verdict: null,
             });
         });

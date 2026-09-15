@@ -131,6 +131,7 @@ class SessionManager {
             const report = await res.json();
             this.showDetailModal(report, id);
             this.renderAnalysis(report.interview_analysis);
+            this.renderValidation(report.feedback);
         } catch (err) {
             console.error('Failed to load session report:', err);
             this.showToast('Failed to load report: ' + err.message, 'error');
@@ -218,6 +219,12 @@ class SessionManager {
                         <!-- Recommendations -->
                         <div class="analysis-recommendations" id="detail-recommendations"></div>
                     </div>
+
+                    <!-- Human Validation Section -->
+                    <div id="detail-validation-section" style="display: none;">
+                        <h3 class="detail-section-title">🔍 Validación Humana</h3>
+                        <div id="detail-validation"></div>
+                    </div>
                 </div>
 
                 <div class="modal-footer">
@@ -238,6 +245,55 @@ class SessionManager {
         modal.addEventListener('click', (e) => {
             if (e.target === modal) this.closeModal();
         });
+    }
+
+    renderValidation(feedback) {
+        const section = document.getElementById('detail-validation-section');
+        const container = document.getElementById('detail-validation');
+        if (!section || !container) return;
+
+        const metrics = feedback && feedback.validation_metrics;
+        if (!metrics || metrics.agreement_rate === null || metrics.agreement_rate === undefined) {
+            section.style.display = 'none';
+            return;
+        }
+
+        section.style.display = 'block';
+
+        const pct = Math.round(metrics.agreement_rate * 100);
+        const color = pct >= 75 ? '#10b981' : pct >= 50 ? '#f59e0b' : '#ef4444';
+        const decided = metrics.confirmed + metrics.rejected;
+
+        const bandLabels = {
+            high: 'Alta (80-100)',
+            medium: 'Media (60-79)',
+            low: 'Baja (<60)',
+            unknown: 'Sin registrar',
+        };
+        const bandRows = Object.entries(metrics.by_relevance_band || {})
+            .filter(([, b]) => b.agreement_rate !== null)
+            .map(([key, b]) => `
+                <div style="display:flex; justify-content:space-between; font-size:0.85rem; padding:4px 0;">
+                    <span>${bandLabels[key] || key}</span>
+                    <span><b>${Math.round(b.agreement_rate * 100)}%</b>
+                        <span style="color:var(--text-secondary)">(${b.confirmed}/${b.confirmed + b.rejected})</span>
+                    </span>
+                </div>`)
+            .join('');
+
+        container.innerHTML = `
+            <div style="text-align:center; margin-bottom:12px;">
+                <div class="score-big" style="color:${color}">${pct}%</div>
+                <div style="color:var(--text-secondary); font-size:0.85rem;">
+                    Concordancia con revisión humana (${metrics.confirmed} de ${decided} confirmadas)
+                </div>
+            </div>
+            ${bandRows ? `<h4 style="margin:12px 0 4px; font-size:0.9rem;">Por relevancia de la detección</h4>${bandRows}` : ''}
+            <p style="font-size:0.78rem; color:var(--text-muted); margin-top:10px;">
+                Momentos marcados como "no estoy seguro" (${metrics.unsure}) o sin revisar
+                (${metrics.unanswered}) se excluyen del porcentaje.
+            </p>
+        `;
     }
 
     renderAnalysis(analysis) {

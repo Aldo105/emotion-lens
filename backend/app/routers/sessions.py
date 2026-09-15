@@ -122,6 +122,10 @@ async def delete_session(session_id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Session not found")
 
     await db.delete(session)
+    # Commit here rather than leaving it to request teardown: a failure during
+    # teardown happens after the 204 is already sent, so the caller would be
+    # told the delete succeeded while it silently rolled back.
+    await db.commit()
 
 
 # ── Get Session Summary ──────────────────────────────────────────────
