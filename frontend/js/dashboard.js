@@ -93,7 +93,7 @@ class DashboardUI {
             this.updateEmotion(data.emotion, data.confidence);
             this.updateHeartRate(data.heart_rate);
             this.updateCongruence(data.congruence_score, data.congruence_breakdown);
-            this.updateEVMFrame(data.evm_frame, data.preprocessed_frame);
+            this.updateEVMFrame(data.evm_frame);
             this.updateCameraQuality(data.camera_quality);
 
             if (data.micro_expression) {
@@ -281,11 +281,16 @@ class DashboardUI {
         }, 150);
     }
 
-    updateEVMFrame(evmFrameB64, preprocessedFrameB64) {
+    updateEVMFrame(evmFrameB64) {
+        // Only swap away from the live <video> feed when the user actually
+        // asked for the pulse overlay. A previous version also swapped to a
+        // server-round-tripped "preprocessed" frame whenever any arrived,
+        // regardless of this toggle, replacing the smooth native camera
+        // with a slow, choppy slideshow even with EVM off.
         const showEvm = this.elToggleEvm && this.elToggleEvm.checked && evmFrameB64;
 
-        if (showEvm || preprocessedFrameB64) {
-            const src = showEvm ? evmFrameB64 : preprocessedFrameB64;
+        if (showEvm) {
+            const src = evmFrameB64;
             if (this.elProcessedVideo) {
                 this.elProcessedVideo.src             = src;
                 this.elProcessedVideo.style.opacity       = '1';

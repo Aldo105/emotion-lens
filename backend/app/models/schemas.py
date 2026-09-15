@@ -197,7 +197,6 @@ class WSFrameResult(BaseModel):
     # Heart Rate (Eulerian Video Magnification / rPPG)
     heart_rate: Optional[dict] = None
     evm_frame: Optional[str] = None
-    preprocessed_frame: Optional[str] = None
     # {"bpm": float, "bpm_confidence": float, "signal_ready": bool, "stress_indicator": float}
 
     # Camera quality assessment

@@ -383,12 +383,6 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
     _last_quality_result: dict | None = None
     _quality_check_interval = 10  # recompute every N processed frames
 
-    # Sending the preprocessed frame image back to the client on every frame
-    # wastes ~50-80 KB × 20/s = 1-1.6 MB/s of bandwidth that the frontend
-    # only uses when the user turns EVM on.  Send it at ~4 Hz instead.
-    _last_prep_frame_b64: str | None = None
-    _prep_frame_interval = 5  # re-encode + send every N processed frames
-
     # ── Database session persistence ─────────────────────────────────
     db_session = None
     analysis_session_id = None
@@ -677,19 +671,6 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                 except Exception as e:
                     print(f"[ERR] EVM magnification failed: {e}")
 
-            # Encode preprocessed frame back to base64 JPEG (visible CLAHE/gamma).
-            # Throttled: re-encode only every _prep_frame_interval frames (~4 Hz)
-            # to avoid ~50-80 KB×20/s = 1 MB/s of extra encoding + bandwidth.
-            if frame_count % _prep_frame_interval == 0:
-                try:
-                    _, prep_buffer = cv2.imencode(
-                        '.jpg', preprocessed_frame, [cv2.IMWRITE_JPEG_QUALITY, 80]
-                    )
-                    _last_prep_frame_b64 = "data:image/jpeg;base64," + base64.b64encode(prep_buffer).decode('utf-8')
-                except Exception as e:
-                    print(f"[ERR] Preprocessed frame encoding failed: {e}")
-            preprocessed_frame_b64 = _last_prep_frame_b64
-
             # Step 6: Congruence Scoring
             congruence_result = congruence_scorer.compute(
                 emotion=emotion_result["emotion"],
@@ -717,7 +698,6 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                 micro_expression=micro_event,
                 heart_rate=hr_result if hr_result["signal_ready"] else None,
                 evm_frame=evm_frame_b64,
-                preprocessed_frame=preprocessed_frame_b64,
                 camera_quality=camera_quality,
                 is_calibrating=is_calibrating,
                 calibration_progress=round(calibration_progress, 2),
