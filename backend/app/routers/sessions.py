@@ -4,6 +4,8 @@ EmotionLens — Sessions Router
 CRUD operations for interview sessions.
 """
 
+import glob
+import os
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -11,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.app.config import settings
 from backend.app.models.database import get_db, Session, SessionSummary
 from backend.app.models.schemas import (
     SessionCreate, SessionUpdate, SessionResponse,
@@ -126,6 +129,19 @@ async def delete_session(session_id: int, db: AsyncSession = Depends(get_db)):
     # teardown happens after the 204 is already sent, so the caller would be
     # told the delete succeeded while it silently rolled back.
     await db.commit()
+
+    # Clean up on-disk recording files (raw video, metadata, EVM/highlight
+    # outputs, progress markers). Without this, session IDs get reused
+    # (SQLite reissues a deleted row's id) and a brand-new session inherits
+    # a stale "*_evm_progress.json" left behind by the old one -- e.g. an
+    # old session whose short test clip failed EVM rendering leaves behind
+    # a "failed" progress file, and the next session to get that same id
+    # reports that stale failure on a video it never tried to render.
+    for path in glob.glob(os.path.join(settings.recordings_dir, f"{session_id}_*")):
+        try:
+            os.remove(path)
+        except OSError as e:
+            print(f"[WARN] Failed to remove recording file {path}: {e}")
 
 
 # ── Get Session Summary ──────────────────────────────────────────────

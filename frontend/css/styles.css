@@ -868,6 +868,7 @@ h1, h2, h3, h4 {
 
 .session-card-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     margin-top: auto;
 }
@@ -1327,6 +1328,7 @@ h1, h2, h3, h4 {
 
 .modal-footer {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     padding: var(--spacing-md) var(--spacing-lg);
     border-top: 1px solid var(--glass-border);

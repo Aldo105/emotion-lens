@@ -114,7 +114,7 @@ class SessionManager {
                         🎥 EVM
                     </button>
                     <button class="btn btn-secondary btn-sm" onclick="sessionManager.downloadMicroHighlights('${session.id}')" title="Descargar video de validación de microexpresiones">
-                        🔬 Microexpresiones
+                        🔬 Micro
                     </button>
                     <button class="btn btn-danger btn-sm" onclick="sessionManager.deleteSession('${session.id}')">
                         🗑️
