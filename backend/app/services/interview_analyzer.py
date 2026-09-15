@@ -9,6 +9,19 @@ def _format_video_time(seconds: float) -> str:
     return f"{seconds // 60:02d}:{seconds % 60:02d}"
 
 
+EMOTION_LABELS = {
+    "happy": "alegría", "sad": "tristeza", "angry": "enojo",
+    "surprise": "sorpresa", "disgust": "disgusto", "fear": "miedo",
+    "neutral": "neutral", "nervousness": "nerviosismo", "confidence": "confianza",
+}
+
+
+def _emotion_label(slug: str) -> str:
+    if not slug:
+        return "—"
+    return EMOTION_LABELS.get(slug.lower(), slug)
+
+
 # Plain-language interpretation for notable emotion-state transitions.
 # These are hypotheses, not conclusions — every entry is meant to point a
 # human reviewer at a specific moment in the video, not to replace their
@@ -154,7 +167,7 @@ class InterviewBehaviorAnalyzer:
                             "type": "rapid_confusion",
                             "timestamp": q_time,
                             "severity": "high",
-                            "description": "Quick shift to confusion/surprise accompanied by confidence drop.",
+                            "description": "Cambio rápido a confusión/sorpresa acompañado de una caída de confianza.",
                             "context_question": kq.get("content")
                         })
                         tech_mastery_penalties += 1
@@ -169,7 +182,7 @@ class InterviewBehaviorAnalyzer:
                         "type": "question_avoidance",
                         "timestamp": q_time,
                         "severity": "medium",
-                        "description": "Gaze stability dropped and nervousness spiked shortly after question.",
+                        "description": "La estabilidad de la mirada cayó y el nerviosismo subió poco después de la pregunta.",
                         "context_question": kq.get("content")
                     })
 
@@ -186,7 +199,7 @@ class InterviewBehaviorAnalyzer:
                 "emotion_shift": f"{pre_dom} -> {post_dom}",
                 "nervousness_change": float(nerv_change),
                 "congruence_change": float(cong_change),
-                "insight": f"Nervousness changed by {nerv_change:.2f}, dominant emotion shifted to {post_dom}."
+                "insight": f"El nerviosismo cambió {nerv_change:+.2f}, la emoción dominante pasó a {_emotion_label(post_dom)}."
             })
 
         # 2. nervous_spiral
@@ -205,7 +218,7 @@ class InterviewBehaviorAnalyzer:
                         "type": "nervous_spiral",
                         "timestamp": t_start,
                         "severity": "high",
-                        "description": "Progressive increase in nervousness over a 30s window.",
+                        "description": "Aumento progresivo del nerviosismo durante una ventana de 30s.",
                         "context_question": None
                     })
                     break # just record one pattern for simplicity
@@ -224,12 +237,12 @@ class InterviewBehaviorAnalyzer:
                     "type": "social_masking",
                     "timestamp": 0,
                     "severity": "high",
-                    "description": "High rate of contradictory micro-expressions with low overall congruence.",
+                    "description": "Alta tasa de microexpresiones contradictorias con baja congruencia general.",
                     "context_question": None
                 })
                 red_flags.append({
                     "type": "social_masking",
-                    "evidence": f"{contra_ratio*100:.0f}% contradictory micro-expressions, congruence {avg_congruence}",
+                    "evidence": f"{contra_ratio*100:.0f}% de microexpresiones contradictorias, congruencia {avg_congruence}",
                     "severity": "high"
                 })
 
@@ -249,7 +262,7 @@ class InterviewBehaviorAnalyzer:
                         "type": "stress_recovery",
                         "timestamp": t_peak,
                         "severity": "low", # positive pattern
-                        "description": "Successfully recovered to confident/neutral state within 15s of a stress peak.",
+                        "description": "Recuperación exitosa a un estado de confianza/neutral dentro de 15s tras un pico de estrés.",
                         "context_question": None
                     })
                     break
@@ -265,7 +278,7 @@ class InterviewBehaviorAnalyzer:
                     "type": "emotional_flatline",
                     "timestamp": 0,
                     "severity": "medium",
-                    "description": "Sustained neutral emotion with very low variance.",
+                    "description": "Emoción neutral sostenida con muy baja variación.",
                     "context_question": None
                 })
 
@@ -279,7 +292,7 @@ class InterviewBehaviorAnalyzer:
                     "type": "confidence_decline",
                     "timestamp": 0,
                     "severity": "medium",
-                    "description": "Overall decline in confidence throughout the session.",
+                    "description": "Baja general de confianza a lo largo de la sesión.",
                     "context_question": None
                 })
 
@@ -295,7 +308,7 @@ class InterviewBehaviorAnalyzer:
                     "type": "authentic_engagement",
                     "timestamp": 0,
                     "severity": "low",
-                    "description": "Consistent authentic engagement with stable confidence and high congruence.",
+                    "description": "Compromiso auténtico consistente con confianza estable y alta congruencia.",
                     "context_question": None
                 })
 
@@ -665,7 +678,7 @@ class InterviewBehaviorAnalyzer:
             info = TRANSITION_INTERPRETATIONS.get((prev_emotion, cur_emotion))
             if info is None:
                 text = (
-                    f"Cambio de estado emocional de {prev_emotion} a {cur_emotion} — "
+                    f"Cambio de estado emocional de {_emotion_label(prev_emotion)} a {_emotion_label(cur_emotion)} — "
                     f"se recomienda revision humana para interpretar el contexto."
                 )
                 severity, is_positive = "medium", False
@@ -678,7 +691,7 @@ class InterviewBehaviorAnalyzer:
                 "timestamp": float(cur_start),
                 "severity": severity,
                 "description": (
-                    f"[{video_time}] {prev_emotion} -> {cur_emotion}: {text} "
+                    f"[{video_time}] {_emotion_label(prev_emotion)} -> {_emotion_label(cur_emotion)}: {text} "
                     f"(minuto {video_time} del video, para revision humana)"
                 ),
                 "context_question": None,

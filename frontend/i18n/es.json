@@ -39,7 +39,9 @@
     "notePlaceholder": "Escriba una nota (ej., 'Pregunta sobre brechas en el CV')",
     "addNote": "Agregar",
     "showPulse": "Mostrar Pulso (EVM)",
-    "noFaceDetected": "Rostro no detectado"
+    "noFaceDetected": "Rostro no detectado",
+    "cameraQuality": "Cámara:",
+    "recalibrate": "🔄 Recalibrar"
   },
 
   "sessions": {

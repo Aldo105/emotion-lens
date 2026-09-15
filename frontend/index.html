@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 
 <head>
     <meta charset="UTF-8">
@@ -121,11 +121,11 @@
                                 <label class="toggle-switch">
                                     <input type="checkbox" id="toggle-evm">
                                     <span class="slider"></span>
-                                    <span class="label-text">Show Pulse (EVM)</span>
+                                    <span class="label-text" data-i18n="live.showPulse">Show Pulse (EVM)</span>
                                 </label>
                                 <div class="camera-quality-badge" id="camera-quality-badge" style="display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--text-muted);">
                                     <span data-i18n="live.cameraQuality">Camera:</span>
-                                    <span class="quality-indicator good" id="camera-quality-value">Good</span>
+                                    <span class="quality-indicator good" id="camera-quality-value">Bien</span>
                                 </div>
                             </div>
                             <button class="btn btn-secondary" id="btn-recalibrate" style="padding: 6px 12px; font-size: 0.8rem;" data-i18n="live.recalibrate">🔄 Recalibrate</button>
@@ -287,14 +287,14 @@
         <!-- ══════════════════════════════════════════════ -->
         <div id="view-sessions" class="view-panel">
             <div class="view-header">
-                <h2>📂 Session History</h2>
-                <p class="view-subtitle">Review past interview analysis sessions</p>
+                <h2>📂 <span data-i18n="sessions.title">Session History</span></h2>
+                <p class="view-subtitle" data-i18n="sessions.subtitle">Review past interview analysis sessions</p>
             </div>
             <div class="sessions-grid" id="sessions-grid">
                 <div class="sessions-empty-state">
                     <span class="empty-icon">📂</span>
-                    <h3>No sessions yet</h3>
-                    <p>Start a live analysis or upload a video to create your first session.</p>
+                    <h3 data-i18n="sessions.noSessions">No sessions yet</h3>
+                    <p data-i18n="sessions.noSessionsDesc">Start a live analysis or upload a video to create your first session.</p>
                 </div>
             </div>
         </div>
@@ -304,32 +304,32 @@
         <!-- ══════════════════════════════════════════════ -->
         <div id="view-compare" class="view-panel">
             <div class="view-header">
-                <h2>🔄 Compare Sessions</h2>
-                <p class="view-subtitle">Side-by-side analysis of two candidates</p>
+                <h2>🔄 <span data-i18n="compare.title">Compare Sessions</span></h2>
+                <p class="view-subtitle" data-i18n="compare.subtitle">Side-by-side analysis of two candidates</p>
             </div>
 
             <div class="compare-selectors glass-panel">
                 <div class="compare-selector-group">
-                    <label for="compare-select-a">Candidate A</label>
+                    <label for="compare-select-a" data-i18n="compare.candidateA">Candidate A</label>
                     <select id="compare-select-a" class="compare-select">
-                        <option value="" disabled selected>Select a session...</option>
+                        <option value="" disabled selected data-i18n="compare.selectSession">Select a session...</option>
                     </select>
                 </div>
                 <div class="compare-vs-icon">⚔️</div>
                 <div class="compare-selector-group">
-                    <label for="compare-select-b">Candidate B</label>
+                    <label for="compare-select-b" data-i18n="compare.candidateB">Candidate B</label>
                     <select id="compare-select-b" class="compare-select">
-                        <option value="" disabled selected>Select a session...</option>
+                        <option value="" disabled selected data-i18n="compare.selectSession">Select a session...</option>
                     </select>
                 </div>
-                <button class="btn btn-primary" id="btn-compare">🔄 Compare Sessions</button>
+                <button class="btn btn-primary" id="btn-compare">🔄 <span data-i18n="compare.compareBtn">Compare Sessions</span></button>
             </div>
 
             <div class="compare-results" id="compare-results">
                 <div class="compare-empty-state">
                     <span class="empty-icon">🔄</span>
-                    <h3>Select two sessions to compare</h3>
-                    <p>Choose candidates from the dropdowns above and click Compare.</p>
+                    <h3 data-i18n="compare.selectTwo">Select two sessions to compare</h3>
+                    <p data-i18n="compare.selectTwoDesc">Choose candidates from the dropdowns above and click Compare.</p>
                 </div>
             </div>
         </div>
@@ -339,17 +339,17 @@
         <!-- ══════════════════════════════════════════════ -->
         <div id="view-upload" class="view-panel">
             <div class="view-header">
-                <h2>📹 Upload Video</h2>
-                <p class="view-subtitle">Upload a recorded interview video for offline analysis</p>
+                <h2>📹 <span data-i18n="upload.title">Upload Video</span></h2>
+                <p class="view-subtitle" data-i18n="upload.subtitle">Upload a recorded interview video for offline analysis</p>
             </div>
 
             <div class="upload-area">
                 <div class="upload-drop-zone glass-panel" id="upload-drop-zone">
                     <div class="drop-zone-content">
                         <span class="drop-zone-icon">📁</span>
-                        <h3>Drag & drop your video here</h3>
-                        <p>or click to browse files</p>
-                        <span class="drop-zone-hint">Supports MP4, WebM, MOV · Max 500 MB</span>
+                        <h3 data-i18n="upload.dragDrop">Drag & drop your video here</h3>
+                        <p data-i18n="upload.orBrowse">or click to browse files</p>
+                        <span class="drop-zone-hint" data-i18n="upload.hint">Supports MP4, WebM, MOV · Max 500 MB</span>
                     </div>
                     <input type="file" id="upload-file-input" accept="video/*" class="hidden">
                 </div>
@@ -358,11 +358,11 @@
                     <!-- Populated by JS -->
                 </div>
 
-                <button class="btn btn-primary btn-lg hidden" id="btn-upload-video">⬆️ Upload Video</button>
+                <button class="btn btn-primary btn-lg hidden" id="btn-upload-video">⬆️ <span data-i18n="upload.uploadBtn">Upload Video</span></button>
 
                 <div class="upload-progress-container hidden" id="upload-progress-container">
                     <div class="upload-progress-label">
-                        <span>Upload Progress</span>
+                        <span data-i18n="upload.uploadProgress">Upload Progress</span>
                         <span class="upload-progress-text" id="upload-progress-text">0%</span>
                     </div>
                     <div class="progress-track progress-track-lg">
@@ -372,7 +372,7 @@
 
                 <div class="upload-progress-container hidden" id="processing-progress-container">
                     <div class="upload-progress-label">
-                        <span>Processing Video</span>
+                        <span data-i18n="upload.processingVideo">Processing Video</span>
                         <span class="upload-progress-text" id="processing-progress-text">0%</span>
                     </div>
                     <div class="progress-track progress-track-lg">

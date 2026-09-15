@@ -68,10 +68,10 @@ class DashboardUI {
         this.elStatusDot.className = 'dot'; // reset classes
         if (status === 'connected') {
             this.elStatusDot.classList.add('active');
-            this.elStatusText.textContent = 'Live Analysis';
+            this.elStatusText.textContent = 'Análisis en vivo';
         } else if (status === 'disconnected') {
             this.elStatusDot.classList.add('disconnected');
-            this.elStatusText.textContent = 'Disconnected';
+            this.elStatusText.textContent = 'Desconectado';
         } else {
             this.elStatusDot.classList.add('disconnected');
             this.elStatusText.textContent = 'Error';
@@ -118,15 +118,15 @@ class DashboardUI {
         this.elNoiseIndicator.style.display = 'flex';
 
         if (noiseState.is_speaking) {
-            this.elNoiseLabel.textContent = 'Speaking';
+            this.elNoiseLabel.textContent = 'Hablando';
             this.elNoiseIcon.textContent  = '🗣️';
             this.elNoiseIndicator.className = 'noise-indicator speaking';
         } else if (noiseState.is_yawning) {
-            this.elNoiseLabel.textContent = 'Yawning';
+            this.elNoiseLabel.textContent = 'Bostezando';
             this.elNoiseIcon.textContent  = '🥱';
             this.elNoiseIndicator.className = 'noise-indicator yawning';
         } else if (noiseState.is_tic) {
-            this.elNoiseLabel.textContent = 'Tic Detected';
+            this.elNoiseLabel.textContent = 'Tic detectado';
             this.elNoiseIcon.textContent  = '⚡';
             this.elNoiseIndicator.className = 'noise-indicator tic';
         }
@@ -253,20 +253,20 @@ class DashboardUI {
     updateHeartRate(hrData) {
         if (!hrData || !hrData.signal_ready) {
             this.elHrBpm.textContent       = '--';
-            this.elHrStressText.textContent = 'Calibrating...';
+            this.elHrStressText.textContent = 'Calibrando...';
             return;
         }
 
         this.elHrBpm.textContent = Math.round(hrData.bpm);
 
         const stressVal = hrData.stress_indicator;
-        let stressText  = 'Low';
+        let stressText  = 'Bajo';
         let stressColor = 'var(--text-muted)';
         if (stressVal > 0.6) {
-            stressText  = 'High';
+            stressText  = 'Alto';
             stressColor = 'var(--danger)';
         } else if (stressVal > 0.3) {
-            stressText  = 'Moderate';
+            stressText  = 'Moderado';
             stressColor = 'var(--warning)';
         }
 
@@ -310,7 +310,7 @@ class DashboardUI {
     updateCongruence(score, breakdown) {
         if (score === 0 && (!breakdown || Object.keys(breakdown).length === 0)) {
             this.elCongruenceValue.textContent = '--';
-            this.elCongruenceLabel.textContent = 'Calibrating...';
+            this.elCongruenceLabel.textContent = 'Calibrando...';
             this.charts.updateGauge(0, 'grey');
             return;
         }
@@ -318,16 +318,16 @@ class DashboardUI {
         const s = Math.round(score);
         this.elCongruenceValue.textContent = s;
 
-        let label = 'High Match';
+        let label = 'Alta coincidencia';
         let color = 'green';
         this.elCongruenceValue.style.color = 'var(--success)';
 
         if (s < 50) {
-            label = 'Low Match';
+            label = 'Baja coincidencia';
             color = 'red';
             this.elCongruenceValue.style.color = 'var(--danger)';
         } else if (s < 80) {
-            label = 'Moderate';
+            label = 'Moderada';
             color = 'yellow';
             this.elCongruenceValue.style.color = 'var(--warning)';
         }
@@ -345,7 +345,7 @@ class DashboardUI {
 
     addMicroExpression(micro) {
         this.microCount++;
-        this.elMicroCount.textContent = `${this.microCount} Detected`;
+        this.elMicroCount.textContent = `${this.microCount} Detectadas`;
         this.collectedMicroExpressions.push(micro);
 
         // Remove empty-state placeholder
@@ -369,11 +369,11 @@ class DashboardUI {
         descSpan.className = 'micro-desc';
         const b = document.createElement('b');
         b.textContent = em.label;
-        descSpan.append(em.icon + ' ', b, ' micro-expression');
+        descSpan.append(em.icon + ' ', b, ' microexpresión');
 
         const scoreSpan = document.createElement('span');
         scoreSpan.className   = 'micro-score';
-        scoreSpan.textContent = `Score: ${micro.relevance_score}`;
+        scoreSpan.textContent = `Puntaje: ${micro.relevance_score}`;
 
         div.append(timeSpan, descSpan, scoreSpan);
         this.elMicroLog.prepend(div);

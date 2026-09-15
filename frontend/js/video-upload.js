@@ -58,13 +58,13 @@ class VideoUploadManager {
     handleFile(file) {
         // Validate type
         if (!file.type.startsWith('video/')) {
-            this.showStatus('Please select a video file (mp4, webm, mov, etc.).', 'error');
+            this.showStatus('Selecciona un archivo de video (mp4, webm, mov, etc.).', 'error');
             return;
         }
 
         // Validate size
         if (file.size > this.maxFileSize) {
-            this.showStatus(`File too large. Maximum size is ${this.formatSize(this.maxFileSize)}.`, 'error');
+            this.showStatus(`Archivo muy grande. El tamaño máximo es ${this.formatSize(this.maxFileSize)}.`, 'error');
             return;
         }
 
@@ -108,9 +108,9 @@ class VideoUploadManager {
         if (!this.selectedFile) return;
 
         this.btnUpload.disabled = true;
-        this.btnUpload.textContent = 'Uploading...';
+        this.btnUpload.textContent = 'Subiendo...';
         this.uploadProgressContainer.classList.remove('hidden');
-        this.showStatus('Uploading video...', 'info');
+        this.showStatus('Subiendo video...', 'info');
 
         const formData = new FormData();
         formData.append('file', this.selectedFile);
@@ -121,22 +121,22 @@ class VideoUploadManager {
 
             this.uploadProgressFill.style.width = '100%';
             this.uploadProgressText.textContent = '100%';
-            this.showStatus('Upload complete! Processing video...', 'success');
+            this.showStatus('¡Subida completa! Procesando video...', 'success');
 
             // Start polling for processing progress
             const sessionId = result.session_id || result.id;
             if (sessionId) {
                 this.startProcessingPoll(sessionId);
             } else {
-                this.showStatus('Upload complete!', 'success');
+                this.showStatus('¡Subida completa!', 'success');
                 this.btnUpload.disabled = false;
-                this.btnUpload.textContent = '⬆️ Upload Video';
+                this.btnUpload.textContent = '⬆️ Subir Video';
             }
         } catch (err) {
             console.error('Upload failed:', err);
-            this.showStatus('Upload failed: ' + err.message, 'error');
+            this.showStatus('Error al subir: ' + err.message, 'error');
             this.btnUpload.disabled = false;
-            this.btnUpload.textContent = '⬆️ Upload Video';
+            this.btnUpload.textContent = '⬆️ Subir Video';
         }
     }
 
@@ -164,8 +164,8 @@ class VideoUploadManager {
                 }
             });
 
-            xhr.addEventListener('error', () => reject(new Error('Network error')));
-            xhr.addEventListener('abort', () => reject(new Error('Upload aborted')));
+            xhr.addEventListener('error', () => reject(new Error('Error de red')));
+            xhr.addEventListener('abort', () => reject(new Error('Subida cancelada')));
 
             xhr.open('POST', `${CONFIG.API_URL}/videos/upload`);
             xhr.send(formData);
@@ -196,16 +196,16 @@ class VideoUploadManager {
                     this.statusMessage.innerHTML = `
                         <div class="upload-success">
                             <span class="success-icon">✅</span>
-                            <h3>Video processed successfully!</h3>
-                            <p>Your analysis results are ready to view.</p>
+                            <h3>¡Video procesado con éxito!</h3>
+                            <p>Tus resultados de análisis están listos para ver.</p>
                             <button class="btn btn-primary" onclick="videoUploadManager.goToSessions()">
-                                View Results →
+                                Ver Resultados →
                             </button>
                         </div>
                     `;
 
                     this.btnUpload.disabled = false;
-                    this.btnUpload.textContent = '⬆️ Upload Video';
+                    this.btnUpload.textContent = '⬆️ Subir Video';
                 }
             } catch (err) {
                 console.error('Progress poll error:', err);

@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ══════════════════════════════════════════
     //  i18n (Internationalization)
     // ══════════════════════════════════════════
-    i18n = new I18nManager('en');
+    i18n = new I18nManager('es');
     await i18n.init();
 
     // Language toggle button
@@ -162,7 +162,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const timeSpan = document.createElement('span');
         timeSpan.textContent = `🕒 ${time}`;
         const tagSpan = document.createElement('span');
-        tagSpan.textContent = tag ? MARKER_LABELS[tag] || tag : 'User';
+        tagSpan.textContent = tag ? MARKER_LABELS[tag] || tag : 'Usuario';
         header.appendChild(timeSpan);
         header.appendChild(tagSpan);
 

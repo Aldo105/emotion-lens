@@ -35,7 +35,7 @@ class WebcamManager {
             });
         } catch (err) {
             console.error("Error accessing webcam: ", err);
-            alert("Could not access webcam. Please ensure permissions are granted.");
+            alert("No se pudo acceder a la cámara. Verifica que los permisos estén concedidos.");
             return false;
         }
     }

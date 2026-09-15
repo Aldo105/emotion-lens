@@ -160,11 +160,11 @@ def _compute_camera_quality(frame: np.ndarray, detection: dict) -> dict:
     # ── Face Size Check ──────────────────────────────────────────
     face_size_ratio = face_area / max(frame_area, 1)
     if face_size_ratio < 0.03:
-        warnings.append("Face too small — move closer to camera")
+        warnings.append("Rostro muy pequeño — acercate a la camara")
         suggestions.append("Acercate a la camara para mejor precision")
         score -= 0.4
     elif face_size_ratio < 0.08:
-        warnings.append("Face is small — move slightly closer")
+        warnings.append("Rostro pequeño — acercate un poco")
         suggestions.append("Acercate un poco mas a la camara")
         score -= 0.15
 
@@ -177,15 +177,15 @@ def _compute_camera_quality(frame: np.ndarray, detection: dict) -> dict:
         brightness = 0.5
 
     if brightness < 0.20:
-        warnings.append("Too dark — improve lighting")
+        warnings.append("Muy oscuro — mejora la iluminacion")
         suggestions.append("Enciende una luz frente a ti o acercate a una ventana")
         score -= 0.35
     elif brightness < 0.30:
-        warnings.append("Lighting is low — improve if possible")
+        warnings.append("Poca luz — mejorala si es posible")
         suggestions.append("Mejora la iluminacion si es posible")
         score -= 0.10
     elif brightness > 0.85:
-        warnings.append("Too bright — reduce lighting or glare")
+        warnings.append("Demasiado brillo — reduce la luz o el reflejo")
         suggestions.append("Reduce el brillo o alejate de la fuente de luz")
         score -= 0.20
 
@@ -195,7 +195,7 @@ def _compute_camera_quality(frame: np.ndarray, detection: dict) -> dict:
 
     off_center = abs(face_center_x - 0.5) + abs(face_center_y - 0.5)
     if off_center > 0.5:
-        warnings.append("Face is off-center — center yourself in the frame")
+        warnings.append("Rostro descentrado — centrate en el cuadro")
         suggestions.append("Centra tu rostro en la camara")
         score -= 0.15
 
@@ -205,7 +205,7 @@ def _compute_camera_quality(frame: np.ndarray, detection: dict) -> dict:
         laplacian = cv2.Laplacian(face_roi, cv2.CV_64F)
         sharpness = float(laplacian.var())
         if sharpness < 50:
-            warnings.append("Image blurry — clean camera or stay still")
+            warnings.append("Imagen borrosa — limpia la camara o quedate quieto")
             suggestions.append("Limpia el lente de tu camara o quedate quieto")
             score -= 0.30
         elif sharpness < 100:
@@ -226,7 +226,7 @@ def _compute_camera_quality(frame: np.ndarray, detection: dict) -> dict:
     # ── Head Pose Check (from landmarks) ─────────────────────────
     yaw, pitch = _estimate_head_pose(detection["landmarks"], w, h)
     if abs(yaw) > 20:
-        warnings.append("Face turned too far — look at the camera")
+        warnings.append("Rostro muy girado — mira hacia la camara")
         suggestions.append("Gira tu cabeza hacia la camara")
         score -= 0.20
     elif abs(yaw) > 12:

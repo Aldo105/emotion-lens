@@ -27,12 +27,12 @@ class ComparisonManager {
 
     populateDropdown(selectEl, sessions) {
         const currentVal = selectEl.value;
-        selectEl.innerHTML = '<option value="" disabled selected>Select a session...</option>';
+        selectEl.innerHTML = '<option value="" disabled selected>Selecciona una sesión...</option>';
 
         sessions.forEach(session => {
             const date = new Date(session.created_at || session.start_time || Date.now());
-            const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            const name = session.candidate_name || session.name || 'Unknown';
+            const dateStr = date.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' });
+            const name = session.candidate_name || session.name || 'Desconocido';
             const opt = document.createElement('option');
             opt.value = session.id;
             opt.textContent = `${name} — ${dateStr}`;
@@ -47,17 +47,17 @@ class ComparisonManager {
         const idB = this.selectB.value;
 
         if (!idA || !idB) {
-            this.showMessage('Please select two sessions to compare.');
+            this.showMessage('Selecciona dos sesiones para comparar.');
             return;
         }
 
         if (idA === idB) {
-            this.showMessage('Please select two different sessions.');
+            this.showMessage('Selecciona dos sesiones diferentes.');
             return;
         }
 
         this.btnCompare.disabled = true;
-        this.btnCompare.textContent = 'Comparing...';
+        this.btnCompare.textContent = 'Comparando...';
 
         try {
             const res = await fetch(`${CONFIG.API_URL}/sessions/compare`, {
@@ -70,10 +70,10 @@ class ComparisonManager {
             this.renderResults(result);
         } catch (err) {
             console.error('Comparison failed:', err);
-            this.showMessage('Comparison failed: ' + err.message);
+            this.showMessage('Error al comparar: ' + err.message);
         } finally {
             this.btnCompare.disabled = false;
-            this.btnCompare.textContent = '🔄 Compare Sessions';
+            this.btnCompare.textContent = '🔄 Comparar Sesiones';
         }
     }
 
@@ -84,20 +84,20 @@ class ComparisonManager {
         this.resultsContainer.innerHTML = `
             <div class="compare-columns">
                 <div class="compare-column glass-panel">
-                    <h3 class="compare-candidate-name">${this.escapeHtml(a.candidate_name || 'Candidate A')}</h3>
+                    <h3 class="compare-candidate-name">${this.escapeHtml(a.candidate_name || 'Candidato A')}</h3>
                     ${this.renderMetricCard(a)}
                 </div>
                 <div class="compare-divider">
                     <span class="compare-vs">VS</span>
                 </div>
                 <div class="compare-column glass-panel">
-                    <h3 class="compare-candidate-name">${this.escapeHtml(b.candidate_name || 'Candidate B')}</h3>
+                    <h3 class="compare-candidate-name">${this.escapeHtml(b.candidate_name || 'Candidato B')}</h3>
                     ${this.renderMetricCard(b)}
                 </div>
             </div>
 
             <div class="compare-radar-container glass-panel">
-                <h3>Key Metrics Comparison</h3>
+                <h3>Comparación de Métricas Clave</h3>
                 <div class="radar-chart-wrapper">
                     <canvas id="compare-radar-chart"></canvas>
                 </div>
@@ -140,16 +140,16 @@ class ComparisonManager {
             <div class="compare-stat-row">
                 <div class="compare-stat">
                     <span class="compare-stat-value" style="color: ${congruenceColor}">${congruence}%</span>
-                    <span class="compare-stat-label">Congruence</span>
+                    <span class="compare-stat-label">Congruencia</span>
                 </div>
                 <div class="compare-stat">
                     <span class="compare-stat-value">${microCount}</span>
-                    <span class="compare-stat-label">Micro-Expr.</span>
+                    <span class="compare-stat-label">Microexpr.</span>
                 </div>
             </div>
             <div class="compare-emotion-section">
-                <h4>Top Emotions</h4>
-                ${emotionBars || '<p class="empty-state">No data</p>'}
+                <h4>Emociones Principales</h4>
+                ${emotionBars || '<p class="empty-state">Sin datos</p>'}
             </div>
         `;
     }
@@ -161,7 +161,7 @@ class ComparisonManager {
         }
 
         const ctx = this.radarCanvas.getContext('2d');
-        const labels = ['Congruence', 'Confidence', 'Nervousness', 'Stability', 'Micro-Expr Rate'];
+        const labels = ['Congruencia', 'Confianza', 'Nerviosismo', 'Estabilidad', 'Tasa de Microexpr.'];
 
         const getMetric = (data, key, fallback = 0) => {
             return data[key] ?? data.summary?.[key] ?? data.breakdown?.[key] ?? fallback;
@@ -188,7 +188,7 @@ class ComparisonManager {
                 labels: labels,
                 datasets: [
                     {
-                        label: a.candidate_name || 'Candidate A',
+                        label: a.candidate_name || 'Candidato A',
                         data: dataA,
                         borderColor: '#6366f1',
                         backgroundColor: 'rgba(99, 102, 241, 0.15)',
@@ -198,7 +198,7 @@ class ComparisonManager {
                         pointRadius: 4
                     },
                     {
-                        label: b.candidate_name || 'Candidate B',
+                        label: b.candidate_name || 'Candidato B',
                         data: dataB,
                         borderColor: '#10b981',
                         backgroundColor: 'rgba(16, 185, 129, 0.15)',

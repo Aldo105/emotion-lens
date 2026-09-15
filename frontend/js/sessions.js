@@ -9,7 +9,7 @@ class SessionManager {
         this.container.innerHTML = `
             <div class="sessions-loading">
                 <div class="spinner"></div>
-                <span>Loading sessions...</span>
+                <span>Cargando sesiones...</span>
             </div>
         `;
 
@@ -25,9 +25,9 @@ class SessionManager {
             this.container.innerHTML = `
                 <div class="sessions-empty-state">
                     <span class="empty-icon">📂</span>
-                    <h3>Could not load sessions</h3>
+                    <h3>No se pudieron cargar las sesiones</h3>
                     <p>${err.message}</p>
-                    <button class="btn btn-secondary" onclick="sessionManager.loadSessions()">Retry</button>
+                    <button class="btn btn-secondary" onclick="sessionManager.loadSessions()">Reintentar</button>
                 </div>
             `;
         }
@@ -38,8 +38,8 @@ class SessionManager {
             this.container.innerHTML = `
                 <div class="sessions-empty-state">
                     <span class="empty-icon">📂</span>
-                    <h3>No sessions yet</h3>
-                    <p>Start a live analysis or upload a video to create your first session.</p>
+                    <h3>Aún no hay sesiones</h3>
+                    <p>Inicia un análisis en vivo o sube un video para crear tu primera sesión.</p>
                 </div>
             `;
             return;
@@ -50,18 +50,18 @@ class SessionManager {
 
     renderCard(session) {
         const date = new Date(session.created_at || session.start_time || Date.now());
-        const dateStr = date.toLocaleDateString('en-US', {
+        const dateStr = date.toLocaleDateString('es-ES', {
             month: 'short', day: 'numeric', year: 'numeric'
         });
-        const timeStr = date.toLocaleTimeString('en-US', {
+        const timeStr = date.toLocaleTimeString('es-ES', {
             hour: '2-digit', minute: '2-digit'
         });
 
         const statusMap = {
-            'active': { class: 'status-active', label: 'Active', icon: '🔴' },
-            'completed': { class: 'status-completed', label: 'Completed', icon: '✅' },
-            'cancelled': { class: 'status-cancelled', label: 'Cancelled', icon: '❌' },
-            'processing': { class: 'status-active', label: 'Processing', icon: '⏳' }
+            'active': { class: 'status-active', label: 'Activa', icon: '🔴' },
+            'completed': { class: 'status-completed', label: 'Completada', icon: '✅' },
+            'cancelled': { class: 'status-cancelled', label: 'Cancelada', icon: '❌' },
+            'processing': { class: 'status-active', label: 'Procesando', icon: '⏳' }
         };
         const status = statusMap[session.status] || statusMap['completed'];
 
@@ -71,7 +71,7 @@ class SessionManager {
         const congruence = session.congruence_score ?? session.summary?.congruence_score ?? '--';
         const congruenceDisplay = typeof congruence === 'number' ? Math.round(congruence) : congruence;
 
-        const candidateName = session.candidate_name || session.name || 'Unknown Candidate';
+        const candidateName = session.candidate_name || session.name || 'Candidato desconocido';
         const duration = session.duration || session.summary?.duration || null;
         const durationStr = duration ? this.formatDuration(duration) : '--:--';
 
@@ -87,22 +87,22 @@ class SessionManager {
 
                 <div class="session-card-stats">
                     <div class="session-stat">
-                        <span class="session-stat-label">Dominant Emotion</span>
+                        <span class="session-stat-label">Emoción dominante</span>
                         <span class="session-stat-value">${emotionConfig.icon} ${emotionConfig.label}</span>
                     </div>
                     <div class="session-stat">
-                        <span class="session-stat-label">Congruence</span>
+                        <span class="session-stat-label">Congruencia</span>
                         <span class="session-stat-value session-congruence">${congruenceDisplay}%</span>
                     </div>
                     <div class="session-stat">
-                        <span class="session-stat-label">Duration</span>
+                        <span class="session-stat-label">Duración</span>
                         <span class="session-stat-value">${durationStr}</span>
                     </div>
                 </div>
 
                 <div class="session-card-actions">
                     <button class="btn btn-primary btn-sm" onclick="sessionManager.viewSession('${session.id}')">
-                        View Report
+                        Ver reporte
                     </button>
                     <button class="btn btn-secondary btn-sm" onclick="sessionManager.downloadPDF('${session.id}')">
                         📄 PDF
@@ -135,7 +135,7 @@ class SessionManager {
             this.renderValidation(report.feedback);
         } catch (err) {
             console.error('Failed to load session report:', err);
-            this.showToast('Failed to load report: ' + err.message, 'error');
+            this.showToast('Error al cargar el reporte: ' + err.message, 'error');
         }
     }
 
@@ -169,39 +169,39 @@ class SessionManager {
         modal.innerHTML = `
             <div class="modal-content glass-panel">
                 <div class="modal-header">
-                    <h2>📋 Session Report</h2>
+                    <h2>📋 Reporte de Sesión</h2>
                     <button class="icon-btn modal-close" onclick="sessionManager.closeModal()">✕</button>
                 </div>
 
                 <div class="modal-body">
                     <div class="modal-section">
-                        <h3>Candidate</h3>
-                        <p class="modal-candidate-name">${this.escapeHtml(report.candidate_name || 'Unknown')}</p>
+                        <h3>Candidato</h3>
+                        <p class="modal-candidate-name">${this.escapeHtml(report.candidate_name || 'Desconocido')}</p>
                     </div>
 
                     <div class="modal-stats-row">
                         <div class="modal-stat-card">
                             <span class="modal-stat-value">${congruence}%</span>
-                            <span class="modal-stat-label">Congruence</span>
+                            <span class="modal-stat-label">Congruencia</span>
                         </div>
                         <div class="modal-stat-card">
                             <span class="modal-stat-value">${microCount}</span>
-                            <span class="modal-stat-label">Micro-Expressions</span>
+                            <span class="modal-stat-label">Microexpresiones</span>
                         </div>
                         <div class="modal-stat-card">
                             <span class="modal-stat-value">${report.duration ? this.formatDuration(report.duration) : '--'}</span>
-                            <span class="modal-stat-label">Duration</span>
+                            <span class="modal-stat-label">Duración</span>
                         </div>
                     </div>
 
                     <div class="modal-section">
-                        <h3>Emotion Distribution</h3>
-                        <div class="detail-emotion-bars">${emotionBars || '<p class="empty-state">No data</p>'}</div>
+                        <h3>Distribución de Emociones</h3>
+                        <div class="detail-emotion-bars">${emotionBars || '<p class="empty-state">Sin datos</p>'}</div>
                     </div>
-                    
+
                     <!-- Interview Analysis Section -->
                     <div id="detail-analysis-section" style="display: none;">
-                        <h3 class="detail-section-title">🧠 Interview Analysis</h3>
+                        <h3 class="detail-section-title">🧠 Análisis de Entrevista</h3>
                         
                         <!-- Dimension Scores Radar -->
                         <div class="analysis-dimensions" id="detail-dimensions">
@@ -236,11 +236,11 @@ class SessionManager {
                 </div>
 
                 <div class="modal-footer">
-                    <button class="btn btn-primary" onclick="sessionManager.downloadPDF('${sessionId}')">📄 Download PDF</button>
-                    <button class="btn btn-secondary" onclick="sessionManager.downloadCSV('${sessionId}')">📊 Download CSV</button>
+                    <button class="btn btn-primary" onclick="sessionManager.downloadPDF('${sessionId}')">📄 Descargar PDF</button>
+                    <button class="btn btn-secondary" onclick="sessionManager.downloadCSV('${sessionId}')">📊 Descargar CSV</button>
                     <button class="btn btn-secondary" onclick="sessionManager.downloadEVM('${sessionId}')">🎥 Video EVM</button>
                     <button class="btn btn-secondary" onclick="sessionManager.downloadMicroHighlights('${sessionId}')">🔬 Video Microexpresiones</button>
-                    <button class="btn btn-secondary" onclick="sessionManager.closeModal()">Close</button>
+                    <button class="btn btn-secondary" onclick="sessionManager.closeModal()">Cerrar</button>
                 </div>
             </div>
         `;
@@ -376,6 +376,29 @@ class SessionManager {
         `;
     }
 
+    /** Backend pattern/flag "type" and recommendation "category" slugs -> Spanish label. */
+    static TYPE_LABELS = {
+        rapid_confusion: 'Confusión Rápida',
+        nervous_spiral: 'Espiral de Nerviosismo',
+        social_masking: 'Enmascaramiento Social',
+        stress_recovery: 'Recuperación de Estrés',
+        emotional_flatline: 'Aplanamiento Emocional',
+        confidence_decline: 'Baja de Confianza',
+        authentic_engagement: 'Compromiso Auténtico',
+        emotion_transition: 'Transición Emocional',
+        technical: 'Técnico',
+        behavioral: 'Conductual',
+        communication: 'Comunicación',
+        resilience: 'Resiliencia',
+        confidence: 'Confianza',
+        usability: 'Usabilidad',
+    };
+
+    _typeLabel(slug) {
+        if (!slug) return '';
+        return SessionManager.TYPE_LABELS[slug] || slug.replace(/_/g, ' ');
+    }
+
     renderAnalysis(analysis) {
         const section = document.getElementById('detail-analysis-section');
         if (!analysis || !analysis.dimension_scores) {
@@ -412,49 +435,49 @@ class SessionManager {
         const overallColor = overall >= 70 ? '#10b981' : overall >= 40 ? '#f59e0b' : '#ef4444';
         overallEl.innerHTML = `
             <div class="score-big" style="color: ${overallColor}">${Math.round(overall)}/100</div>
-            <div style="color: var(--text-secondary); margin-top: 4px;">Overall Interview Score</div>
+            <div style="color: var(--text-secondary); margin-top: 4px;">Puntaje General de la Entrevista</div>
         `;
-        
+
         // Behavioral patterns
         const patternsEl = document.getElementById('detail-patterns');
         const patterns = analysis.behavioral_patterns || [];
         if (patterns.length > 0) {
-            patternsEl.innerHTML = '<h4 style="margin: 12px 0 8px;">Behavioral Patterns</h4>' +
+            patternsEl.innerHTML = '<h4 style="margin: 12px 0 8px;">Patrones de Comportamiento</h4>' +
                 patterns.map(p => {
                     const isPositive = p.is_positive || ['stress_recovery', 'authentic_engagement'].includes(p.type);
                     const cls = isPositive ? 'positive' : (p.severity === 'medium' ? 'medium' : 'negative');
                     const timeBadge = (p.timestamp !== null && p.timestamp !== undefined)
                         ? `<span style="float:right; opacity:0.75;">⏱ ${this.formatDuration(p.timestamp)}</span>` : '';
                     return `<div class="pattern-item ${cls}">
-                        <strong>${isPositive ? '✅' : '⚠️'} ${p.type.replace(/_/g, ' ').toUpperCase()}</strong>${timeBadge}
+                        <strong>${isPositive ? '✅' : '⚠️'} ${this._typeLabel(p.type).toUpperCase()}</strong>${timeBadge}
                         <div style="font-size: 0.85rem; margin-top: 4px;">${p.description}</div>
-                        ${p.context_question ? `<div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px;">Context: ${p.context_question}</div>` : ''}
+                        ${p.context_question ? `<div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px;">Contexto: ${p.context_question}</div>` : ''}
                     </div>`;
                 }).join('');
         } else {
             patternsEl.innerHTML = '';
         }
-        
+
         // Red flags
         const flagsEl = document.getElementById('detail-red-flags');
         const flags = analysis.red_flags || [];
         if (flags.length > 0) {
-            flagsEl.innerHTML = '<h4 style="margin: 12px 0 8px;">🔴 Red Flags</h4>' +
+            flagsEl.innerHTML = '<h4 style="margin: 12px 0 8px;">🔴 Señales de Alerta</h4>' +
                 flags.map(f => `<div class="flag-item ${f.severity}">
-                    <strong>${f.type.replace(/_/g, ' ')}</strong>
+                    <strong>${this._typeLabel(f.type)}</strong>
                     <div style="font-size: 0.85rem; margin-top: 4px;">${f.evidence}</div>
                 </div>`).join('');
         } else {
             flagsEl.innerHTML = '';
         }
-        
+
         // Recommendations
         const recsEl = document.getElementById('detail-recommendations');
         const recs = analysis.recommendations || [];
         if (recs.length > 0) {
-            recsEl.innerHTML = '<h4 style="margin: 12px 0 8px;">📋 Recommendations</h4>' +
+            recsEl.innerHTML = '<h4 style="margin: 12px 0 8px;">📋 Recomendaciones</h4>' +
                 recs.map(r => `<div class="recommendation-item ${r.priority}">
-                    <span style="text-transform: uppercase; font-size: 0.7rem; font-weight: 700; color: var(--text-secondary);">${r.category}</span>
+                    <span style="text-transform: uppercase; font-size: 0.7rem; font-weight: 700; color: var(--text-secondary);">${this._typeLabel(r.category)}</span>
                     <div style="margin-top: 4px;">${r.text}</div>
                 </div>`).join('');
         } else {
@@ -471,7 +494,7 @@ class SessionManager {
     }
 
     async deleteSession(id) {
-        if (!confirm('Are you sure you want to delete this session? This action cannot be undone.')) return;
+        if (!confirm('¿Seguro que quieres eliminar esta sesión? Esta acción no se puede deshacer.')) return;
 
         try {
             const res = await fetch(`${CONFIG.API_URL}/sessions/${id}`, { method: 'DELETE' });
@@ -490,10 +513,10 @@ class SessionManager {
                 }, 300);
             }
 
-            this.showToast('Session deleted successfully', 'success');
+            this.showToast('Sesión eliminada correctamente', 'success');
         } catch (err) {
             console.error('Failed to delete session:', err);
-            this.showToast('Failed to delete session: ' + err.message, 'error');
+            this.showToast('Error al eliminar la sesión: ' + err.message, 'error');
         }
     }
 

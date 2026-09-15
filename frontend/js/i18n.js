@@ -26,6 +26,7 @@ class I18nManager {
         await this.loadLanguage(this.currentLang);
         this.applyTranslations();
         this.updateLangButton();
+        this.updateEmotionLabels();
     }
 
     /**

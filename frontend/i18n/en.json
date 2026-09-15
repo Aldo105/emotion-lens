@@ -39,7 +39,9 @@
     "notePlaceholder": "Type a note (e.g., 'Asked about gaps in resume')",
     "addNote": "Add",
     "showPulse": "Show Pulse (EVM)",
-    "noFaceDetected": "No face detected"
+    "noFaceDetected": "No face detected",
+    "cameraQuality": "Camera:",
+    "recalibrate": "🔄 Recalibrate"
   },
 
   "sessions": {
