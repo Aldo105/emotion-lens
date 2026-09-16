@@ -27,6 +27,7 @@ data/test_videos/*
 !data/test_videos/evaluate.py
 !data/test_videos/download_cremad.py
 !data/test_videos/evaluate_cremad.py
+!data/test_videos/evaluate_resolution.py
 
 # Notas de trabajo propias, no parte del proyecto
 notas-locales/

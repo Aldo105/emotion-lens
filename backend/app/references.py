@@ -491,12 +491,17 @@ CONSTANTS: tuple[ConstantEvidence, ...] = (
              "Diferencia por sexo: 40% en mujeres frente a 30% en hombres, no "
              "concluyente con esta muestra pero a vigilar, porque el sesgo "
              "demográfico en reconocimiento facial está documentado y esta "
-             "herramienta interviene en contrataciones. Matices: CREMA-D es de "
-             "480x360 frente a 1280x720, así que parte de la caída puede ser "
-             "resolución; y sus clips son demasiado cortos para calibrar el "
-             "basal por sujeto que sí existe en una sesión real, de modo que el "
-             "uso en vivo debería quedar por encima de este 36%. Reproducible "
-             "con data/test_videos/evaluate_cremad.py.",
+             "herramienta interviene en contrataciones. La diferencia de "
+             "resolución entre ambos conjuntos (480x360 frente a 1280x720) se "
+             "descartó como explicación: evaluar los mismos clips de RAVDESS "
+             "reducidos a 480x360 da 64% frente al 59% original, o sea que "
+             "bajar resolución no perjudica —coherente con que el modelo se "
+             "entrenó sobre imágenes de 48x48— y la caída al 36% se debe "
+             "íntegramente a cambiar de persona. Queda un matiz a favor del "
+             "sistema: los clips son demasiado cortos para calibrar el basal "
+             "por sujeto que sí existe en una sesión real, de modo que el uso "
+             "en vivo debería quedar por encima de este 36%. Reproducible con "
+             "data/test_videos/evaluate_cremad.py y evaluate_resolution.py.",
     ),
 
     # ── Congruencia: el núcleo sin respaldo ───────────────────────────
