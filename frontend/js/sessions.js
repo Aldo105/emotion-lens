@@ -24,7 +24,7 @@ class SessionManager {
             console.error('Failed to load sessions:', err);
             this.container.innerHTML = `
                 <div class="sessions-empty-state">
-                    <span class="empty-icon">📂</span>
+                    <span class="empty-icon">${Icons.render('folder')}</span>
                     <h3>No se pudieron cargar las sesiones</h3>
                     <p>${err.message}</p>
                     <button class="btn btn-secondary" onclick="sessionManager.loadSessions()">Reintentar</button>
@@ -37,7 +37,7 @@ class SessionManager {
         if (!this.sessions.length) {
             this.container.innerHTML = `
                 <div class="sessions-empty-state">
-                    <span class="empty-icon">📂</span>
+                    <span class="empty-icon">${Icons.render('folder')}</span>
                     <h3>Aún no hay sesiones</h3>
                     <p>Inicia un análisis en vivo o sube un video para crear tu primera sesión.</p>
                 </div>
@@ -58,10 +58,10 @@ class SessionManager {
         });
 
         const statusMap = {
-            'active': { class: 'status-active', label: 'Activa', icon: '🔴' },
-            'completed': { class: 'status-completed', label: 'Completada', icon: '✅' },
-            'cancelled': { class: 'status-cancelled', label: 'Cancelada', icon: '❌' },
-            'processing': { class: 'status-active', label: 'Procesando', icon: '⏳' }
+            'active': { class: 'status-active', label: 'Activa', icon: Icons.render('dotCircle') },
+            'completed': { class: 'status-completed', label: 'Completada', icon: Icons.render('check') },
+            'cancelled': { class: 'status-cancelled', label: 'Cancelada', icon: Icons.render('cross') },
+            'processing': { class: 'status-active', label: 'Procesando', icon: Icons.render('clock') }
         };
         const status = statusMap[session.status] || statusMap['completed'];
 
@@ -91,7 +91,7 @@ class SessionManager {
                 <div class="session-card-stats">
                     <div class="session-stat">
                         <span class="session-stat-label">Emoción dominante</span>
-                        <span class="session-stat-value">${emotionConfig.icon} ${emotionConfig.label}</span>
+                        <span class="session-stat-value">${Icons.dot(emotionConfig.color)} ${emotionConfig.label}</span>
                     </div>
                     <div class="session-stat">
                         <span class="session-stat-label">Congruencia</span>
@@ -108,19 +108,19 @@ class SessionManager {
                         Ver reporte
                     </button>
                     <button class="btn btn-secondary btn-sm" onclick="sessionManager.downloadPDF('${session.id}')">
-                        📄 PDF
+                        ${Icons.render('document')} PDF
                     </button>
                     <button class="btn btn-secondary btn-sm" onclick="sessionManager.downloadCSV('${session.id}')">
-                        📊 CSV
+                        ${Icons.render('chart')} CSV
                     </button>
                     <button class="btn btn-secondary btn-sm" onclick="sessionManager.downloadEVM('${session.id}')" title="Descargar Video EVM">
-                        🎥 EVM
+                        ${Icons.render('video')} EVM
                     </button>
                     <button class="btn btn-secondary btn-sm" onclick="sessionManager.downloadMicroHighlights('${session.id}')" title="Descargar video de validación de microexpresiones">
-                        🔬 Micro
+                        ${Icons.render('microscope')} Micro
                     </button>
                     <button class="btn btn-danger btn-sm" onclick="sessionManager.deleteSession('${session.id}')">
-                        🗑️
+                        ${Icons.render('trash')}
                     </button>
                 </div>
             </div>
@@ -154,7 +154,7 @@ class SessionManager {
                 const pct = Math.round(value * 100);
                 return `
                     <div class="detail-emotion-row">
-                        <span class="detail-emotion-label">${cfg.icon} ${cfg.label}</span>
+                        <span class="detail-emotion-label">${Icons.dot(cfg.color)} ${cfg.label}</span>
                         <div class="detail-emotion-bar-track">
                             <div class="detail-emotion-bar-fill" style="width: ${pct}%; background: ${cfg.color}"></div>
                         </div>
@@ -172,8 +172,8 @@ class SessionManager {
         modal.innerHTML = `
             <div class="modal-content glass-panel">
                 <div class="modal-header">
-                    <h2>📋 Reporte de Sesión</h2>
-                    <button class="icon-btn modal-close" onclick="sessionManager.closeModal()">✕</button>
+                    <h2>Reporte de Sesión</h2>
+                    <button class="icon-btn modal-close" onclick="sessionManager.closeModal()">&times;</button>
                 </div>
 
                 <div class="modal-body">
@@ -204,7 +204,7 @@ class SessionManager {
 
                     <!-- Interview Analysis Section -->
                     <div id="detail-analysis-section" style="display: none;">
-                        <h3 class="detail-section-title">🧠 Análisis de Entrevista</h3>
+                        <h3 class="detail-section-title">${Icons.render('activity')} Análisis de Entrevista</h3>
                         
                         <!-- Dimension Scores Radar -->
                         <div class="analysis-dimensions" id="detail-dimensions">
@@ -226,14 +226,14 @@ class SessionManager {
 
                     <!-- Task Friction / Event Timeline -->
                     <div id="detail-tasks-section" style="display: none;">
-                        <h3 class="detail-section-title">🎯 Tareas y Eventos</h3>
+                        <h3 class="detail-section-title">${Icons.render('target')} Tareas y Eventos</h3>
                         <div id="detail-tasks"></div>
                         <div id="detail-events"></div>
                     </div>
 
                     <!-- Human Validation Section -->
                     <div id="detail-validation-section" style="display: none;">
-                        <h3 class="detail-section-title">🔍 Validación Humana</h3>
+                        <h3 class="detail-section-title">${Icons.render('eye')} Validación Humana</h3>
                         <div id="detail-validation"></div>
                     </div>
                 </div>
@@ -250,10 +250,10 @@ class SessionManager {
                 </div>
 
                 <div class="modal-footer">
-                    <button class="btn btn-primary" onclick="sessionManager.downloadPDF('${sessionId}')">📄 Descargar PDF</button>
-                    <button class="btn btn-secondary" onclick="sessionManager.downloadCSV('${sessionId}')">📊 Descargar CSV</button>
-                    <button class="btn btn-secondary" id="btn-evm-download" onclick="sessionManager.downloadEVM('${sessionId}')">🎥 Video EVM</button>
-                    <button class="btn btn-secondary" onclick="sessionManager.downloadMicroHighlights('${sessionId}')">🔬 Video Microexpresiones</button>
+                    <button class="btn btn-primary" onclick="sessionManager.downloadPDF('${sessionId}')">${Icons.render('document')} Descargar PDF</button>
+                    <button class="btn btn-secondary" onclick="sessionManager.downloadCSV('${sessionId}')">${Icons.render('chart')} Descargar CSV</button>
+                    <button class="btn btn-secondary" id="btn-evm-download" onclick="sessionManager.downloadEVM('${sessionId}')">${Icons.render('video')} Video EVM</button>
+                    <button class="btn btn-secondary" onclick="sessionManager.downloadMicroHighlights('${sessionId}')">${Icons.render('microscope')} Video Microexpresiones</button>
                     <button class="btn btn-secondary" onclick="sessionManager.closeModal()">Cerrar</button>
                 </div>
             </div>
@@ -524,11 +524,11 @@ class SessionManager {
         dims.innerHTML = Object.entries(scores)
             .filter(([key]) => key !== 'overall')
             .map(([key, score]) => {
-                const cfg = dimConfig[key] || { label: key, color: '#888', icon: '📊' };
+                const cfg = dimConfig[key] || { label: key, color: '#888', icon: Icons.render('chart') };
                 const color = score >= 70 ? '#10b981' : score >= 40 ? '#f59e0b' : '#ef4444';
                 return `
                     <div class="dimension-card">
-                        <div style="font-size: 1.2rem">${cfg.icon}</div>
+                        <div>${Icons.dot(cfg.color, 12)}</div>
                         <div class="dimension-score" style="color: ${color}">${Math.round(score)}</div>
                         <div class="dimension-label">${cfg.label}</div>
                         <div class="dimension-bar">
@@ -558,7 +558,7 @@ class SessionManager {
                     const timeBadge = (p.timestamp !== null && p.timestamp !== undefined)
                         ? `<span style="float:right; opacity:0.75;">⏱ ${this.formatDuration(p.timestamp)}</span>` : '';
                     return `<div class="pattern-item ${cls}">
-                        <strong>${isPositive ? '✅' : '⚠️'} ${this._typeLabel(p.type).toUpperCase()}</strong>${timeBadge}
+                        <strong>${isPositive ? Icons.render('check') : Icons.render('alert')} ${this._typeLabel(p.type).toUpperCase()}</strong>${timeBadge}
                         <div style="font-size: 0.85rem; margin-top: 4px;">${p.description}</div>
                         ${p.context_question ? `<div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px;">Contexto: ${p.context_question}</div>` : ''}
                     </div>`;
@@ -571,7 +571,7 @@ class SessionManager {
         const flagsEl = document.getElementById('detail-red-flags');
         const flags = analysis.red_flags || [];
         if (flags.length > 0) {
-            flagsEl.innerHTML = '<h4 style="margin: 12px 0 8px;">🔴 Señales de Alerta</h4>' +
+            flagsEl.innerHTML = `<h4 style="margin: 12px 0 8px;">${Icons.render('alert')} Señales de Alerta</h4>` +
                 flags.map(f => `<div class="flag-item ${f.severity}">
                     <strong>${this._typeLabel(f.type)}</strong>
                     <div style="font-size: 0.85rem; margin-top: 4px;">${f.evidence}</div>
@@ -584,7 +584,7 @@ class SessionManager {
         const recsEl = document.getElementById('detail-recommendations');
         const recs = analysis.recommendations || [];
         if (recs.length > 0) {
-            recsEl.innerHTML = '<h4 style="margin: 12px 0 8px;">📋 Recomendaciones</h4>' +
+            recsEl.innerHTML = `<h4 style="margin: 12px 0 8px;">${Icons.render('spark')} Recomendaciones</h4>` +
                 recs.map(r => `<div class="recommendation-item ${r.priority}">
                     <span style="text-transform: uppercase; font-size: 0.7rem; font-weight: 700; color: var(--text-secondary);">${this._typeLabel(r.category)}</span>
                     <div style="margin-top: 4px;">${r.text}</div>

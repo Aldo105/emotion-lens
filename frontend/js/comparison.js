@@ -60,98 +60,136 @@ class ComparisonManager {
         this.btnCompare.textContent = 'Comparando...';
 
         try {
-            const res = await fetch(`${CONFIG.API_URL}/sessions/compare`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ session_ids: [idA, idB] })
-            });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const result = await res.json();
-            this.renderResults(result);
+            // Métricas de usabilidad de cada sesión, más los datos de sesión
+            // para saber si se trata de la misma persona.
+            const [uxA, uxB, infoA, infoB] = await Promise.all([
+                fetch(`${CONFIG.API_URL}/reports/${idA}/ux-metrics`).then(r => r.json()),
+                fetch(`${CONFIG.API_URL}/reports/${idB}/ux-metrics`).then(r => r.json()),
+                fetch(`${CONFIG.API_URL}/sessions/${idA}`).then(r => r.json()),
+                fetch(`${CONFIG.API_URL}/sessions/${idB}`).then(r => r.json()),
+            ]);
+            this.renderResults({ uxA, uxB, infoA, infoB });
         } catch (err) {
             console.error('Comparison failed:', err);
             this.showMessage('Error al comparar: ' + err.message);
         } finally {
             this.btnCompare.disabled = false;
-            this.btnCompare.textContent = '🔄 Comparar Sesiones';
+            this.btnCompare.textContent = Icons.render('refresh') + ' Comparar Sesiones';
         }
     }
 
-    renderResults(result) {
-        const a = result.sessions?.[0] || result.candidate_a || result;
-        const b = result.sessions?.[1] || result.candidate_b || {};
+    renderResults({ uxA, uxB, infoA, infoB }) {
+        const nombreA = infoA.name || `Sesión ${infoA.id}`;
+        const nombreB = infoB.name || `Sesión ${infoB.id}`;
+
+        // Comparar dos personas distintas no es válido con este sistema: sobre
+        // 20 actores el acierto va del 9% al 73% según el individuo, así que la
+        // diferencia entre dos personas puede venir del sistema y no de ellas.
+        // Entre dos sesiones de la MISMA persona ese sesgo se cancela.
+        const mismaPersona = infoA.candidate_name && infoB.candidate_name
+            && infoA.candidate_name.trim().toLowerCase() === infoB.candidate_name.trim().toLowerCase();
+
+        const aviso = mismaPersona ? '' : `
+            <div class="compare-warning">
+                ${Icons.render('alert')}
+                <div>
+                    <strong>Comparación entre personas distintas</strong>
+                    <p>La precisión del sistema varía entre el 9% y el 73% según la persona,
+                    así que las diferencias de abajo pueden deberse al sistema y no a los
+                    participantes. Para comparar diseños, usa sesiones de la misma persona
+                    en cada variante.</p>
+                </div>
+            </div>`;
 
         this.resultsContainer.innerHTML = `
+            ${aviso}
             <div class="compare-columns">
                 <div class="compare-column glass-panel">
-                    <h3 class="compare-candidate-name">${this.escapeHtml(a.candidate_name || 'Candidato A')}</h3>
-                    ${this.renderMetricCard(a)}
+                    <h3 class="compare-candidate-name">${this.escapeHtml(nombreA)}</h3>
+                    ${this.renderUxCard(uxA)}
                 </div>
-                <div class="compare-divider">
-                    <span class="compare-vs">VS</span>
-                </div>
+                <div class="compare-divider"><span class="compare-vs">vs</span></div>
                 <div class="compare-column glass-panel">
-                    <h3 class="compare-candidate-name">${this.escapeHtml(b.candidate_name || 'Candidato B')}</h3>
-                    ${this.renderMetricCard(b)}
+                    <h3 class="compare-candidate-name">${this.escapeHtml(nombreB)}</h3>
+                    ${this.renderUxCard(uxB)}
                 </div>
             </div>
-
-            <div class="compare-radar-container glass-panel">
-                <h3>Comparación de Métricas Clave</h3>
-                <div class="radar-chart-wrapper">
-                    <canvas id="compare-radar-chart"></canvas>
-                </div>
-            </div>
+            ${this.renderDiff(uxA, uxB, nombreA, nombreB)}
         `;
-
-        // Re-acquire canvas ref after innerHTML replacement
-        this.radarCanvas = document.getElementById('compare-radar-chart');
-        this.renderRadarChart(a, b);
     }
 
-    renderMetricCard(data) {
-        const congruence = data.congruence_score != null ? Math.round(data.congruence_score) : '--';
-        const microCount = data.micro_expression_count ?? 0;
-
-        const emotionBars = Object.entries(data.emotion_distribution || {})
-            .sort(([, a], [, b]) => b - a)
-            .slice(0, 5)
-            .map(([emotion, value]) => {
-                const cfg = CONFIG.EMOTIONS[emotion] || CONFIG.EMOTIONS['neutral'];
-                const pct = Math.round(value * 100);
-                return `
-                    <div class="compare-emotion-row">
-                        <span class="compare-emotion-label">${cfg.icon} ${cfg.label}</span>
-                        <div class="compare-bar-track">
-                            <div class="compare-bar-fill" style="width: ${pct}%; background: ${cfg.color}"></div>
-                        </div>
-                        <span class="compare-emotion-pct">${pct}%</span>
-                    </div>
-                `;
-            }).join('');
-
-        let congruenceColor = 'var(--success)';
-        if (congruence !== '--') {
-            if (congruence < 50) congruenceColor = 'var(--danger)';
-            else if (congruence < 80) congruenceColor = 'var(--warning)';
+    renderUxCard(ux) {
+        if (!ux || !ux.disponible) {
+            return '<p class="compare-empty">Sin datos suficientes en esta sesión.</p>';
         }
+        const g = ux.global;
+        const filas = [
+            ['Duración', this.formatoTiempo(g.duracion_s)],
+            ['Tiempo sonriendo', `${g.tiempo_sonriendo_pct}%`],
+            ['Primera sonrisa', g.primera_sonrisa_s != null ? `${g.primera_sonrisa_s}s` : '—'],
+            ['Eventos expresivos', g.eventos_expresivos],
+            ['Eventos por minuto', g.eventos_por_minuto],
+            ['Variabilidad expresiva', g.variabilidad_expresiva],
+        ];
+        return `<div class="ux-metric-list">` + filas.map(([k, v]) => `
+            <div class="ux-metric-row">
+                <span class="ux-metric-label">${k}</span>
+                <span class="ux-metric-value">${v}</span>
+            </div>`).join('') + `</div>`;
+    }
+
+    renderDiff(uxA, uxB, nombreA, nombreB) {
+        if (!uxA?.disponible || !uxB?.disponible) return '';
+        const a = uxA.global, b = uxB.global;
+
+        const comparaciones = [
+            { etiqueta: 'Tiempo sonriendo', a: a.tiempo_sonriendo_pct, b: b.tiempo_sonriendo_pct,
+              unidad: '%', masEsMejor: true },
+            { etiqueta: 'Eventos por minuto', a: a.eventos_por_minuto, b: b.eventos_por_minuto,
+              unidad: '', masEsMejor: null },
+            { etiqueta: 'Variabilidad expresiva', a: a.variabilidad_expresiva, b: b.variabilidad_expresiva,
+              unidad: '', masEsMejor: null },
+        ];
 
         return `
-            <div class="compare-stat-row">
-                <div class="compare-stat">
-                    <span class="compare-stat-value" style="color: ${congruenceColor}">${congruence}%</span>
-                    <span class="compare-stat-label">Congruencia</span>
-                </div>
-                <div class="compare-stat">
-                    <span class="compare-stat-value">${microCount}</span>
-                    <span class="compare-stat-label">Microexpr.</span>
-                </div>
-            </div>
-            <div class="compare-emotion-section">
-                <h4>Emociones Principales</h4>
-                ${emotionBars || '<p class="empty-state">Sin datos</p>'}
+            <div class="compare-radar-container glass-panel">
+                <h3>Diferencias</h3>
+                <table class="compare-diff-table">
+                    <thead>
+                        <tr>
+                            <th>Métrica</th>
+                            <th>${this.escapeHtml(nombreA)}</th>
+                            <th>${this.escapeHtml(nombreB)}</th>
+                            <th>Diferencia</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    ${comparaciones.map(c => {
+                        const d = (c.b - c.a);
+                        const signo = d > 0 ? '+' : '';
+                        const clase = c.masEsMejor === null ? '' : (d > 0 ? 'diff-up' : (d < 0 ? 'diff-down' : ''));
+                        return `<tr>
+                            <td>${c.etiqueta}</td>
+                            <td>${c.a}${c.unidad}</td>
+                            <td>${c.b}${c.unidad}</td>
+                            <td class="${clase}">${signo}${Math.round(d * 100) / 100}${c.unidad}</td>
+                        </tr>`;
+                    }).join('')}
+                    </tbody>
+                </table>
+                <p class="compare-note">
+                    Solo se comparan señales que resisten un cambio de cara: la sonrisa
+                    (95% de acierto sobre 20 personas) y el recuento de cambios expresivos,
+                    que no depende de acertar qué emoción hubo.
+                </p>
             </div>
         `;
+    }
+
+    formatoTiempo(seg) {
+        if (seg == null) return '—';
+        const m = Math.floor(seg / 60), s = Math.round(seg % 60);
+        return m ? `${m}m ${s}s` : `${s}s`;
     }
 
     renderRadarChart(a, b) {

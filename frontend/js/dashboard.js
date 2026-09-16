@@ -126,15 +126,15 @@ class DashboardUI {
 
         if (noiseState.is_speaking) {
             this.elNoiseLabel.textContent = 'Hablando';
-            this.elNoiseIcon.textContent  = '🗣️';
+            this.elNoiseIcon.innerHTML = Icons.render('activity');
             this.elNoiseIndicator.className = 'noise-indicator speaking';
         } else if (noiseState.is_yawning) {
             this.elNoiseLabel.textContent = 'Bostezando';
-            this.elNoiseIcon.textContent  = '🥱';
+            this.elNoiseIcon.innerHTML = Icons.render('clock');
             this.elNoiseIndicator.className = 'noise-indicator yawning';
         } else if (noiseState.is_tic) {
             this.elNoiseLabel.textContent = 'Tic detectado';
-            this.elNoiseIcon.textContent  = '⚡';
+            this.elNoiseIcon.innerHTML = Icons.render('spark');
             this.elNoiseIndicator.className = 'noise-indicator tic';
         }
     }
@@ -151,13 +151,13 @@ class DashboardUI {
         if (this.elCameraQualityValue) {
             this.elCameraQualityValue.className = 'quality-indicator';
             if (gate === 'pass') {
-                this.elCameraQualityValue.textContent = `${Math.round(score * 100)}% ✓`;
+                this.elCameraQualityValue.textContent = `${Math.round(score * 100)}%`;
                 this.elCameraQualityValue.classList.add('good');
             } else if (gate === 'degraded') {
-                this.elCameraQualityValue.textContent = `${Math.round(score * 100)}% ⚠`;
+                this.elCameraQualityValue.textContent = `${Math.round(score * 100)}%`;
                 this.elCameraQualityValue.classList.add('fair');
             } else {
-                this.elCameraQualityValue.textContent = `${Math.round(score * 100)}% ✗`;
+                this.elCameraQualityValue.textContent = `${Math.round(score * 100)}%`;
                 this.elCameraQualityValue.classList.add('poor');
             }
         }
@@ -174,7 +174,7 @@ class DashboardUI {
         // Warnings
         if (this.elCameraWarnings) {
             if (warnings.length > 0) {
-                this.elCameraWarnings.innerHTML = warnings.map(w => `<div>⚠️ ${w}</div>`).join('');
+                this.elCameraWarnings.innerHTML = warnings.map(w => `<div>${Icons.render('alert')} ${w}</div>`).join('');
                 this.elCameraWarnings.classList.remove('hidden');
             } else {
                 this.elCameraWarnings.classList.add('hidden');
@@ -189,7 +189,7 @@ class DashboardUI {
                 this._suggestionIdx = (this._suggestionIdx + 1) % suggestions.length;
                 this._lastSuggestionTime = now;
             }
-            this.elQualitySuggestions.textContent = '💡 ' + suggestions[this._suggestionIdx];
+            this.elQualitySuggestions.textContent = Icons.render('spark') + suggestions[this._suggestionIdx];
             this.elQualitySuggestions.classList.remove('hidden');
         } else if (this.elQualitySuggestions) {
             this.elQualitySuggestions.classList.add('hidden');
@@ -198,7 +198,7 @@ class DashboardUI {
         // Quality gate banner
         if (this.elQualityGateBanner) {
             if (gate === 'fail') {
-                this.elQualityGateBanner.textContent = '⛔ Calidad insuficiente — sigue las sugerencias para continuar';
+                this.elQualityGateBanner.textContent = 'Calidad insuficiente — sigue las sugerencias para continuar';
                 this.elQualityGateBanner.classList.remove('hidden');
             } else {
                 this.elQualityGateBanner.classList.add('hidden');
@@ -227,12 +227,12 @@ class DashboardUI {
             if (this.elCalibInstr) {
                 const remaining = Math.max(0, Math.ceil(30 * (1 - progress)));
                 this.elCalibInstr.innerHTML = `
-                    <div class="calib-title">🎯 Calibrando — ${remaining}s restantes</div>
+                    <div class="calib-title">${Icons.render('target')} Calibrando — ${remaining}s restantes</div>
                     <div class="calib-tips">
-                        <span>😐 Expresion neutral</span>
-                        <span>👀 Mira a la camara</span>
-                        <span>🤫 No hables</span>
-                        <span>👁️ Parpadea normal</span>
+                        <span>${Icons.render('face')} Expresion neutral</span>
+                        <span>Mira a la cámara</span>
+                        <span>No hables</span>
+                        <span>${Icons.render('eye')} Parpadea normal</span>
                     </div>
                     <div class="calib-note">
                         Tu rostro en reposo se mide durante estos 30s y se resta del
@@ -270,7 +270,8 @@ class DashboardUI {
         // is too short to read.
         const config = CONFIG.EMOTIONS[peak.emotion] || CONFIG.EMOTIONS['neutral'];
         this.elPeakEmotion.innerHTML =
-            `<span class="peak-flash">⚡</span> destello: ${config.icon} ${config.label}` +
+            `<span class="peak-flash">${Icons.render('spark', {size: 14})}</span> destello: ` +
+            `${Icons.dot(config.color)} ${config.label}` +
             ` <span class="peak-conf">${Math.round(peak.confidence * 100)}%</span>`;
         this.elPeakEmotion.style.borderColor = config.color;
         this.elPeakEmotion.classList.remove('hidden');
@@ -287,7 +288,7 @@ class DashboardUI {
         // face has at rest. Showing them invites reading a real emotion into an
         // artifact of the calibration period.
         if (isCalibrating) {
-            this.elEmotionIcon.textContent  = '⏳';
+            this.elEmotionIcon.innerHTML = Icons.render('clock');
             this.elEmotionName.textContent  = 'Calibrando...';
             this.elEmotionName.style.color  = 'var(--text-muted)';
             this.elConfidenceFill.style.width = '0%';
@@ -298,7 +299,7 @@ class DashboardUI {
         const config      = CONFIG.EMOTIONS[emotionKey] || CONFIG.EMOTIONS['neutral'];
         const confPercent = Math.round(confidence * 100);
 
-        this.elEmotionIcon.textContent = config.icon;
+        this.elEmotionIcon.innerHTML = Icons.dot(config.color, 16);
         this.elEmotionName.textContent = config.label;
         this.elEmotionName.style.color = config.color;
 
@@ -436,7 +437,7 @@ class DashboardUI {
         descSpan.className = 'micro-desc';
         const b = document.createElement('b');
         b.textContent = em.label;
-        descSpan.append(em.icon + ' ', b, ' microexpresión');
+        descSpan.append(b, ' microexpresión');
 
         const scoreSpan = document.createElement('span');
         scoreSpan.className   = 'micro-score';

@@ -45,13 +45,15 @@
     --color-nervousness: #D89A6C;
     --color-confidence: #7FAFC2;
     
-    /* Layout */
+    /* Layout. El espaciado se amplió: con 24/16/8 los paneles quedaban pegados
+       entre sí y el contenido tocaba los bordes, que es lo que daba sensación
+       de amontonamiento. */
     --radius-lg: 16px;
     --radius-md: 12px;
     --radius-sm: 8px;
-    --spacing-lg: 24px;
-    --spacing-md: 16px;
-    --spacing-sm: 8px;
+    --spacing-lg: 32px;
+    --spacing-md: 22px;
+    --spacing-sm: 12px;
 }
 
 /* Softened dark theme — warm charcoal instead of near-black blue, and
@@ -87,12 +89,21 @@
     padding: 0;
 }
 
+/* El desplazamiento lateral en móvil se corta en html y en body: con la regla
+   solo en body, un hijo que desborda sigue arrastrando la página. */
+html {
+    overflow-x: hidden;
+    width: 100%;
+}
+
 body {
     font-family: 'Inter', sans-serif;
     background-color: var(--bg-dark);
     color: var(--text-main);
     min-height: 100vh;
     overflow-x: hidden;
+    width: 100%;
+    max-width: 100%;
     /* Subtle background gradient */
     background-image: 
         radial-gradient(circle at 15% 50%, rgba(var(--accent-rgb), 0.08), transparent 25%),
@@ -121,7 +132,12 @@ h1, h2, h3, h4 {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-md);
-    height: 100vh;
+    /* min-height en vez de height fija: con 100vh el contenido que no cabía
+       forzaba scroll, y en móvil 100vh incluye la barra del navegador, así que
+       la página quedaba siempre un poco más alta que la pantalla. */
+    min-height: 100vh;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 /* ── Header ── */
@@ -1494,6 +1510,47 @@ h1, h2, h3, h4 {
     .compare-vs-icon { display: none; }
 
     .session-card-stats { grid-template-columns: 1fr; }
+
+    /* Margen lateral constante y nada que pueda empujar la página a lo ancho.
+       El deslizamiento lateral venía de elementos que excedían el viewport,
+       no de un contenedor concreto, así que se acotan todos. */
+    .app-container {
+        padding: 12px;
+        gap: 14px;
+    }
+
+    .view-panel,
+    .dashboard-grid,
+    .col-left,
+    .col-right,
+    .col-bottom,
+    .glass-panel {
+        max-width: 100%;
+        min-width: 0;
+    }
+
+    /* Un elemento de ancho mínimo fijo dentro de un flex se desborda en
+       pantallas estrechas en vez de encogerse. */
+    .compare-selector-group { min-width: 0; }
+
+    .modal-content { max-width: 100%; margin: 0 8px; }
+
+    /* Tablas y gráficos se desplazan dentro de su caja, no arrastrando la
+       página entera. */
+    .compare-results,
+    .chart-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    h2 { font-size: 1.25rem; }
+    .view-subtitle { font-size: 0.85rem; }
+}
+
+/* Pantallas muy estrechas: el contenido respira antes que llenarse */
+@media (max-width: 380px) {
+    .app-container { padding: 10px; }
+    .btn { padding: 8px 14px; font-size: 0.85rem; }
 }
 
 /* ── Ethical Disclaimer Modal ── */
@@ -1709,6 +1766,52 @@ h1, h2, h3, h4 {
     color: var(--accent-soft);
     font-weight: 600;
 }
+
+/* ── Iconos SVG (sustituyen a los emojis) ── */
+.ico {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: -0.18em;
+    line-height: 1;
+}
+
+.ico .icon,
+.icon {
+    display: block;
+    /* currentColor en los trazos: el icono toma el color del texto que lo
+       rodea, así funciona igual en tema claro y oscuro sin duplicar reglas. */
+    color: inherit;
+}
+
+/* Punto de color para emociones: más sobrio que una carita y, a diferencia de
+   un emoji, se dibuja igual en todos los sistemas. */
+.emo-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--dot, var(--text-muted));
+    vertical-align: middle;
+    margin-right: 7px;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 2px rgba(var(--overlay-rgb), 0.07);
+}
+
+.emotion-icon .emo-dot {
+    width: 16px;
+    height: 16px;
+    margin-right: 0;
+}
+
+/* Botones que antes llevaban emoji: el icono necesita separarse del texto */
+.btn .icon,
+.nav-tab .icon {
+    margin-right: 6px;
+}
+
+.btn-sm .ico { margin-right: 4px; }
+.icon-btn .ico { margin: 0; }
 
 /* ── Destello: emoción breve que no llega a ser dominante ── */
 .peak-emotion {
@@ -2075,3 +2178,69 @@ h1, h2, h3, h4 {
     content-visibility: auto;
     contain-intrinsic-size: 0 600px; /* estimated height so scroll doesn't jump */
 }
+
+
+/* ── Comparación de sesiones (usabilidad) ── */
+.compare-warning {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 14px 16px;
+    margin-bottom: var(--spacing-md);
+    background: rgba(217, 165, 102, 0.14);
+    border: 1px solid rgba(217, 165, 102, 0.4);
+    border-radius: var(--radius-md);
+    font-size: 0.85rem;
+}
+
+.compare-warning strong { display: block; margin-bottom: 4px; color: var(--text-main); }
+.compare-warning p { margin: 0; color: var(--text-muted); line-height: 1.5; }
+.compare-warning .icon { color: var(--warning); flex-shrink: 0; }
+
+.ux-metric-list { display: flex; flex-direction: column; gap: 2px; }
+
+.ux-metric-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    padding: 9px 2px;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.ux-metric-row:last-child { border-bottom: none; }
+.ux-metric-label { color: var(--text-muted); font-size: 0.85rem; }
+.ux-metric-value { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.compare-diff-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.87rem;
+    margin-top: 8px;
+}
+
+.compare-diff-table th {
+    text-align: left;
+    padding: 8px 10px;
+    color: var(--text-muted);
+    font-weight: 600;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.compare-diff-table td {
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--glass-border);
+    font-variant-numeric: tabular-nums;
+}
+
+.compare-diff-table .diff-up { color: var(--success); font-weight: 600; }
+.compare-diff-table .diff-down { color: var(--danger); font-weight: 600; }
+
+.compare-note {
+    margin-top: 12px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+.compare-empty { color: var(--text-muted); font-size: 0.87rem; padding: 12px 0; }

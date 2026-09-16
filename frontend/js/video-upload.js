@@ -71,12 +71,12 @@ class VideoUploadManager {
         this.selectedFile = file;
         this.fileInfo.innerHTML = `
             <div class="file-info-card">
-                <span class="file-icon">🎬</span>
+                <span class="file-icon">${Icons.render('video')}</span>
                 <div class="file-details">
                     <span class="file-name">${this.escapeHtml(file.name)}</span>
                     <span class="file-size">${this.formatSize(file.size)}</span>
                 </div>
-                <button class="icon-btn file-remove" onclick="videoUploadManager.clearFile(event)">✕</button>
+                <button class="icon-btn file-remove" onclick="videoUploadManager.clearFile(event)">&times;</button>
             </div>
         `;
         this.fileInfo.classList.remove('hidden');
@@ -130,13 +130,13 @@ class VideoUploadManager {
             } else {
                 this.showStatus('¡Subida completa!', 'success');
                 this.btnUpload.disabled = false;
-                this.btnUpload.textContent = '⬆️ Subir Video';
+                this.btnUpload.textContent = Icons.render('upload') + ' Subir Video';
             }
         } catch (err) {
             console.error('Upload failed:', err);
             this.showStatus('Error al subir: ' + err.message, 'error');
             this.btnUpload.disabled = false;
-            this.btnUpload.textContent = '⬆️ Subir Video';
+            this.btnUpload.textContent = Icons.render('upload') + ' Subir Video';
         }
     }
 
@@ -195,7 +195,7 @@ class VideoUploadManager {
 
                     this.statusMessage.innerHTML = `
                         <div class="upload-success">
-                            <span class="success-icon">✅</span>
+                            <span class="success-icon">${Icons.render('check')}</span>
                             <h3>¡Video procesado con éxito!</h3>
                             <p>Tus resultados de análisis están listos para ver.</p>
                             <button class="btn btn-primary" onclick="videoUploadManager.goToSessions()">
@@ -205,7 +205,7 @@ class VideoUploadManager {
                     `;
 
                     this.btnUpload.disabled = false;
-                    this.btnUpload.textContent = '⬆️ Subir Video';
+                    this.btnUpload.textContent = Icons.render('upload') + ' Subir Video';
                 }
             } catch (err) {
                 console.error('Progress poll error:', err);
@@ -234,9 +234,9 @@ class VideoUploadManager {
 
         const iconMap = {
             'info': 'ℹ️',
-            'success': '✅',
-            'error': '❌',
-            'warning': '⚠️'
+            'success': Icons.render('check'),
+            'error': Icons.render('cross'),
+            'warning': Icons.render('alert')
         };
 
         this.statusMessage.innerHTML = `

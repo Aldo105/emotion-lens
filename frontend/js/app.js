@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.documentElement.removeAttribute('data-theme');
         }
         if (btnTheme) {
-            btnTheme.textContent = theme === 'dark' ? '☀️' : '🌙';
+            btnTheme.innerHTML = Icons.render(theme === 'dark' ? 'sun' : 'moon');
         }
     };
 
@@ -183,9 +183,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const MARKER_LABELS = {
         task_start:   '▶️ Inicio tarea',
         task_end:     '⏹️ Fin tarea',
-        error:        '⚠️ Error',
-        confusion:    '❓ Confusión',
-        key_question: '💬 Pregunta clave',
+        error:        Icons.render('alert') + ' Error',
+        confusion:    'Confusión',
+        key_question: 'Pregunta clave',
     };
 
     /** Seconds elapsed since the session started — what the backend correlates on. */
@@ -201,7 +201,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const header = document.createElement('div');
         header.className = 'note-header';
         const timeSpan = document.createElement('span');
-        timeSpan.textContent = `🕒 ${time}`;
+        timeSpan.textContent = time;
         const tagSpan = document.createElement('span');
         tagSpan.textContent = tag ? MARKER_LABELS[tag] || tag : 'Usuario';
         header.appendChild(timeSpan);

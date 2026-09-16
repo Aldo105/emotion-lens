@@ -31,7 +31,7 @@ class PostSessionSurvey {
 
         // Build the 3 sections
         card.innerHTML = `
-            <h2>📋 Encuesta Post-Sesion</h2>
+            <h2>Encuesta post-sesión</h2>
             <p class="survey-subtitle">Tu feedback ayuda a mejorar la precision del sistema. Es opcional y anonimo.</p>
 
             <!-- Section 1: Accuracy Slider -->
@@ -41,9 +41,9 @@ class PostSessionSurvey {
                     ¿Que tan preciso fue el software en detectar tus emociones?
                 </p>
                 <div class="survey-slider-container">
-                    <span style="font-size: 0.75rem; color: var(--text-muted);">😞 Nada</span>
+                    <span style="font-size: 0.75rem; color: var(--text-muted);">Nada</span>
                     <input type="range" class="survey-slider" id="survey-accuracy" min="0" max="100" value="50">
-                    <span style="font-size: 0.75rem; color: var(--text-muted);">Muy 😊</span>
+                    <span style="font-size: 0.75rem; color: var(--text-muted);">Mucho</span>
                     <span class="survey-slider-value" id="survey-accuracy-val">50%</span>
                 </div>
             </div>
@@ -64,13 +64,13 @@ class PostSessionSurvey {
                     ¿Cual fue tu estado emocional predominante durante la sesion?
                 </p>
                 <div class="survey-emotion-selector" id="survey-emotion-selector">
-                    <span class="survey-emotion-pill" data-emotion="neutral">😐 Tranquilo</span>
-                    <span class="survey-emotion-pill" data-emotion="nervousness">😰 Nervioso</span>
-                    <span class="survey-emotion-pill" data-emotion="happy">😊 Contento</span>
-                    <span class="survey-emotion-pill" data-emotion="angry">😠 Molesto</span>
-                    <span class="survey-emotion-pill" data-emotion="fear">😨 Ansioso</span>
-                    <span class="survey-emotion-pill" data-emotion="sad">😢 Triste</span>
-                    <span class="survey-emotion-pill" data-emotion="confidence">😎 Seguro</span>
+                    <span class="survey-emotion-pill" data-emotion="neutral">${Icons.dot((CONFIG.EMOTIONS["neutral"]||{}).color)} Tranquilo</span>
+                    <span class="survey-emotion-pill" data-emotion="nervousness">${Icons.dot((CONFIG.EMOTIONS["nervousness"]||{}).color)} Nervioso</span>
+                    <span class="survey-emotion-pill" data-emotion="happy">${Icons.dot((CONFIG.EMOTIONS["happy"]||{}).color)} Contento</span>
+                    <span class="survey-emotion-pill" data-emotion="angry">${Icons.dot((CONFIG.EMOTIONS["angry"]||{}).color)} Molesto</span>
+                    <span class="survey-emotion-pill" data-emotion="fear">${Icons.dot((CONFIG.EMOTIONS["fear"]||{}).color)} Ansioso</span>
+                    <span class="survey-emotion-pill" data-emotion="sad">${Icons.dot((CONFIG.EMOTIONS["sad"]||{}).color)} Triste</span>
+                    <span class="survey-emotion-pill" data-emotion="confidence">${Icons.dot((CONFIG.EMOTIONS["confidence"]||{}).color)} Seguro</span>
                 </div>
 
                 <div class="survey-toggle-row" style="margin-top: 16px;">
@@ -167,9 +167,9 @@ class PostSessionSurvey {
                     ${m.detected_emotion || 'Microexpresion'} ${m.is_contradictory ? '(contradictoria)' : ''}
                 </div>
                 <div class="survey-moment-btns">
-                    <button data-idx="${i}" data-verdict="correct">✅</button>
-                    <button data-idx="${i}" data-verdict="incorrect">❌</button>
-                    <button data-idx="${i}" data-verdict="unsure">🤷</button>
+                    <button data-idx="${i}" data-verdict="correct">Sí</button>
+                    <button data-idx="${i}" data-verdict="incorrect">No</button>
+                    <button data-idx="${i}" data-verdict="unsure">No sé</button>
                 </div>
             `;
             container.appendChild(card);

@@ -51,35 +51,35 @@
         <!-- Header -->
         <header class="topbar glass-panel">
             <div class="logo">
-                <span class="logo-icon">👁️</span>
+                <span class="logo-icon"><span class="ico" data-icon="activity"></span></span>
                 <h1>EmotionLens</h1>
             </div>
 
             <!-- Navigation Tabs -->
             <nav class="nav-tabs" id="main-nav">
                 <button class="nav-tab active" data-view="view-live">
-                    <span class="nav-tab-icon">🎯</span>
+                    <span class="nav-tab-icon"><span class="ico" data-icon="target"></span></span>
                     <span class="nav-tab-label" data-i18n="nav.live">Live Analysis</span>
                 </button>
                 <button class="nav-tab" data-view="view-sessions">
-                    <span class="nav-tab-icon">📂</span>
+                    <span class="nav-tab-icon"><span class="ico" data-icon="sessions"></span></span>
                     <span class="nav-tab-label" data-i18n="nav.sessions">Sessions</span>
                 </button>
                 <button class="nav-tab" data-view="view-compare">
-                    <span class="nav-tab-icon">🔄</span>
+                    <span class="nav-tab-icon"><span class="ico" data-icon="compare"></span></span>
                     <span class="nav-tab-label" data-i18n="nav.compare">Compare</span>
                 </button>
                 <button class="nav-tab" data-view="view-upload">
-                    <span class="nav-tab-icon">📹</span>
+                    <span class="nav-tab-icon"><span class="ico" data-icon="video"></span></span>
                     <span class="nav-tab-label" data-i18n="nav.upload">Upload Video</span>
                 </button>
                 <div class="nav-tab-indicator" id="nav-indicator"></div>
             </nav>
 
             <div class="settings-group">
-                <button class="icon-btn" id="btn-theme" title="Cambiar tema claro / oscuro">🌙</button>
+                <button class="icon-btn" id="btn-theme" title="Cambiar tema claro / oscuro"></button>
                 <button class="icon-btn" id="btn-lang">EN</button>
-                <button class="icon-btn" id="btn-settings">⚙️</button>
+                <button class="icon-btn" id="btn-settings"><span class="ico" data-icon="settings"></span></button>
             </div>
         </header>
 
@@ -123,7 +123,7 @@
                             
                             <!-- Noise Filter Indicator -->
                             <div id="noise-indicator" class="noise-indicator" style="display: none;">
-                                <span id="noise-icon">🗣️</span>
+                                <span id="noise-icon"><span class="ico" data-icon="activity"></span></span>
                                 <span id="noise-label">Speaking</span>
                             </div>
 
@@ -143,7 +143,7 @@
                                     <span class="quality-indicator good" id="camera-quality-value">Bien</span>
                                 </div>
                             </div>
-                            <button class="btn btn-secondary" id="btn-recalibrate" style="padding: 6px 12px; font-size: 0.8rem;" data-i18n="live.recalibrate">🔄 Recalibrate</button>
+                            <button class="btn btn-secondary" id="btn-recalibrate" style="padding: 6px 12px; font-size: 0.8rem;" data-i18n="live.recalibrate"><span class="ico" data-icon="compare"></span> Recalibrate</button>
                         </div>
                         <div class="camera-warnings hidden" id="camera-warnings" style="margin-top: 8px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: var(--radius-sm); padding: 8px 12px; font-size: 0.8rem; color: #f87171; display: flex; flex-direction: column; gap: 4px;">
                             <!-- Warnings listed here -->
@@ -151,23 +151,23 @@
                         <!-- Quality Bars Panel -->
                         <div class="quality-bars-panel" style="margin-top: 8px;">
                             <div class="quality-bar-row">
-                                <span class="quality-bar-label">💡 Luz</span>
+                                <span class="quality-bar-label"><span class="ico" data-icon="spark"></span> Luz</span>
                                 <div class="quality-bar-track"><div class="quality-bar-fill bar-green" id="qbar-brightness"></div></div>
                             </div>
                             <div class="quality-bar-row">
-                                <span class="quality-bar-label">🎨 Contraste</span>
+                                <span class="quality-bar-label">Contraste</span>
                                 <div class="quality-bar-track"><div class="quality-bar-fill bar-green" id="qbar-contrast"></div></div>
                             </div>
                             <div class="quality-bar-row">
-                                <span class="quality-bar-label">🔍 Nitidez</span>
+                                <span class="quality-bar-label"><span class="ico" data-icon="eye"></span> Nitidez</span>
                                 <div class="quality-bar-track"><div class="quality-bar-fill bar-green" id="qbar-sharpness"></div></div>
                             </div>
                             <div class="quality-bar-row">
-                                <span class="quality-bar-label">📐 Posicion</span>
+                                <span class="quality-bar-label">Posición</span>
                                 <div class="quality-bar-track"><div class="quality-bar-fill bar-green" id="qbar-position"></div></div>
                             </div>
                             <div class="quality-bar-row">
-                                <span class="quality-bar-label">⚖️ Balance</span>
+                                <span class="quality-bar-label">Balance</span>
                                 <div class="quality-bar-track"><div class="quality-bar-fill bar-green" id="qbar-balance"></div></div>
                             </div>
                         </div>
@@ -181,7 +181,7 @@
                         <div class="metric-card glass-panel current-emotion">
                             <h3 data-i18n="live.dominantEmotion">Dominant Emotion</h3>
                             <div class="emotion-display">
-                                <span class="emotion-icon" id="current-emotion-icon">😐</span>
+                                <span class="emotion-icon" id="current-emotion-icon"></span>
                                 <div class="emotion-details">
                                     <h2 id="current-emotion-name">Neutral</h2>
                                     <div class="confidence-bar">
@@ -201,7 +201,7 @@
                                     <span id="hr-bpm">--</span>
                                     <span class="unit" data-i18n="live.bpm">BPM</span>
                                 </div>
-                                <div class="hr-heart" id="hr-heart-icon">❤️</div>
+                                <div class="hr-heart" id="hr-heart-icon"><span class="ico" data-icon="heart"></span></div>
                             </div>
                             <div class="stress-indicator">
                                 <span class="stress-label" data-i18n="live.stressLevel">Stress Level:</span>
@@ -260,7 +260,7 @@
                     <!-- Micro-Expression Log -->
                     <div class="glass-panel log-panel">
                         <div class="panel-header">
-                            <h3>⚡ <span data-i18n="live.microExpressionLog">Micro-Expression Log</span></h3>
+                            <h3><span class="ico" data-icon="spark"></span> <span data-i18n="live.microExpressionLog">Micro-Expression Log</span></h3>
                             <span class="badge" id="micro-count">0 <span data-i18n="live.detected">Detected</span></span>
                         </div>
                         <div class="log-list" id="micro-log-list">
@@ -272,7 +272,7 @@
                     <!-- Interviewer Notes -->
                     <div class="glass-panel notes-panel">
                         <div class="panel-header">
-                            <h3>📝 <span data-i18n="live.interviewerNotes">Interviewer Notes</span></h3>
+                            <h3><span class="ico" data-icon="note"></span> <span data-i18n="live.interviewerNotes">Interviewer Notes</span></h3>
                         </div>
                         <div class="notes-input-area">
                             <input type="text" id="note-input" placeholder="Type a note (e.g., 'Asked about gaps in resume')" data-i18n-placeholder="live.notePlaceholder">
@@ -282,11 +282,11 @@
                              time to type, and the task/friction analysis is built
                              from these. Text in the field becomes the marker name. -->
                         <div class="event-markers" id="event-markers">
-                            <button class="btn-marker" data-tag="task_start" title="Marca el inicio de una tarea (el texto del campo se usa como nombre)">▶️ Inicio tarea</button>
-                            <button class="btn-marker" data-tag="task_end" title="Marca que la tarea se completó">⏹️ Fin tarea</button>
-                            <button class="btn-marker" data-tag="error" title="El usuario cometió un error o falló">⚠️ Error</button>
-                            <button class="btn-marker" data-tag="confusion" title="Se observó confusión o duda">❓ Confusión</button>
-                            <button class="btn-marker" data-tag="key_question" title="Pregunta clave de la entrevista">💬 Pregunta clave</button>
+                            <button class="btn-marker" data-tag="task_start" title="Marca el inicio de una tarea (el texto del campo se usa como nombre)"><span class="ico" data-icon="play"></span> Inicio tarea</button>
+                            <button class="btn-marker" data-tag="task_end" title="Marca que la tarea se completó"><span class="ico" data-icon="stop"></span> Fin tarea</button>
+                            <button class="btn-marker" data-tag="error" title="El usuario cometió un error o falló"><span class="ico" data-icon="alert"></span> Error</button>
+                            <button class="btn-marker" data-tag="confusion" title="Se observó confusión o duda"><span class="ico" data-icon="alert"></span> Confusión</button>
+                            <button class="btn-marker" data-tag="key_question" title="Pregunta clave de la entrevista"><span class="ico" data-icon="note"></span> Pregunta clave</button>
                         </div>
                         <div class="notes-list" id="notes-list">
                             <!-- Items injected by JS -->
@@ -302,12 +302,12 @@
         <!-- ══════════════════════════════════════════════ -->
         <div id="view-sessions" class="view-panel">
             <div class="view-header">
-                <h2>📂 <span data-i18n="sessions.title">Session History</span></h2>
+                <h2><span class="ico" data-icon="sessions"></span> <span data-i18n="sessions.title">Session History</span></h2>
                 <p class="view-subtitle" data-i18n="sessions.subtitle">Review past interview analysis sessions</p>
             </div>
             <div class="sessions-grid" id="sessions-grid">
                 <div class="sessions-empty-state">
-                    <span class="empty-icon">📂</span>
+                    <span class="empty-icon"><span class="ico" data-icon="sessions"></span></span>
                     <h3 data-i18n="sessions.noSessions">No sessions yet</h3>
                     <p data-i18n="sessions.noSessionsDesc">Start a live analysis or upload a video to create your first session.</p>
                 </div>
@@ -319,32 +319,32 @@
         <!-- ══════════════════════════════════════════════ -->
         <div id="view-compare" class="view-panel">
             <div class="view-header">
-                <h2>🔄 <span data-i18n="compare.title">Compare Sessions</span></h2>
-                <p class="view-subtitle" data-i18n="compare.subtitle">Side-by-side analysis of two candidates</p>
+                <h2><span class="ico" data-icon="compare"></span> <span data-i18n="compare.title">Compare Sessions</span></h2>
+                <p class="view-subtitle" data-i18n="compare.subtitle">Compara dos sesiones: útil para medir dos versiones de un diseño con la misma persona</p>
             </div>
 
             <div class="compare-selectors glass-panel">
                 <div class="compare-selector-group">
-                    <label for="compare-select-a" data-i18n="compare.candidateA">Candidate A</label>
+                    <label for="compare-select-a" data-i18n="compare.candidateA">Sesión A</label>
                     <select id="compare-select-a" class="compare-select">
                         <option value="" disabled selected data-i18n="compare.selectSession">Select a session...</option>
                     </select>
                 </div>
-                <div class="compare-vs-icon">⚔️</div>
+                <div class="compare-vs-icon"><span class="ico" data-icon="compare"></span></div>
                 <div class="compare-selector-group">
-                    <label for="compare-select-b" data-i18n="compare.candidateB">Candidate B</label>
+                    <label for="compare-select-b" data-i18n="compare.candidateB">Sesión B</label>
                     <select id="compare-select-b" class="compare-select">
                         <option value="" disabled selected data-i18n="compare.selectSession">Select a session...</option>
                     </select>
                 </div>
-                <button class="btn btn-primary" id="btn-compare">🔄 <span data-i18n="compare.compareBtn">Compare Sessions</span></button>
+                <button class="btn btn-primary" id="btn-compare"><span class="ico" data-icon="compare"></span> <span data-i18n="compare.compareBtn">Compare Sessions</span></button>
             </div>
 
             <div class="compare-results" id="compare-results">
                 <div class="compare-empty-state">
-                    <span class="empty-icon">🔄</span>
-                    <h3 data-i18n="compare.selectTwo">Select two sessions to compare</h3>
-                    <p data-i18n="compare.selectTwoDesc">Choose candidates from the dropdowns above and click Compare.</p>
+                    <span class="empty-icon"><span class="ico" data-icon="compare"></span></span>
+                    <h3 data-i18n="compare.selectTwo">Elige dos sesiones para comparar</h3>
+                    <p data-i18n="compare.selectTwoDesc">Lo más fiable es comparar dos sesiones de la misma persona, por ejemplo probando dos versiones de una interfaz.</p>
                 </div>
             </div>
         </div>
@@ -354,14 +354,14 @@
         <!-- ══════════════════════════════════════════════ -->
         <div id="view-upload" class="view-panel">
             <div class="view-header">
-                <h2>📹 <span data-i18n="upload.title">Upload Video</span></h2>
+                <h2><span class="ico" data-icon="video"></span> <span data-i18n="upload.title">Upload Video</span></h2>
                 <p class="view-subtitle" data-i18n="upload.subtitle">Upload a recorded interview video for offline analysis</p>
             </div>
 
             <div class="upload-area">
                 <div class="upload-drop-zone glass-panel" id="upload-drop-zone">
                     <div class="drop-zone-content">
-                        <span class="drop-zone-icon">📁</span>
+                        <span class="drop-zone-icon"><span class="ico" data-icon="folder"></span></span>
                         <h3 data-i18n="upload.dragDrop">Drag & drop your video here</h3>
                         <p data-i18n="upload.orBrowse">or click to browse files</p>
                         <span class="drop-zone-hint" data-i18n="upload.hint">Supports MP4, WebM, MOV · Max 500 MB</span>
@@ -373,7 +373,7 @@
                     <!-- Populated by JS -->
                 </div>
 
-                <button class="btn btn-primary btn-lg hidden" id="btn-upload-video">⬆️ <span data-i18n="upload.uploadBtn">Upload Video</span></button>
+                <button class="btn btn-primary btn-lg hidden" id="btn-upload-video"><span class="ico" data-icon="upload"></span> <span data-i18n="upload.uploadBtn">Upload Video</span></button>
 
                 <div class="upload-progress-container hidden" id="upload-progress-container">
                     <div class="upload-progress-label">
@@ -404,7 +404,7 @@
     <!-- Ethical Disclaimer Modal -->
     <div class="disclaimer-overlay" id="disclaimer-modal">
         <div class="disclaimer-content glass-panel">
-            <div class="disclaimer-icon">⚖️</div>
+            <div class="disclaimer-icon"><span class="ico" data-icon="document"></span></div>
             <h2 data-i18n="disclaimer.title">Ethical Disclaimer</h2>
             <p class="disclaimer-text" data-i18n="disclaimer.text">
                 EmotionLens is an analytical aid designed for research and educational purposes.
@@ -435,6 +435,7 @@
     <script src="/js/websocket.js"></script>
     <script src="/js/dashboard.js"></script>
     <script src="/js/sessions.js"></script>
+    <script src="/js/icons.js"></script>
     <script src="/js/comparison.js"></script>
     <script src="/js/video-upload.js"></script>
     <script src="/js/post-session-survey.js"></script>
