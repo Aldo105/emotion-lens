@@ -675,6 +675,13 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
             # Feed HR stress into congruence (adds physiological data)
             if hr_result["signal_ready"]:
                 action_units["hr_stress"] = hr_result["stress_indicator"]
+                # The BPM itself only reached the EVM overlay file, which the
+                # render deletes afterwards, so every session's heart rate was
+                # discarded. Persisting it alongside the AUs (same pattern as
+                # hr_stress above, no schema change) is what makes it possible
+                # to check the estimate against a reference sensor at all.
+                action_units["hr_bpm"] = hr_result.get("bpm", 0.0)
+                action_units["hr_confidence"] = hr_result.get("bpm_confidence", 0.0)
 
                 # Store HR reading for EVM video overlay
                 if video_recorder and video_recorder.is_open:
