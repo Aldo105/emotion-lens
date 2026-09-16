@@ -91,6 +91,9 @@ class DashboardUI {
         if (data.type === 'frame_result') {
             this.updateCalibration(data.is_calibrating, data.calibration_progress);
             this.updateEmotion(data.emotion, data.confidence, data.is_calibrating);
+            if (!data.is_calibrating) {
+                this.updatePeakEmotion(data.peak_emotion);
+            }
             this.updateHeartRate(data.heart_rate);
             this.updateCongruence(data.congruence_score, data.congruence_breakdown);
             this.updateEVMFrame(data.evm_frame);
@@ -248,6 +251,34 @@ class DashboardUI {
             if (this.elCalibInstr) this.elCalibInstr.classList.add('hidden');
             if (this.webcam) this.webcam.clearOverlay();
         }
+    }
+
+    updatePeakEmotion(peak) {
+        if (!this.elPeakEmotion) {
+            const host = this.elEmotionName && this.elEmotionName.parentElement;
+            if (!host) return;
+            const el = document.createElement('div');
+            el.className = 'peak-emotion hidden';
+            el.id = 'peak-emotion';
+            host.appendChild(el);
+            this.elPeakEmotion = el;
+        }
+
+        if (!peak) return;
+
+        // Held briefly on screen: the flash itself lasts a few frames, which
+        // is too short to read.
+        const config = CONFIG.EMOTIONS[peak.emotion] || CONFIG.EMOTIONS['neutral'];
+        this.elPeakEmotion.innerHTML =
+            `<span class="peak-flash">⚡</span> destello: ${config.icon} ${config.label}` +
+            ` <span class="peak-conf">${Math.round(peak.confidence * 100)}%</span>`;
+        this.elPeakEmotion.style.borderColor = config.color;
+        this.elPeakEmotion.classList.remove('hidden');
+
+        if (this.peakTimeout) clearTimeout(this.peakTimeout);
+        this.peakTimeout = setTimeout(() => {
+            if (this.elPeakEmotion) this.elPeakEmotion.classList.add('hidden');
+        }, 2500);
     }
 
     updateEmotion(emotionKey, confidence, isCalibrating) {

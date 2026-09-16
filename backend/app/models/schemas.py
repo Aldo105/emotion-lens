@@ -187,6 +187,10 @@ class WSFrameResult(BaseModel):
     confidence: float
     emotion_probabilities: dict[str, float]
     model_confidence: float
+    # A brief strong reading that differs from the dominant emotion, or None.
+    # Expressions like surprise last a moment and never dominate the smoothed
+    # average, so without this they are detected and then discarded.
+    peak_emotion: Optional[dict] = None
 
     # Action Units
     action_units: dict[str, float]

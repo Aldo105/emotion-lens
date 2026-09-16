@@ -139,6 +139,11 @@ class EmotionClassifier:
         # happened to be showing stayed put indefinitely.
         self.switch_confidence_threshold = 0.06
 
+        # Minimum raw probability for a momentary reading to be reported as a
+        # peak. 0.60 catches 5 of the 8 labelled surprise segments; lowering it
+        # starts surfacing ordinary fluctuation instead of real flashes.
+        self.peak_threshold = 0.60
+
         self._prob_history: deque[dict] = deque(maxlen=self.smoothing_window)
         self._current_emotion = "neutral"
         self._streak_start_time: float = 0.0   # When the current streak started
@@ -360,7 +365,38 @@ class EmotionClassifier:
             "probabilities": smoothed,
             "model_confidence": raw_result["model_confidence"] * quality_penalty,
             "mode": raw_result["mode"],
+            "peak": self._detect_peak(raw_result["probabilities"], final_emotion),
         }
+
+    def _detect_peak(self, raw_probs: dict, dominant: str) -> dict | None:
+        """
+        A brief, strong reading that the dominant emotion will not show.
+
+        Surprise is the clearest case: measured on labelled footage it wins 21%
+        of the frames in its own segments, peaking at 0.94, yet never becomes
+        the dominant emotion because the face is neutral for the rest of the
+        clip. Averaging over 20 frames is what makes the dominant reading
+        stable, and it is also what buries expressions that only last a moment.
+        Reporting the peak separately keeps both: a steady state and the
+        flashes that cross it.
+
+        Returns None unless the peak differs from what is already displayed —
+        repeating the dominant emotion would be noise, not information.
+        """
+        if not raw_probs:
+            return None
+
+        candidato = max(
+            (k for k in raw_probs if k in FER7_LABELS),
+            key=lambda k: raw_probs[k],
+            default=None,
+        )
+        if candidato is None or candidato == dominant:
+            return None
+        if raw_probs[candidato] < self.peak_threshold:
+            return None
+
+        return {"emotion": candidato, "confidence": round(raw_probs[candidato], 3)}
 
     # ══════════════════════════════════════════════════════════════════
     # TEMPORAL SMOOTHING

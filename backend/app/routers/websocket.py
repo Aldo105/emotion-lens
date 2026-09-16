@@ -727,6 +727,7 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                     k: round(v, 3) for k, v in emotion_result["probabilities"].items()
                 },
                 model_confidence=round(emotion_result["model_confidence"], 3),
+                peak_emotion=emotion_result.get("peak"),
                 action_units={k: round(v, 3) for k, v in action_units.items()},
                 congruence_score=congruence_result["score"],
                 congruence_breakdown=congruence_result["breakdown"],

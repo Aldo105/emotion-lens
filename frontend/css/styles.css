@@ -1710,6 +1710,32 @@ h1, h2, h3, h4 {
     font-weight: 600;
 }
 
+/* ── Destello: emoción breve que no llega a ser dominante ── */
+.peak-emotion {
+    margin-top: 10px;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    color: var(--text-main);
+    background: rgba(var(--overlay-rgb), 0.06);
+    border-left: 3px solid var(--primary);
+    border-radius: var(--radius-sm);
+    animation: peak-in 0.25s ease;
+}
+
+.peak-emotion .peak-conf {
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.peak-flash {
+    margin-right: 2px;
+}
+
+@keyframes peak-in {
+    from { opacity: 0; transform: translateX(-6px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    POST-SESSION SURVEY MODAL
    ═══════════════════════════════════════════════════════════════════ */
