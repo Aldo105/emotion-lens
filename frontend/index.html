@@ -23,9 +23,23 @@
     <link rel="stylesheet" href="/css/styles.css" media="print" onload="this.media='all'">
     <noscript><link rel="stylesheet" href="/css/styles.css"></noscript>
 
-    <!-- Critical inline: prevents invisible-page flash while CSS loads async -->
+    <!-- Applied before first paint so the page never flashes the wrong theme -->
+    <script>
+        try {
+            if (localStorage.getItem('emotionlens-theme') === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            }
+        } catch (e) { /* private mode: fall through to the light theme */ }
+    </script>
+
+    <!-- Critical inline: prevents invisible-page flash while CSS loads async.
+         Declares the same variables styles.css does, rather than literal
+         colours: hardcoding them here overrode the stylesheet entirely, since
+         this block comes after the <link> in the cascade. -->
     <style>
-        body { background:#0f111a; color:#f0f2f5; font-family:Inter,system-ui,sans-serif; margin:0; }
+        :root { --bg-dark:#F7F4EF; --text-main:#3A3730; }
+        :root[data-theme="dark"] { --bg-dark:#1C1B20; --text-main:#E8E4DD; }
+        body { background:var(--bg-dark); color:var(--text-main); font-family:Inter,system-ui,sans-serif; margin:0; }
         .hidden { display:none !important; }
     </style>
 
