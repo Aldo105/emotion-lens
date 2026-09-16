@@ -428,6 +428,29 @@ class SessionManager {
         } else {
             eventsEl.innerHTML = '';
         }
+
+        // Cambios de estado con su lectura posible. Observación y hipótesis
+        // van en líneas distintas: quien lee debe poder quedarse con el dato
+        // y descartar la interpretación.
+        const cambios = events.filter(e => e.type === 'emotion_transition' && e.suggestion);
+        if (cambios.length > 0) {
+            eventsEl.innerHTML += `
+                <h4 style="margin:16px 0 4px;">Cambios observados y lecturas posibles</h4>
+                <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:8px;">
+                    Hipótesis para orientar la revisión, no conclusiones sobre lo que
+                    la persona sintió.
+                </p>` +
+                cambios.slice(0, 12).map(e => `
+                    <div class="pattern-item ${e.severity || 'medium'}">
+                        <div style="font-weight:600;">${this._escape(e.description || '')}</div>
+                        <div style="font-size:0.85rem; margin-top:5px;">
+                            <em>Lectura posible:</em> ${this._escape(e.suggestion)}
+                        </div>
+                        <div style="font-size:0.75rem; color:var(--text-muted); margin-top:5px;">
+                            ${this._escape(e.basis || '')}
+                        </div>
+                    </div>`).join('');
+        }
     }
 
     _escape(text) {

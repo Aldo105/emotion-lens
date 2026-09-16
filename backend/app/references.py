@@ -52,6 +52,24 @@ class ConstantEvidence:
 # ═══════════════════════════════════════════════════════════════════════
 
 BIBLIOGRAPHY: dict[str, Reference] = {
+    # ── Dinámica de estados y marcadores de frustración ───────────────
+    "dmello2012dynamics": Reference(
+        key="dmello2012dynamics",
+        authors="D'Mello, S., & Graesser, A.",
+        year=2012,
+        title="Dynamics of affective states during complex learning",
+        venue="Learning and Instruction, 22(2), 145-157",
+        identifier="https://doi.org/10.1016/j.learninstruc.2011.10.001",
+    ),
+    "ihme2018frustration": Reference(
+        key="ihme2018frustration",
+        authors="Ihme, K., Dömeland, C., Freese, M., & Jipp, M.",
+        year=2018,
+        title="Recognizing Frustration of Drivers From Face Video Recordings and "
+              "Brain Activation Measurements With Functional Near-Infrared Spectroscopy",
+        venue="Frontiers in Human Neuroscience, 12:327",
+        identifier="https://doi.org/10.3389/fnhum.2018.00327",
+    ),
     # ── Base anatómica: FACS ──────────────────────────────────────────
     "ekman1978facs": Reference(
         key="ekman1978facs",
@@ -502,6 +520,58 @@ CONSTANTS: tuple[ConstantEvidence, ...] = (
              "por sujeto que sí existe en una sesión real, de modo que el uso "
              "en vivo debería quedar por encima de este 36%. Reproducible con "
              "data/test_videos/evaluate_cremad.py y evaluate_resolution.py.",
+    ),
+
+    ConstantEvidence(
+        name="Retiro de 'fear' del conjunto reportable",
+        location="emotion_classifier.py:DOMINANT_LABELS, config.py:emotion_labels",
+        current_value="8 etiquetas expuestas; 'fear' calculada pero no reportable",
+        tier=Tier.HEURISTIC,
+        refs=("barrett2019reconsidered",),
+        note="Sobre 220 clips etiquetados de 20 personas, 'fear' no gano ni un "
+             "solo segmento, y el CNN le asigna alrededor del 2% de los frames "
+             "incluso dentro de clips de miedo actuado. Es tambien su peor clase "
+             "en el propio FER2013 (0.454). Se mantiene en FER7_LABELS porque esa "
+             "lista mapea los indices de salida del modelo y alterarla "
+             "desalinearia las predicciones, pero queda fuera de la seleccion de "
+             "emocion dominante y de las etiquetas que la interfaz ofrece. "
+             "Exponer una categoria que solo aparece por azar es peor que no "
+             "ofrecerla.",
+    ),
+    ConstantEvidence(
+        name="'surprise' como nota de revision, no como estado",
+        location="emotion_classifier.py:BRIEF_LABELS, _detect_peak",
+        current_value="pico >= 0.60 genera nota para revision humana",
+        tier=Tier.HEURISTIC,
+        refs=("yan2013duration", "barrett2019reconsidered"),
+        note="La sorpresa alcanza 0.94 de probabilidad dentro de sus propios "
+             "segmentos pero solo gana el 21% de sus frames: dura menos de lo que "
+             "el promedio movil puede sostener, asi que como estado dominante "
+             "marcaba 0 de 8. En vez de forzarla, se emite como observacion de que "
+             "hubo un cambio facial compatible con sorpresa y conviene revisar ese "
+             "punto de la grabacion. El umbral de 0.60 no tiene fuente: captura 5 "
+             "de los 8 segmentos etiquetados y por debajo empieza a disparar con "
+             "fluctuacion normal.",
+    ),
+    ConstantEvidence(
+        name="Lecturas posibles de transicion emocional",
+        location="interview_analyzer.py:TRANSITION_INTERPRETATIONS",
+        current_value="16 secuencias con lectura en condicional y base citada",
+        tier=Tier.HEURISTIC,
+        refs=("dmello2012dynamics", "ihme2018frustration", "barrett2019reconsidered"),
+        note="Antes el reporte afirmaba causas ('posible reaccion a una pregunta "
+             "incomoda'). Ahora cada cambio separa lo observado de la lectura "
+             "posible, y cada lectura declara de donde sale. La logica de "
+             "secuencias sigue el modelo de D'Mello y Graesser: el desconcierto "
+             "surge ante un obstaculo y es productivo mientras se resuelve; si no "
+             "se resuelve deriva en frustracion y luego en desconexion. Los "
+             "marcadores de tension facial se apoyan en Ihme et al., que reportan "
+             "62% de acierto discriminando intervalos frustrados, cifra que "
+             "conviene tener presente al leer estas notas. El encuadre condicional "
+             "responde a Barrett et al.: una configuracion facial no es "
+             "diagnostica de un estado interno. Ninguna de estas lecturas esta "
+             "validada sobre datos de este proyecto; son hipotesis para orientar "
+             "a quien revisa.",
     ),
 
     # ── Congruencia: el núcleo sin respaldo ───────────────────────────

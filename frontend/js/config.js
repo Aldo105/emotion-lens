@@ -23,7 +23,6 @@ const CONFIG = {
         'angry': { color: 'var(--color-angry)', label: 'Enojado', icon: '😠' },
         'surprise': { color: 'var(--color-surprise)', label: 'Sorpresa', icon: '😲' },
         'disgust': { color: 'var(--color-disgust)', label: 'Disgusto', icon: '🤢' },
-        'fear': { color: 'var(--color-fear)', label: 'Miedo', icon: '😨' },
         'neutral': { color: 'var(--color-neutral)', label: 'Neutral', icon: '😐' },
         'nervousness': { color: 'var(--color-nervousness)', label: 'Nervioso', icon: '😰' },
         'confidence': { color: 'var(--color-confidence)', label: 'Confiado', icon: '😎' }

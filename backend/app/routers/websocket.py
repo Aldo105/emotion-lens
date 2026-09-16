@@ -753,6 +753,17 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
             # ── Persist frame data to database (batched) ─────────────
             if analysis_session_id and baseline_calibrated:
                 processed_frame_count += 1
+                aus_persistidos = {k: round(v, 3) for k, v in action_units.items()}
+
+                # Un pico marcado para revisión (sorpresa) sólo existía en el
+                # mensaje del WebSocket, así que desaparecía al cerrar la
+                # sesión. Viaja con los AUs para que el reporte pueda listarlo
+                # sin tocar el esquema de la base de datos.
+                pico = emotion_result.get("peak")
+                if pico and pico.get("review"):
+                    aus_persistidos["peak_review"] = 1.0
+                    aus_persistidos[f"peak_{pico['emotion']}"] = pico["confidence"]
+
                 emotion_record_batch.append({
                     "timestamp": round(timestamp, 3),
                     "emotion": emotion_result["emotion"],
@@ -760,7 +771,7 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                     "emotion_probabilities": {
                         k: round(v, 3) for k, v in emotion_result["probabilities"].items()
                     },
-                    "action_units": {k: round(v, 3) for k, v in action_units.items()},
+                    "action_units": aus_persistidos,
                     "congruence_score": congruence_result["score"],
                     "model_confidence": round(emotion_result["model_confidence"], 3),
                 })

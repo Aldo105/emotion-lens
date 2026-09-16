@@ -1012,6 +1012,32 @@ def generate_pdf_report(session_data: dict, output_path: str) -> str:
             elements.append(ev_table)
             elements.append(Spacer(1, 6 * mm))
 
+        # Section 4d: Emotion changes, each with a reading offered as a
+        # hypothesis. Observation and interpretation are printed on separate
+        # lines on purpose — a reader must be able to take the first without
+        # the second, since a facial configuration does not establish what the
+        # person felt (Barrett et al., 2019).
+        transitions = [e for e in (analysis.get("event_timeline") or [])
+                       if e.get("type") == "emotion_transition" and e.get("suggestion")]
+        if transitions:
+            elements.append(Paragraph("Cambios Observados y Lecturas Posibles", heading_style))
+            elements.append(Paragraph(
+                "Cada cambio se acompana de una lectura posible, no de una "
+                "conclusion. Son hipotesis para orientar la revision de la "
+                "grabacion: el sistema no determina que sintio la persona.",
+                small_style))
+            elements.append(Spacer(1, 3 * mm))
+
+            for e in transitions[:12]:
+                elements.append(Paragraph(
+                    f"<b>{e.get('description', '')}</b>", body_style))
+                elements.append(Paragraph(
+                    f"<i>Lectura posible:</i> {e.get('suggestion', '')}", body_style))
+                elements.append(Paragraph(
+                    f"Base: {e.get('basis', '')}", small_style))
+                elements.append(Spacer(1, 3 * mm))
+            elements.append(Spacer(1, 4 * mm))
+
         # Section 5: Recommendations
         recommendations = analysis.get("recommendations", [])
         if recommendations:

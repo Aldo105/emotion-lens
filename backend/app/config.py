@@ -48,8 +48,10 @@ class Settings(BaseSettings):
     # ── Emotion Classification ───────────────────────────────────────
     emotion_confidence_threshold: float = 0.3  # Min confidence to report
     emotion_labels: list[str] = [
+        # "fear" se retiró: nunca ganó un solo segmento en 220 clips
+        # etiquetados de 20 personas (ver references.py).
         "happy", "sad", "angry", "surprise",
-        "disgust", "fear", "neutral",
+        "disgust", "neutral",
         "nervousness", "confidence"
     ]
 

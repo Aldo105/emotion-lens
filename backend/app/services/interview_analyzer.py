@@ -22,34 +22,121 @@ def _emotion_label(slug: str) -> str:
     return EMOTION_LABELS.get(slug.lower(), slug)
 
 
-# Plain-language interpretation for notable emotion-state transitions.
-# These are hypotheses, not conclusions — every entry is meant to point a
-# human reviewer at a specific moment in the video, not to replace their
-# judgment (see the project's ethical framework: results must never be the
-# sole basis for an assessment).
+# Lecturas posibles de un cambio de estado. Son hipotesis para orientar a
+# quien revisa, nunca conclusiones sobre lo que la persona sintio.
+#
+# El encuadre sigue a Barrett et al. (2019): una configuracion facial no es
+# diagnostica de un estado interno, porque varia entre personas, contextos y
+# culturas. Por eso cada entrada dice que *podria* estar pasando y que mirar
+# para confirmarlo o descartarlo, en vez de afirmar la causa.
+#
+# La logica de las secuencias se apoya en DMello y Graesser (2012), que
+# modelan la dinamica de estados durante tareas cognitivas: el desconcierto
+# aparece ante un obstaculo y es productivo mientras se resuelve; si no se
+# resuelve, deriva en frustracion y luego en desconexion. Esa cadena es lo
+# que hace informativo un cambio en una prueba de usabilidad.
+#
+# Campos:
+#   text       - que se observo, en terminos descriptivos
+#   suggestion - lecturas posibles y que revisar, en condicional
+#   basis      - de donde sale la lectura
 TRANSITION_INTERPRETATIONS: dict[tuple[str, str], dict] = {
-    ("happy", "angry"):        {"text": "Cambio abrupto de alegria a enojo — posible reaccion a un comentario o pregunta especifica.", "severity": "high", "positive": False},
-    ("happy", "sad"):          {"text": "Cambio de alegria a tristeza — podria reflejar una respuesta genuina a un tema sensible.", "severity": "medium", "positive": False},
-    ("happy", "nervousness"):  {"text": "De alegria a nerviosismo — posible incomodidad ante un cambio de tema o pregunta.", "severity": "medium", "positive": False},
-    ("happy", "fear"):         {"text": "De alegria a temor — cambio marcado, revisar que lo provoco.", "severity": "high", "positive": False},
-    ("neutral", "nervousness"):{"text": "De neutral a nerviosismo — posible senal de tension ante la pregunta actual.", "severity": "medium", "positive": False},
-    ("neutral", "fear"):       {"text": "De neutral a miedo — reaccion notable, revisar el estimulo que la provoco.", "severity": "high", "positive": False},
-    ("neutral", "angry"):      {"text": "De neutral a enojo — posible reaccion a una pregunta incomoda.", "severity": "medium", "positive": False},
-    ("confidence", "nervousness"): {"text": "De confianza a nerviosismo — posible perdida de seguridad, comun ante preguntas dificiles.", "severity": "medium", "positive": False},
-    ("confidence", "fear"):    {"text": "De confianza a temor — cambio marcado, podria indicar una pregunta inesperada o incomoda.", "severity": "high", "positive": False},
-    ("confidence", "sad"):     {"text": "De confianza a tristeza — cambio de estado notable, revisar contexto.", "severity": "medium", "positive": False},
-    ("nervousness", "confidence"): {"text": "De nerviosismo a confianza — posible recuperacion tras superar un momento de tension.", "severity": "low", "positive": True},
-    ("nervousness", "fear"):   {"text": "De nerviosismo a miedo — escalada de tension, revisar contexto.", "severity": "high", "positive": False},
-    ("fear", "nervousness"):   {"text": "De miedo a nerviosismo — estado de tension sostenido.", "severity": "medium", "positive": False},
-    ("fear", "confidence"):    {"text": "De miedo a confianza — recuperacion notable tras un momento tenso.", "severity": "low", "positive": True},
-    ("sad", "angry"):          {"text": "De tristeza a enojo — podria indicar frustracion creciente.", "severity": "medium", "positive": False},
-    ("angry", "neutral"):      {"text": "De enojo a neutral — posible autorregulacion emocional.", "severity": "low", "positive": True},
-    ("angry", "sad"):          {"text": "De enojo a tristeza — cambio de estado, revisar contexto.", "severity": "medium", "positive": False},
-    ("surprise", "fear"):      {"text": "De sorpresa a miedo — reaccion intensa, revisar que la provoco.", "severity": "high", "positive": False},
-    ("surprise", "angry"):     {"text": "De sorpresa a enojo — posible reaccion defensiva ante informacion inesperada.", "severity": "medium", "positive": False},
-    ("surprise", "happy"):     {"text": "De sorpresa a alegria — reaccion positiva ante algo inesperado.", "severity": "low", "positive": True},
-    ("disgust", "angry"):      {"text": "De disgusto a enojo — intensificacion emocional negativa.", "severity": "medium", "positive": False},
-    ("sad", "neutral"):        {"text": "De tristeza a neutral — posible recuperacion emocional.", "severity": "low", "positive": True},
+    ("happy", "angry"): {
+        "text": "Paso de expresion positiva a una compatible con enojo.",
+        "suggestion": "Podria tratarse de un obstaculo inesperado justo despues de un momento que iba bien. Conviene revisar que ocurrio en pantalla o que se pregunto en los segundos previos.",
+        "basis": "Secuencia de desconcierto no resuelto que deriva en frustracion (DMello y Graesser, 2012).",
+        "severity": "high", "positive": False,
+    },
+    ("happy", "sad"): {
+        "text": "Paso de expresion positiva a una compatible con desanimo.",
+        "suggestion": "Puede reflejar un tema sensible o una tarea que dejo de avanzar. Vale contrastarlo con lo que la persona dijo en ese tramo.",
+        "basis": "La correspondencia entre gesto y estado interno es variable; el contexto verbal es lo que desambigua (Barrett et al., 2019).",
+        "severity": "medium", "positive": False,
+    },
+    ("happy", "nervousness"): {
+        "text": "Paso de expresion positiva a senales de tension facial.",
+        "suggestion": "Podria indicar que el siguiente paso resulto menos claro que el anterior. Revisar si cambio la dificultad de la tarea en ese punto.",
+        "basis": "La tension peribucal (presion y aprieto de labios) acompana episodios de frustracion en tareas (Ihme et al., 2018).",
+        "severity": "medium", "positive": False,
+    },
+    ("neutral", "nervousness"): {
+        "text": "Aparecieron senales de tension sobre un estado neutro.",
+        "suggestion": "Suele coincidir con el momento en que una tarea deja de ser evidente. Si se sostiene, conviene mirar si hubo un obstaculo sin resolver.",
+        "basis": "El desconcierto surge ante impasses y, si no se resuelve, escala a frustracion (DMello y Graesser, 2012).",
+        "severity": "medium", "positive": False,
+    },
+    ("neutral", "angry"): {
+        "text": "Paso de neutro a una expresion compatible con enojo.",
+        "suggestion": "Podria ser un punto de friccion concreto. Revisar la accion inmediatamente anterior: un error, un paso que fallo o una respuesta inesperada del sistema.",
+        "basis": "Los picos de frustracion se asocian a obstaculos que bloquean una meta (DMello y Graesser, 2012).",
+        "severity": "medium", "positive": False,
+    },
+    ("neutral", "disgust"): {
+        "text": "Aparecieron movimientos compatibles con desagrado.",
+        "suggestion": "Conviene revisar que habia en pantalla. Este patron facial tambien se produce por causas ajenas a la emocion, como concentracion o esfuerzo visual.",
+        "basis": "La misma configuracion facial admite causas distintas segun el contexto (Barrett et al., 2019).",
+        "severity": "medium", "positive": False,
+    },
+    ("confidence", "nervousness"): {
+        "text": "Las senales de soltura dieron paso a senales de tension.",
+        "suggestion": "Podria marcar el punto donde la tarea supero lo que la persona esperaba. Util para localizar donde empieza la dificultad real.",
+        "basis": "Transicion tipica de flujo a desconcierto ante un impasse (DMello y Graesser, 2012).",
+        "severity": "medium", "positive": False,
+    },
+    ("confidence", "sad"): {
+        "text": "Las senales de soltura dieron paso a expresion de desanimo.",
+        "suggestion": "Puede indicar que la persona dejo de creer que podia completar la tarea. Revisar si hubo intentos repetidos sin exito antes de este punto.",
+        "basis": "La frustracion sostenida precede a la desconexion de la tarea (DMello y Graesser, 2012).",
+        "severity": "medium", "positive": False,
+    },
+    ("nervousness", "confidence"): {
+        "text": "Las senales de tension dieron paso a otras de soltura.",
+        "suggestion": "Compatible con haber superado el obstaculo. Si se identifica que lo resolvio, suele ser informacion util para el diseno.",
+        "basis": "Retorno al estado de flujo tras resolver el desconcierto (DMello y Graesser, 2012).",
+        "severity": "low", "positive": True,
+    },
+    ("sad", "angry"): {
+        "text": "El desanimo dio paso a una expresion compatible con enojo.",
+        "suggestion": "Podria ser frustracion acumulada mas que una reaccion a un hecho puntual. Conviene mirar el tramo completo, no solo este instante.",
+        "basis": "Oscilacion documentada entre estados negativos cuando el impasse persiste (DMello y Graesser, 2012).",
+        "severity": "medium", "positive": False,
+    },
+    ("angry", "neutral"): {
+        "text": "La expresion compatible con enojo volvio a neutro.",
+        "suggestion": "Puede ser que el problema se resolviera, o que la persona dejara de intentarlo. Son cosas distintas y solo la grabacion lo aclara.",
+        "basis": "El retorno a neutro no distingue resolucion de desconexion (DMello y Graesser, 2012).",
+        "severity": "low", "positive": True,
+    },
+    ("angry", "sad"): {
+        "text": "La expresion compatible con enojo dio paso a desanimo.",
+        "suggestion": "Secuencia asociada a abandono del intento. Si ocurre al final de una tarea, conviene comprobar si llego a completarla.",
+        "basis": "Frustracion no resuelta que deriva en desconexion (DMello y Graesser, 2012).",
+        "severity": "medium", "positive": False,
+    },
+    ("surprise", "happy"): {
+        "text": "Un gesto breve compatible con sorpresa dio paso a expresion positiva.",
+        "suggestion": "Compatible con un hallazgo bien recibido. Vale identificar que lo produjo: suele senalar algo que funciona.",
+        "basis": "Lectura provisional; el gesto por si solo no fija la valencia (Barrett et al., 2019).",
+        "severity": "low", "positive": True,
+    },
+    ("surprise", "angry"): {
+        "text": "Un gesto breve compatible con sorpresa dio paso a expresion de enojo.",
+        "suggestion": "Podria tratarse de algo inesperado que ademas estorbo. Revisar si el sistema hizo algo no anticipado en ese momento.",
+        "basis": "Obstaculo inesperado como disparador de frustracion (DMello y Graesser, 2012).",
+        "severity": "medium", "positive": False,
+    },
+    ("disgust", "angry"): {
+        "text": "El desagrado dio paso a una expresion compatible con enojo.",
+        "suggestion": "Intensificacion de una reaccion negativa ya presente. Suele merecer revision del tramo completo.",
+        "basis": "Escalada dentro de estados negativos (DMello y Graesser, 2012).",
+        "severity": "medium", "positive": False,
+    },
+    ("sad", "neutral"): {
+        "text": "El desanimo volvio a un estado neutro.",
+        "suggestion": "Puede ser recuperacion o simplemente el fin de la tarea. Conviene contrastarlo con lo que ocurria en pantalla.",
+        "basis": "El retorno a neutro es ambiguo sin contexto (Barrett et al., 2019).",
+        "severity": "low", "positive": True,
+    },
 }
 
 
@@ -678,22 +765,33 @@ class InterviewBehaviorAnalyzer:
             info = TRANSITION_INTERPRETATIONS.get((prev_emotion, cur_emotion))
             if info is None:
                 text = (
-                    f"Cambio de estado emocional de {_emotion_label(prev_emotion)} a {_emotion_label(cur_emotion)} — "
-                    f"se recomienda revision humana para interpretar el contexto."
+                    f"Cambio de {_emotion_label(prev_emotion)} a {_emotion_label(cur_emotion)}."
                 )
+                suggestion = (
+                    "Sin lectura documentada para esta secuencia. Conviene revisar "
+                    "la grabacion en este punto antes de interpretarla."
+                )
+                basis = "Combinacion no cubierta por la literatura consultada."
                 severity, is_positive = "medium", False
             else:
-                text, severity, is_positive = info["text"], info["severity"], info["positive"]
+                text = info["text"]
+                suggestion = info["suggestion"]
+                basis = info["basis"]
+                severity, is_positive = info["severity"], info["positive"]
 
             video_time = _format_video_time(cur_start)
             events.append({
                 "type": "emotion_transition",
                 "timestamp": float(cur_start),
                 "severity": severity,
-                "description": (
-                    f"[{video_time}] {_emotion_label(prev_emotion)} -> {_emotion_label(cur_emotion)}: {text} "
-                    f"(minuto {video_time} del video, para revision humana)"
-                ),
+                # Lo observado y su lectura viajan separados: el reporte puede
+                # mostrar el dato sin la hipotesis, pero nunca al reves.
+                "description": f"[{video_time}] {text}",
+                "observed": text,
+                "suggestion": suggestion,
+                "basis": basis,
+                "from_emotion": _emotion_label(prev_emotion),
+                "to_emotion": _emotion_label(cur_emotion),
                 "context_question": None,
                 "is_positive": is_positive,
             })

@@ -269,17 +269,24 @@ class DashboardUI {
         // Held briefly on screen: the flash itself lasts a few frames, which
         // is too short to read.
         const config = CONFIG.EMOTIONS[peak.emotion] || CONFIG.EMOTIONS['neutral'];
+        // Los picos marcados para revisión (sorpresa) se enuncian como
+        // observación: dura demasiado poco para sostenerlo como estado, así
+        // que lo único que se afirma es que hubo un cambio que mirar.
+        const nota = peak.review && peak.note
+            ? `<div class="peak-note">${peak.note}</div>`
+            : '';
         this.elPeakEmotion.innerHTML =
             `<span class="peak-flash">${Icons.render('spark', {size: 14})}</span> destello: ` +
             `${config.icon} ${config.label}` +
-            ` <span class="peak-conf">${Math.round(peak.confidence * 100)}%</span>`;
+            ` <span class="peak-conf">${Math.round(peak.confidence * 100)}%</span>` +
+            nota;
         this.elPeakEmotion.style.borderColor = config.color;
         this.elPeakEmotion.classList.remove('hidden');
 
         if (this.peakTimeout) clearTimeout(this.peakTimeout);
         this.peakTimeout = setTimeout(() => {
             if (this.elPeakEmotion) this.elPeakEmotion.classList.add('hidden');
-        }, 2500);
+        }, peak.review ? 5000 : 2500);
     }
 
     updateEmotion(emotionKey, confidence, isCalibrating) {

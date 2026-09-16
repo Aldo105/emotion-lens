@@ -26,8 +26,21 @@ from backend.app.config import settings
 # Emotion labels (9 categories)
 EMOTION_LABELS = settings.emotion_labels
 
-# FER2013 standard 7 labels (used by pre-trained CNN)
+# FER2013 standard 7 labels (used by pre-trained CNN). This list maps the
+# model's output indices, so its order and length must not change.
 FER7_LABELS = ["angry", "disgust", "fear", "happy", "sad", "surprise", "neutral"]
+
+# Labels allowed to become the reported emotion. "fear" is excluded: measured
+# against 220 labelled clips from 20 actors it never once won a segment, and
+# the CNN gives it only ~2% of frames even inside genuine fear clips — it is
+# the model's weakest class on FER2013 too (0.454). Reporting a label that
+# never fires except by accident is worse than not offering it.
+DOMINANT_LABELS = [lbl for lbl in FER7_LABELS if lbl != "fear"]
+
+# Brief expressions the smoothed average cannot surface. Surprise peaks at
+# 0.94 in its own segments yet wins only 21% of their frames, so it is
+# reported as a moment worth reviewing rather than as a state.
+BRIEF_LABELS = {"surprise"}
 
 # ── Blendshape-to-Emotion Mapping ────────────────────────────────────
 # MediaPipe blendshape names map to FACS Action Units.
@@ -99,14 +112,13 @@ BLENDSHAPE_EMOTION_MAP = {
 # Plausible emotion transitions — transitions NOT in this map are considered suspect
 # and require higher confidence + longer streak to switch
 PLAUSIBLE_TRANSITIONS = {
-    "neutral": {"happy", "sad", "angry", "surprise", "fear", "disgust", "nervousness", "confidence"},
+    "neutral": {"happy", "sad", "angry", "surprise", "disgust", "nervousness", "confidence"},
     "happy": {"neutral", "surprise", "nervousness"},
-    "sad": {"neutral", "angry", "fear"},
+    "sad": {"neutral", "angry"},
     "angry": {"neutral", "sad", "disgust"},
-    "surprise": {"neutral", "happy", "fear", "angry"},
+    "surprise": {"neutral", "happy", "angry"},
     "disgust": {"neutral", "angry"},
-    "fear": {"neutral", "surprise", "sad", "nervousness"},
-    "nervousness": {"neutral", "fear", "confidence"},
+    "nervousness": {"neutral", "confidence"},
     "confidence": {"neutral", "happy", "nervousness"},
 }
 
@@ -387,7 +399,7 @@ class EmotionClassifier:
             return None
 
         candidato = max(
-            (k for k in raw_probs if k in FER7_LABELS),
+            (k for k in raw_probs if k in DOMINANT_LABELS),
             key=lambda k: raw_probs[k],
             default=None,
         )
@@ -396,7 +408,21 @@ class EmotionClassifier:
         if raw_probs[candidato] < self.peak_threshold:
             return None
 
-        return {"emotion": candidato, "confidence": round(raw_probs[candidato], 3)}
+        pico = {
+            "emotion": candidato,
+            "confidence": round(raw_probs[candidato], 3),
+            "review": candidato in BRIEF_LABELS,
+        }
+        if pico["review"]:
+            # Redactado como observación, no como diagnóstico: lo único que
+            # consta es que hubo un cambio facial compatible con sorpresa, y
+            # quién decide qué fue es quien revisa el vídeo.
+            pico["note"] = (
+                "Cambio facial breve compatible con sorpresa. No se reporta como "
+                "estado porque dura menos de lo que el promedio puede sostener; "
+                "conviene revisar este momento en la grabación."
+            )
+        return pico
 
     # ══════════════════════════════════════════════════════════════════
     # TEMPORAL SMOOTHING
@@ -479,7 +505,7 @@ class EmotionClassifier:
         from angry and another from fear outright.
         """
         now = time.time()
-        eligible = {k: v for k, v in smoothed_probs.items() if k in FER7_LABELS}
+        eligible = {k: v for k, v in smoothed_probs.items() if k in DOMINANT_LABELS}
         if not eligible:
             eligible = smoothed_probs
         top_emotion = max(eligible, key=eligible.get)
