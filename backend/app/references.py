@@ -472,6 +472,33 @@ CONSTANTS: tuple[ConstantEvidence, ...] = (
              "más exacta.",
     ),
 
+    ConstantEvidence(
+        name="Alcance real del reconocimiento de emoción",
+        location="emotion_classifier.py (todo el clasificador)",
+        current_value="36% sobre 20 actores; solo 'happy' se sostiene (95%)",
+        tier=Tier.HEURISTIC,
+        refs=("barrett2019reconsidered",),
+        note="Medición del 2026-09-16 sobre 220 clips de CREMA-D (20 actores, "
+             "ODbL). Con un único actor de RAVDESS el sistema puntuaba 46-54%; "
+             "con 20 caras distintas cae al 36%. Por clase el deterioro es "
+             "mayor que esa cifra: 'disgust' pasa de 88% a 15% y 'angry' de 62% "
+             "a 22%, es decir que estaban ajustados a una cara concreta, no "
+             "funcionando en general. El dato más relevante es la dispersión "
+             "entre sujetos: del 9% en el peor actor al 73% en el mejor. La "
+             "herramienta funciona bien con algunas personas y es inútil con "
+             "otras, algo que una evaluación de un solo sujeto no puede "
+             "detectar. Sólo 'happy' aguanta (95% aquí, 100% en RAVDESS). "
+             "Diferencia por sexo: 40% en mujeres frente a 30% en hombres, no "
+             "concluyente con esta muestra pero a vigilar, porque el sesgo "
+             "demográfico en reconocimiento facial está documentado y esta "
+             "herramienta interviene en contrataciones. Matices: CREMA-D es de "
+             "480x360 frente a 1280x720, así que parte de la caída puede ser "
+             "resolución; y sus clips son demasiado cortos para calibrar el "
+             "basal por sujeto que sí existe en una sesión real, de modo que el "
+             "uso en vivo debería quedar por encima de este 36%. Reproducible "
+             "con data/test_videos/evaluate_cremad.py.",
+    ),
+
     # ── Congruencia: el núcleo sin respaldo ───────────────────────────
     ConstantEvidence(
         name="Pesos del score de congruencia",
