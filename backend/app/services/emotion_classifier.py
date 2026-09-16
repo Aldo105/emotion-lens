@@ -422,10 +422,21 @@ class EmotionClassifier:
         Prevent rapid emotion switching using hysteresis.
         The current emotion "sticks" unless a new emotion consistently
         dominates for a sustained time period with enough margin.
+
+        Only the seven FER labels can become the dominant emotion.
+        "nervousness" and "confidence" are still reported, but they are the
+        project's own heuristics over blendshapes with no published prototype
+        behind them (see references.py), so letting them outrank a trained
+        model's output would present the two as equally grounded. It also
+        measurably hurt: on labelled footage "confidence" took one segment
+        from angry and another from fear outright.
         """
         now = time.time()
-        top_emotion = max(smoothed_probs, key=smoothed_probs.get)
-        top_confidence = smoothed_probs[top_emotion]
+        eligible = {k: v for k, v in smoothed_probs.items() if k in FER7_LABELS}
+        if not eligible:
+            eligible = smoothed_probs
+        top_emotion = max(eligible, key=eligible.get)
+        top_confidence = eligible[top_emotion]
         current_confidence = smoothed_probs.get(self._current_emotion, 0.0)
 
         # Track streak using real time (Improvement 10)
@@ -451,7 +462,7 @@ class EmotionClassifier:
         # The previous escape hatch required it to fall below 0.05, which with
         # nine competing labels almost never happened, so a stuck emotion had no
         # way back out.
-        ranked = sorted(smoothed_probs, key=smoothed_probs.get, reverse=True)
+        ranked = sorted(eligible, key=eligible.get, reverse=True)
         if self._current_emotion not in ranked[:2]:
             should_switch = True
 

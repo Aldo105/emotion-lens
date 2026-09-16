@@ -452,6 +452,26 @@ CONSTANTS: tuple[ConstantEvidence, ...] = (
              "respaldo; los cortes 70/120 siguen sin fuente.",
     ),
 
+    ConstantEvidence(
+        name="'nervousness' / 'confidence' fuera de la emoción dominante",
+        location="emotion_classifier.py:_apply_hysteresis, _merge_cnn_with_derived",
+        current_value="se calculan y se muestran, pero no pueden ganar el argmax",
+        tier=Tier.HEURISTIC,
+        refs=("barrett2019reconsidered",),
+        note="Fase 2: estas dos etiquetas no existen en ningún dataset FER público "
+             "ni tienen prototipo EMFACS; son una combinación propia de blendshapes "
+             "elegida por prueba y error. Antes competían de igual a igual con las 7 "
+             "clases del CNN entrenado y podían reservar hasta el 50% de la masa de "
+             "probabilidad, de modo que la interfaz presentaba una heurística sin "
+             "fuente y una predicción validada como si tuvieran el mismo respaldo. "
+             "Ahora siguen reportándose —eliminarlas rompería código que depende de "
+             "esas etiquetas— pero no pueden ser la emoción dominante. Medido contra "
+             "el vídeo etiquetado de RAVDESS, el cambio subió el acierto de 50% a "
+             "64%: 'confidence' se estaba llevando un segmento de ira y otro de "
+             "miedo. La corrección era exigible por honestidad y además resultó "
+             "más exacta.",
+    ),
+
     # ── Congruencia: el núcleo sin respaldo ───────────────────────────
     ConstantEvidence(
         name="Pesos del score de congruencia",
