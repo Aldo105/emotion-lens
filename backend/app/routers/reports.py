@@ -29,6 +29,7 @@ from backend.app.services.report_generator import (
     generate_pdf_report, generate_csv_string,
 )
 from backend.app.services.validation_metrics import compute_agreement_metrics
+from backend.app.services import ux_metrics
 
 router = APIRouter()
 
@@ -189,6 +190,25 @@ async def get_report_data(session_id: int, db: AsyncSession = Depends(get_db)):
     report_generator can format it into PDF/CSV.
     """
     return await _get_report_data(session_id, db)
+
+
+# ── Usability metrics ────────────────────────────────────────────────
+
+@router.get("/{session_id}/ux-metrics")
+async def get_ux_metrics(session_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Descriptive metrics for a usability session, segmented by the moderator's
+    markers.
+
+    Separate from the interview analysis on purpose: this one does not score
+    the person. It reports only what survives a change of face — smiling and
+    the rate of expressive change — and ranks segments so a researcher knows
+    which parts of the recording to watch.
+    """
+    datos = await _get_report_data(session_id, db)
+    registros = datos.get("emotion_timeline") or datos.get("emotion_records") or []
+    notas = datos.get("interviewer_notes") or datos.get("notes") or []
+    return ux_metrics.calcular(registros, notas)
 
 
 # ── Download PDF Report ──────────────────────────────────────────────
