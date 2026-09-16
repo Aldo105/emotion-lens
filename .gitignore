@@ -26,6 +26,9 @@ data/test_videos/*
 !data/test_videos/build_test_video.py
 !data/test_videos/evaluate.py
 
+# Notas de trabajo propias, no parte del proyecto
+notas-locales/
+
 # Editor / OS
 .vscode/*
 !.vscode/settings.json
