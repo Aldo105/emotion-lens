@@ -25,7 +25,9 @@ SALIDA_LABELS = AQUI / "emotion_test_labels.json"
 # Tercer campo del nombre -> etiqueta del sistema
 RAVDESS_EMO = {
     "01": "neutral",
-    "02": "neutral",    # 'calm' no tiene equivalente propio en el sistema
+    # '02' es 'calm', que no es lo mismo que neutral ni tiene equivalente en el
+    # sistema. Mapearlo a neutral metia 8 clips con una etiqueta discutible en
+    # el ground truth, asi que se excluye.
     "03": "happy",
     "04": "sad",
     "05": "angry",
@@ -92,6 +94,13 @@ def main():
     if not neutrales:
         sys.exit("Sin clips neutrales: no se puede construir el tramo de calibracion")
 
+    # Los clips que definen el baseline no pueden usarse tambien para evaluar:
+    # el sistema se calibra con ellos, asi que acertarlos no probaria nada.
+    calibracion = neutrales[: max(1, len(neutrales) // 2)]
+    por_emocion["neutral"] = neutrales[len(calibracion):]
+    print(f"\n{len(calibracion)} clips neutrales reservados para calibrar, "
+          f"{len(por_emocion['neutral'])} quedan evaluables")
+
     # Resolucion y fps del primer clip
     cap = cv2.VideoCapture(str(clips[0]["path"]))
     w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -120,7 +129,7 @@ def main():
     objetivo = int(CALIB_SECONDS * fps_src)
     i = 0
     while total_frames < objetivo:
-        clip = neutrales[i % len(neutrales)]
+        clip = calibracion[i % len(calibracion)]
         total_frames += escribir_clip(writer, clip["path"], size)
         i += 1
     print(f"  {total_frames} frames ({total_frames/fps_src:.1f}s)")
@@ -128,11 +137,11 @@ def main():
 
     # ── Clips de emocion, preferentemente de intensidad fuerte ───────
     orden = ["happy", "sad", "angry", "surprise", "fear", "disgust", "neutral"]
-    print("\nescribiendo clips de emocion...")
+    print("\nescribiendo clips de emocion (todos los disponibles)...")
     for emo in orden:
-        candidatos = por_emocion.get(emo, [])
-        fuertes = [c for c in candidatos if c["intensidad"] == "fuerte"] or candidatos
-        for clip in fuertes[:2]:      # dos por emocion
+        # Todos, en ambas intensidades: con dos clips por emocion cada acierto
+        # valia 7 puntos y el margen de error tapaba cualquier diferencia real.
+        for clip in por_emocion.get(emo, []):
             inicio = total_frames / fps_src
             n = escribir_clip(writer, clip["path"], size)
             total_frames += n

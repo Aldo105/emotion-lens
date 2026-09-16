@@ -102,6 +102,7 @@ def main():
     aciertos = 0
     evaluables = 0
     confusion = defaultdict(Counter)
+    por_intensidad = []
 
     print(f"{'':3}{'esperado':<10} {'detectado':<12} {'segmento':<16} reparto")
     print("-" * 78)
@@ -118,6 +119,7 @@ def main():
         confusion[seg["emocion"]][top] += 1
         ok = top == seg["emocion"]
         aciertos += ok
+        por_intensidad.append((seg.get("intensidad", "?"), ok))
         reparto = ", ".join(f"{e}:{n}" for e, n in cuenta.most_common(3))
         print(f"{'OK ' if ok else '   '}{seg['emocion']:<10} {top:<12} "
               f"{seg['inicio']:>5.1f}-{seg['fin']:>5.1f}s   {reparto}")
@@ -125,6 +127,24 @@ def main():
     print(f"\naciertos: {aciertos}/{evaluables} "
           f"({aciertos/max(evaluables,1)*100:.0f}%)")
     print("(al azar entre 9 etiquetas seria ~11%)")
+
+    print("\npor emocion:")
+    for esperado in sorted(confusion):
+        total_emo = sum(confusion[esperado].values())
+        ok_emo = confusion[esperado][esperado]
+        barra = "#" * int(ok_emo / max(total_emo, 1) * 20)
+        print(f"  {esperado:<10} {ok_emo:>2}/{total_emo:<2} "
+              f"{ok_emo/max(total_emo,1)*100:>3.0f}%  {barra}")
+
+    # Una expresion actuada en intensidad fuerte es el caso mas facil posible;
+    # la intensidad normal se parece mas a lo que hace alguien en una entrevista.
+    print("\npor intensidad:")
+    for inten in ("fuerte", "normal"):
+        sub = [s for s in por_intensidad if s[0] == inten]
+        if sub:
+            ok_i = sum(1 for _, o in sub if o)
+            print(f"  {inten:<8} {ok_i:>2}/{len(sub):<2} "
+                  f"({ok_i/len(sub)*100:>3.0f}%)")
 
     print("\nmatriz de confusion (esperado -> detectado):")
     for esperado in sorted(confusion):
