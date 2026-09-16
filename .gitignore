@@ -25,6 +25,7 @@ backend/ml/saved_models/*.pth
 data/test_videos/*
 !data/test_videos/build_test_video.py
 !data/test_videos/evaluate.py
+!data/test_videos/download_cremad.py
 
 # Notas de trabajo propias, no parte del proyecto
 notas-locales/
