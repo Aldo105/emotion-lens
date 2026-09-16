@@ -189,7 +189,7 @@ class DashboardUI {
                 this._suggestionIdx = (this._suggestionIdx + 1) % suggestions.length;
                 this._lastSuggestionTime = now;
             }
-            this.elQualitySuggestions.textContent = Icons.render('spark') + suggestions[this._suggestionIdx];
+            this.elQualitySuggestions.innerHTML = Icons.render('spark') + ' ' + suggestions[this._suggestionIdx];
             this.elQualitySuggestions.classList.remove('hidden');
         } else if (this.elQualitySuggestions) {
             this.elQualitySuggestions.classList.add('hidden');

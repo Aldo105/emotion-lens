@@ -183,7 +183,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const MARKER_LABELS = {
         task_start:   '▶️ Inicio tarea',
         task_end:     '⏹️ Fin tarea',
-        error:        Icons.render('alert') + ' Error',
+        error:        'Error',
         confusion:    'Confusión',
         key_question: 'Pregunta clave',
     };

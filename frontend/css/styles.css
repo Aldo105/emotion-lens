@@ -1511,6 +1511,20 @@ h1, h2, h3, h4 {
 
     .session-card-stats { grid-template-columns: 1fr; }
 
+    /* La barra de sesión no envolvía en pantallas estrechas: status + timer +
+       botón excedían el ancho disponible y, con overflow-x:hidden, el botón
+       quedaba cortado contra el borde derecho en vez de bajar de línea. */
+    .session-bar { padding: 12px; }
+    .session-controls {
+        flex-wrap: wrap;
+        gap: 10px;
+        width: 100%;
+    }
+    .session-controls .btn {
+        flex: 1 1 auto;
+        min-width: 140px;
+    }
+
     /* Margen lateral constante y nada que pueda empujar la página a lo ancho.
        El deslizamiento lateral venía de elementos que excedían el viewport,
        no de un contenedor concreto, así que se acotan todos. */

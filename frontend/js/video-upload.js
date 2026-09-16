@@ -130,13 +130,13 @@ class VideoUploadManager {
             } else {
                 this.showStatus('¡Subida completa!', 'success');
                 this.btnUpload.disabled = false;
-                this.btnUpload.textContent = Icons.render('upload') + ' Subir Video';
+                this.btnUpload.innerHTML = Icons.render('upload') + ' Subir Video';
             }
         } catch (err) {
             console.error('Upload failed:', err);
             this.showStatus('Error al subir: ' + err.message, 'error');
             this.btnUpload.disabled = false;
-            this.btnUpload.textContent = Icons.render('upload') + ' Subir Video';
+            this.btnUpload.innerHTML = Icons.render('upload') + ' Subir Video';
         }
     }
 
@@ -205,7 +205,7 @@ class VideoUploadManager {
                     `;
 
                     this.btnUpload.disabled = false;
-                    this.btnUpload.textContent = Icons.render('upload') + ' Subir Video';
+                    this.btnUpload.innerHTML = Icons.render('upload') + ' Subir Video';
                 }
             } catch (err) {
                 console.error('Progress poll error:', err);

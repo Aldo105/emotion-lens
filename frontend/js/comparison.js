@@ -74,7 +74,7 @@ class ComparisonManager {
             this.showMessage('Error al comparar: ' + err.message);
         } finally {
             this.btnCompare.disabled = false;
-            this.btnCompare.textContent = Icons.render('refresh') + ' Comparar Sesiones';
+            this.btnCompare.innerHTML = Icons.render('refresh') + ' Comparar Sesiones';
         }
     }
 
