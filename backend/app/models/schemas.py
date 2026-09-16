@@ -41,6 +41,10 @@ class SessionResponse(BaseModel):
     input_type: str
     video_path: Optional[str] = None
     notes_text: Optional[str] = None
+    # Copied from the session's summary row so the session list can show
+    # congruence without one extra request per card.
+    average_congruence: Optional[float] = None
+    dominant_emotion: Optional[str] = None
 
     class Config:
         from_attributes = True

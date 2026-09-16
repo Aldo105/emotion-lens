@@ -22,6 +22,8 @@ This runs OFFLINE after the session ends.  A 10-minute session at 20 FPS
 
 import json
 import os
+import sys
+import time
 import traceback
 
 import cv2
@@ -112,16 +114,91 @@ def _create_feather_mask(h: int, w: int, border: int = 15) -> np.ndarray:
 
 def _write_progress(progress_path: str, status: str, progress: float = 0.0,
                     phase: str = ""):
-    """Write rendering progress to a JSON file for the status endpoint."""
+    """
+    Write rendering progress to a JSON file for the status endpoint.
+
+    Carries the start time forward across writes so the endpoint can derive a
+    remaining-time estimate from how long the work so far actually took, which
+    is the only honest basis for one: render speed depends on the machine.
+    """
+    now = time.time()
+    started_at = now
     try:
-        with open(progress_path, "w") as f:
+        with open(progress_path, "r", encoding="utf-8") as f:
+            started_at = json.load(f).get("started_at", now)
+    except Exception:
+        pass
+
+    try:
+        with open(progress_path, "w", encoding="utf-8") as f:
             json.dump({
                 "status": status,
                 "progress": round(progress, 3),
                 "phase": phase,
+                "started_at": started_at,
+                "updated_at": now,
             }, f)
     except Exception:
         pass
+
+
+# ══════════════════════════════════════════════════════════════════════
+# MEMORY BUDGET
+# ══════════════════════════════════════════════════════════════════════
+
+def _available_memory_mb() -> float | None:
+    """Physical memory currently available, or None if it can't be determined."""
+    try:
+        if sys.platform == "win32":
+            import ctypes
+
+            class _MemStatus(ctypes.Structure):
+                _fields_ = [
+                    ("dwLength", ctypes.c_ulong),
+                    ("dwMemoryLoad", ctypes.c_ulong),
+                    ("ullTotalPhys", ctypes.c_ulonglong),
+                    ("ullAvailPhys", ctypes.c_ulonglong),
+                    ("ullTotalPageFile", ctypes.c_ulonglong),
+                    ("ullAvailPageFile", ctypes.c_ulonglong),
+                    ("ullTotalVirtual", ctypes.c_ulonglong),
+                    ("ullAvailVirtual", ctypes.c_ulonglong),
+                    ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+                ]
+
+            stat = _MemStatus()
+            stat.dwLength = ctypes.sizeof(stat)
+            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(stat)):
+                return stat.ullAvailPhys / (1024 * 1024)
+            return None
+
+        with open("/proc/meminfo", encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("MemAvailable:"):
+                    return int(line.split()[1]) / 1024
+    except Exception:
+        return None
+    return None
+
+
+def _chunk_frames(fps: float, pyr_h: int, pyr_w: int, total_frames: int) -> int:
+    """
+    How many frames to hold in memory at once.
+
+    Sized from a slice of the machine's free memory so a laptop under pressure
+    works in smaller blocks instead of failing, and capped well below what is
+    available because this runs while the app may still be serving a session.
+    """
+    avail = _available_memory_mb()
+    if avail is None:
+        budget_mb = 48.0
+    else:
+        budget_mb = max(16.0, min(128.0, avail * 0.10))
+
+    bytes_per_frame = pyr_h * pyr_w * 3 * 4
+    frames = int((budget_mb * 1024 * 1024) / max(bytes_per_frame, 1))
+
+    # At least a few seconds, or the bandpass has too little signal to work on.
+    return max(int(fps * 10), min(frames, total_frames))
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -132,10 +209,16 @@ class EVMRenderer:
     """
     Offline Eulerian Video Magnification renderer.
 
-    Two-pass algorithm:
-      Pass 1 — Collect lowest Gaussian pyramid levels for every frame
-      Filter — Butterworth bandpass on I/Q channels across all frames
-      Pass 2 — Re-read video, upsample filtered signal, amplify, blend, write
+    Processes the video in overlapping temporal blocks: each block collects the
+    lowest pyramid level for its frames, bandpasses them, then re-reads and
+    writes just that block's output. Memory therefore depends on the block
+    size rather than the length of the session — the previous whole-video
+    stacks grew with duration, so an hour-long interview needed roughly a
+    gigabyte where a one-minute test needed 18 MB.
+
+    The blocks overlap because a Butterworth filter rings at the edges of its
+    input; the padding is filtered and then discarded, so seams between blocks
+    are not visible.
     """
 
     def __init__(
@@ -257,52 +340,12 @@ class EVMRenderer:
               f"face ROI: {roi_w}×{roi_h}, "
               f"amplification: {self.amplification}×")
 
-        # ══════════════════════════════════════════════════════════════
-        # PASS 1: Collect pyramid levels
-        # ══════════════════════════════════════════════════════════════
-        _write_progress(progress_path, "rendering", 0.05, "collecting pyramid levels")
-
         # Determine pyramid level dimensions
         test_roi = np.zeros((roi_h, roi_w, 3), dtype=np.float32)
         test_down = _build_pyramid_down(test_roi, self.pyramid_levels)
         pyr_h, pyr_w = test_down.shape[:2]
 
-        # Pre-allocate temporal stack: (N, pyr_h, pyr_w, 3) in YIQ space
-        pyramid_stack = np.zeros(
-            (total_frames, pyr_h, pyr_w, 3), dtype=np.float32
-        )
-
-        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-        for i in range(total_frames):
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            # Extract face ROI and convert to float32 YIQ
-            roi = frame[y1:y2, x1:x2].astype(np.float32) / 255.0
-            yiq = _bgr_to_yiq(roi)
-
-            # Downsample to lowest pyramid level
-            level = _build_pyramid_down(yiq, self.pyramid_levels)
-
-            # Store (handle minor size mismatches from pyrDown rounding)
-            ph = min(level.shape[0], pyr_h)
-            pw = min(level.shape[1], pyr_w)
-            pyramid_stack[i, :ph, :pw, :] = level[:ph, :pw, :]
-
-            if i % 500 == 0:
-                _write_progress(
-                    progress_path, "rendering",
-                    0.05 + 0.35 * (i / total_frames),
-                    f"collecting frames ({i}/{total_frames})"
-                )
-
-        # ══════════════════════════════════════════════════════════════
-        # TEMPORAL BANDPASS FILTER (on I and Q channels only)
-        # ══════════════════════════════════════════════════════════════
-        _write_progress(progress_path, "rendering", 0.40, "temporal filtering")
-
-        # Design Butterworth bandpass filter
+        # ── Design the Butterworth bandpass up front ─────────────────
         nyquist = fps / 2.0
         low = self.freq_low / nyquist
         high = min(self.freq_high / nyquist, 0.95)  # Stay below Nyquist
@@ -314,32 +357,16 @@ class EVMRenderer:
 
         b, a = butter(3, [low, high], btype="band")
 
-        # Apply zero-phase filter along time axis (axis=0) for I and Q only.
-        # Y channel (index 0) is left untouched — no luminance amplification.
-        filtered_stack = np.zeros_like(pyramid_stack)
+        # ── Size the temporal blocks ─────────────────────────────────
+        chunk = _chunk_frames(fps, pyr_h, pyr_w, total_frames)
+        # Two seconds of padding on each side, filtered then discarded, so the
+        # filter's edge transient never lands on a frame that gets written.
+        overlap = min(int(fps * 2), max(chunk // 4, 1))
+        block_mb = (chunk + 2 * overlap) * pyr_h * pyr_w * 3 * 4 / (1024 * 1024)
+        print(f"[EVM] Block size: {chunk} frames (+{overlap} overlap), "
+              f"~{block_mb:.1f} MB per block")
 
-        # filtfilt needs padlen < signal length
-        padlen = min(3 * max(len(a), len(b)), total_frames - 1)
-
-        # Filter I channel (index 1) — all pixels at once
-        filtered_stack[:, :, :, 1] = filtfilt(
-            b, a, pyramid_stack[:, :, :, 1], axis=0, padlen=padlen
-        )
-        # Filter Q channel (index 2)
-        filtered_stack[:, :, :, 2] = filtfilt(
-            b, a, pyramid_stack[:, :, :, 2], axis=0, padlen=padlen
-        )
-
-        # Amplify the filtered chrominance
-        filtered_stack *= self.amplification
-
-        print(f"[EVM] Temporal filtering done. "
-              f"Signal range: [{filtered_stack.min():.4f}, {filtered_stack.max():.4f}]")
-
-        # ══════════════════════════════════════════════════════════════
-        # PASS 2: Reconstruct and write output video
-        # ══════════════════════════════════════════════════════════════
-        _write_progress(progress_path, "rendering", 0.50, "writing output video")
+        _write_progress(progress_path, "rendering", 0.05, "processing in blocks")
 
         # Open output video writer
         writer = None
@@ -364,49 +391,79 @@ class EVMRenderer:
         # Load HR data for overlay (if available)
         hr_data = self._load_hr_data(raw_video_path, metadata_path)
 
-        # Second pass: read raw frames, add amplified signal, write output
-        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-        for i in range(total_frames):
-            ret, frame = cap.read()
-            if not ret:
+        # ── Process block by block ───────────────────────────────────
+        for start in range(0, total_frames, chunk):
+            end = min(start + chunk, total_frames)
+            pad_start = max(0, start - overlap)
+            pad_end = min(total_frames, end + overlap)
+            n_pad = pad_end - pad_start
+
+            # Collect this block's pyramid levels (padding included)
+            stack = np.zeros((n_pad, pyr_h, pyr_w, 3), dtype=np.float32)
+            cap.set(cv2.CAP_PROP_POS_FRAMES, pad_start)
+            read = 0
+            for i in range(n_pad):
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                roi = frame[y1:y2, x1:x2].astype(np.float32) / 255.0
+                level = _build_pyramid_down(_bgr_to_yiq(roi), self.pyramid_levels)
+                ph = min(level.shape[0], pyr_h)
+                pw = min(level.shape[1], pyr_w)
+                stack[i, :ph, :pw, :] = level[:ph, :pw, :]
+                read += 1
+
+            if read == 0:
                 break
 
-            # Upsample the filtered pyramid level to face ROI dimensions
-            upsampled = _upsample(
-                filtered_stack[i], self.pyramid_levels, roi_h, roi_w
+            # Bandpass I and Q in place. Y is zeroed rather than filtered:
+            # amplifying luminance would brighten the face instead of revealing
+            # the colour change blood flow produces.
+            padlen = min(3 * max(len(a), len(b)), read - 1)
+            if padlen > 0:
+                for ch in (1, 2):
+                    stack[:read, :, :, ch] = filtfilt(
+                        b, a, stack[:read, :, :, ch], axis=0, padlen=padlen
+                    )
+            stack[:, :, :, 0] = 0.0
+            stack *= self.amplification
+
+            # Re-read the block's own frames and write them out
+            cap.set(cv2.CAP_PROP_POS_FRAMES, start)
+            for i in range(start, end):
+                ret, frame = cap.read()
+                if not ret:
+                    break
+
+                idx = i - pad_start
+                if idx >= read:
+                    break
+
+                upsampled = _upsample(stack[idx], self.pyramid_levels, roi_h, roi_w)
+
+                roi_bgr = frame[y1:y2, x1:x2].astype(np.float32) / 255.0
+                roi_yiq = _bgr_to_yiq(roi_bgr)
+                roi_yiq += upsampled
+
+                roi_magnified = _yiq_to_bgr(roi_yiq)
+                roi_magnified = np.clip(roi_magnified * 255.0, 0, 255).astype(np.uint8)
+
+                frame_f = frame[y1:y2, x1:x2].astype(np.float32)
+                magnified_f = roi_magnified.astype(np.float32)
+                blended = magnified_f * feather_mask + frame_f * (1.0 - feather_mask)
+                frame[y1:y2, x1:x2] = np.clip(blended, 0, 255).astype(np.uint8)
+
+                self._draw_hr_overlay(frame, i, fps, hr_data)
+                self._draw_evm_badge(frame, frame_w)
+                writer.write(frame)
+
+            del stack
+
+            _write_progress(
+                progress_path, "rendering",
+                0.05 + 0.93 * (end / total_frames),
+                f"frames {end}/{total_frames}"
             )
-
-            # Get original ROI in YIQ
-            roi_bgr = frame[y1:y2, x1:x2].astype(np.float32) / 255.0
-            roi_yiq = _bgr_to_yiq(roi_bgr)
-
-            # Add amplified signal to original
-            roi_yiq += upsampled
-
-            # Convert back to BGR
-            roi_magnified = _yiq_to_bgr(roi_yiq)
-            roi_magnified = np.clip(roi_magnified * 255.0, 0, 255).astype(np.uint8)
-
-            # Feathered blend into original frame
-            frame_f = frame[y1:y2, x1:x2].astype(np.float32)
-            magnified_f = roi_magnified.astype(np.float32)
-            blended = magnified_f * feather_mask + frame_f * (1.0 - feather_mask)
-            frame[y1:y2, x1:x2] = np.clip(blended, 0, 255).astype(np.uint8)
-
-            # Add HR overlay text
-            self._draw_hr_overlay(frame, i, fps, hr_data)
-
-            # Add "EVM" badge
-            self._draw_evm_badge(frame, frame_w)
-
-            writer.write(frame)
-
-            if i % 500 == 0:
-                _write_progress(
-                    progress_path, "rendering",
-                    0.50 + 0.48 * (i / total_frames),
-                    f"writing frames ({i}/{total_frames})"
-                )
 
         writer.release()
         cap.release()

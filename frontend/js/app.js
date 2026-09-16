@@ -20,6 +20,47 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // ══════════════════════════════════════════
+    //  THEME (warm light / softened dark)
+    // ══════════════════════════════════════════
+    const btnTheme = document.getElementById('btn-theme');
+    const themeKey = 'emotionlens-theme';
+
+    const applyTheme = (theme) => {
+        if (theme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        } else {
+            document.documentElement.removeAttribute('data-theme');
+        }
+        if (btnTheme) {
+            btnTheme.textContent = theme === 'dark' ? '☀️' : '🌙';
+        }
+    };
+
+    // Reading storage throws in some privacy modes, and the page must still
+    // render, so a failure just falls back to the default light theme.
+    let savedTheme = 'light';
+    try {
+        savedTheme = localStorage.getItem(themeKey) || 'light';
+    } catch (err) {
+        savedTheme = 'light';
+    }
+    applyTheme(savedTheme);
+
+    if (btnTheme) {
+        btnTheme.addEventListener('click', () => {
+            const next = document.documentElement.getAttribute('data-theme') === 'dark'
+                ? 'light'
+                : 'dark';
+            applyTheme(next);
+            try {
+                localStorage.setItem(themeKey, next);
+            } catch (err) {
+                /* preference just won't persist */
+            }
+        });
+    }
+
+    // ══════════════════════════════════════════
     //  ETHICAL DISCLAIMER
     // ══════════════════════════════════════════
     const disclaimerModal = document.getElementById('disclaimer-modal');

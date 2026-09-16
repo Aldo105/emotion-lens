@@ -12,6 +12,7 @@ Routes:
 import io
 import json
 import os
+import time
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
@@ -271,12 +272,32 @@ async def get_evm_status(session_id: int):
         try:
             with open(progress_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                return {
-                    "status": data.get("status", "rendering"),
-                    "progress": data.get("progress", 0.0),
-                    "phase": data.get("phase", "processing"),
-                    "size_mb": None,
-                }
+
+            progress = data.get("progress", 0.0)
+            started_at = data.get("started_at")
+
+            # Estimate the remaining time from the rate achieved so far rather
+            # than from a fixed assumption, since render speed varies with the
+            # machine. The first tenth is excluded because setup work (opening
+            # the video, finding the face box) is not reflected in the progress
+            # figure: extrapolating at 5% predicted 8s for a render with 34s
+            # left, while from 10% on the estimate tracks within a few seconds.
+            eta_seconds = None
+            elapsed_seconds = None
+            if started_at:
+                elapsed_seconds = max(0.0, time.time() - started_at)
+                if progress >= 0.10:
+                    total_estimate = elapsed_seconds / progress
+                    eta_seconds = max(0.0, total_estimate - elapsed_seconds)
+
+            return {
+                "status": data.get("status", "rendering"),
+                "progress": progress,
+                "phase": data.get("phase", "processing"),
+                "size_mb": None,
+                "elapsed_seconds": round(elapsed_seconds, 1) if elapsed_seconds else None,
+                "eta_seconds": round(eta_seconds) if eta_seconds is not None else None,
+            }
         except Exception:
             pass
 

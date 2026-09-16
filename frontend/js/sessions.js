@@ -68,11 +68,14 @@ class SessionManager {
         const dominantEmotion = session.dominant_emotion || session.summary?.dominant_emotion || 'neutral';
         const emotionConfig = CONFIG.EMOTIONS[dominantEmotion] || CONFIG.EMOTIONS['neutral'];
 
-        const congruence = session.congruence_score ?? session.summary?.congruence_score ?? '--';
+        // The API names these average_congruence and duration_seconds; the
+        // older names below never existed on the response, so both stats
+        // always rendered as placeholders.
+        const congruence = session.average_congruence ?? session.summary?.average_congruence ?? '--';
         const congruenceDisplay = typeof congruence === 'number' ? Math.round(congruence) : congruence;
 
         const candidateName = session.candidate_name || session.name || 'Candidato desconocido';
-        const duration = session.duration || session.summary?.duration || null;
+        const duration = session.duration_seconds ?? session.summary?.duration_seconds ?? null;
         const durationStr = duration ? this.formatDuration(duration) : '--:--';
 
         return `
@@ -235,10 +238,21 @@ class SessionManager {
                     </div>
                 </div>
 
+                <div class="evm-progress-panel hidden" id="evm-progress-panel">
+                    <div class="evm-progress-head">
+                        <span id="evm-progress-label">Video EVM</span>
+                        <span id="evm-progress-eta"></span>
+                    </div>
+                    <div class="evm-progress-track">
+                        <div class="evm-progress-fill" id="evm-progress-fill"></div>
+                    </div>
+                    <div class="evm-progress-phase" id="evm-progress-phase"></div>
+                </div>
+
                 <div class="modal-footer">
                     <button class="btn btn-primary" onclick="sessionManager.downloadPDF('${sessionId}')">📄 Descargar PDF</button>
                     <button class="btn btn-secondary" onclick="sessionManager.downloadCSV('${sessionId}')">📊 Descargar CSV</button>
-                    <button class="btn btn-secondary" onclick="sessionManager.downloadEVM('${sessionId}')">🎥 Video EVM</button>
+                    <button class="btn btn-secondary" id="btn-evm-download" onclick="sessionManager.downloadEVM('${sessionId}')">🎥 Video EVM</button>
                     <button class="btn btn-secondary" onclick="sessionManager.downloadMicroHighlights('${sessionId}')">🔬 Video Microexpresiones</button>
                     <button class="btn btn-secondary" onclick="sessionManager.closeModal()">Cerrar</button>
                 </div>
@@ -253,6 +267,101 @@ class SessionManager {
         modal.addEventListener('click', (e) => {
             if (e.target === modal) this.closeModal();
         });
+
+        this.startEvmProgressWatch(sessionId);
+    }
+
+    // ── EVM render progress ──────────────────────────────────────────
+
+    formatEta(seconds) {
+        // Null until the render is far enough along to extrapolate honestly.
+        if (seconds == null) return 'calculando tiempo…';
+        if (seconds < 60) return `~${Math.max(1, Math.round(seconds))}s restantes`;
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.round(seconds % 60);
+        return `~${mins}m ${secs.toString().padStart(2, '0')}s restantes`;
+    }
+
+    async startEvmProgressWatch(sessionId) {
+        this.stopEvmProgressWatch();
+
+        const panel = document.getElementById('evm-progress-panel');
+        const fill = document.getElementById('evm-progress-fill');
+        const label = document.getElementById('evm-progress-label');
+        const eta = document.getElementById('evm-progress-eta');
+        const phase = document.getElementById('evm-progress-phase');
+        const btn = document.getElementById('btn-evm-download');
+        if (!panel) return;
+
+        const phaseNames = {
+            queued: 'En cola',
+            'processing in blocks': 'Procesando por bloques',
+            processing: 'Procesando',
+            done: 'Completado',
+        };
+
+        const poll = async () => {
+            let data;
+            try {
+                const res = await fetch(`${CONFIG.API_URL}/reports/${sessionId}/evm-status`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                data = await res.json();
+            } catch (err) {
+                // A failed poll is not worth interrupting the report for; the
+                // next tick will retry.
+                return;
+            }
+
+            if (data.status === 'rendering') {
+                panel.classList.remove('hidden');
+                const pct = Math.round((data.progress || 0) * 100);
+                fill.style.width = `${pct}%`;
+                label.textContent = `Generando video EVM — ${pct}%`;
+                eta.textContent = this.formatEta(data.eta_seconds);
+                phase.textContent = phaseNames[data.phase] || data.phase || '';
+                if (btn) {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.55';
+                    btn.style.cursor = 'not-allowed';
+                }
+            } else if (data.status === 'ready') {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.style.opacity = '';
+                    btn.style.cursor = '';
+                }
+                // Only show the finished bar if the user watched it render;
+                // otherwise the panel stays out of the way.
+                if (!panel.classList.contains('hidden')) {
+                    fill.style.width = '100%';
+                    label.textContent = 'Video EVM listo';
+                    eta.textContent = data.size_mb ? `${data.size_mb} MB` : '';
+                    phase.textContent = 'Ya podés descargarlo.';
+                }
+                this.stopEvmProgressWatch();
+            } else if (data.status === 'failed') {
+                panel.classList.remove('hidden');
+                fill.style.width = '100%';
+                fill.style.background = 'var(--danger)';
+                label.textContent = 'El video EVM falló';
+                eta.textContent = '';
+                phase.textContent = 'Revisá el registro del servidor.';
+                this.stopEvmProgressWatch();
+            } else {
+                // not_available — this session has no recording to magnify.
+                this.stopEvmProgressWatch();
+            }
+        };
+
+        await poll();
+        this.evmPollTimer = setInterval(poll, 2000);
+    }
+
+    stopEvmProgressWatch() {
+        if (this.evmPollTimer) {
+            clearInterval(this.evmPollTimer);
+            this.evmPollTimer = null;
+        }
     }
 
     renderTasksAndEvents(analysis) {
@@ -486,6 +595,7 @@ class SessionManager {
     }
 
     closeModal() {
+        this.stopEvmProgressWatch();
         const modal = document.getElementById('session-detail-modal');
         if (modal) {
             modal.classList.remove('active');

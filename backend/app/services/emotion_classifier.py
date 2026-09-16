@@ -126,7 +126,13 @@ class EmotionClassifier:
         self.smoothing_window = 12        # Average over last N frames
         # Time-based switching (Improvement 10): require 250ms, not frame count
         self.min_switch_time_s = 0.25     # Require 250ms of sustained signal
-        self.switch_confidence_threshold = 0.15  # New emotion must beat current by this margin
+        # New emotion must beat the current one by this margin. Measured on real
+        # sessions, the gap between the top two labels has a median of 0.077,
+        # because probability spreads across nine competing labels rather than
+        # concentrating on one. The previous 0.15 sat at twice that median, so
+        # 85% of the time no switch was permitted at all and whichever emotion
+        # happened to be showing stayed put indefinitely.
+        self.switch_confidence_threshold = 0.06
 
         self._prob_history: deque[dict] = deque(maxlen=self.smoothing_window)
         self._current_emotion = "neutral"
@@ -137,6 +143,7 @@ class EmotionClassifier:
         # ── Baseline Subtraction (Problem 5) ──────────────────────────
         self._baseline_blendshapes: dict[str, float] | None = None
         self._baseline_set = False
+        self._calibration_buffer: list[dict[str, float]] = []
 
         # Try to load CNN model
         if model_path is None:
@@ -159,10 +166,16 @@ class EmotionClassifier:
     @staticmethod
     def preprocess_face(frame_bgr: np.ndarray, bbox: dict) -> np.ndarray | None:
         """
-        Crop the detected face from a BGR frame and prepare it for the CNN:
-        resize to 224x224, BGR->RGB, scale to [0,1], ImageNet normalize,
-        HWC->CHW, add batch dim. Matches the preprocessing used in
-        backend/ml/train_emotion_cnn.py.
+        Crop the detected face and prepare it for the CNN: grayscale replicated
+        to 3 channels, resized to 224x224, ImageNet-normalized, NCHW.
+
+        The grayscale step is what matches training. FER2013 is a grayscale
+        dataset and train_emotion_cnn.py applies Grayscale(num_output_channels=3),
+        so the model has never seen an image whose channels differ. Feeding it
+        colour put it out of distribution: measured against labelled footage,
+        colour scored 27% and collapsed to "sad" on 73 of 83 frames, while
+        grayscale scored 51% with predictions spread across the classes. The
+        model itself is fine — 67% on the FER2013 test split.
         """
         x1 = max(0, bbox.get("x_min", 0))
         y1 = max(0, bbox.get("y_min", 0))
@@ -174,23 +187,54 @@ class EmotionClassifier:
 
         size = EmotionClassifier._CNN_IMG_SIZE
         resized = cv2.resize(crop, (size, size))
-        rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
-        chw = rgb.transpose(2, 0, 1)
+        gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
+        three = np.stack([gray, gray, gray], axis=-1).astype(np.float32) / 255.0
+        chw = three.transpose(2, 0, 1)
         chw = (chw - EmotionClassifier._CNN_MEAN) / EmotionClassifier._CNN_STD
         return chw[np.newaxis, ...].astype(np.float32)
 
-    def set_baseline(self, blendshapes: dict[str, float]) -> None:
-        """
-        Set the resting-face baseline blendshapes from calibration.
+    def record_calibration_frame(self, blendshapes: dict[str, float] | None) -> None:
+        """Accumulate one frame of the calibration period for the baseline."""
+        if blendshapes:
+            self._calibration_buffer.append(blendshapes)
 
-        Called after the 30-second calibration period. Stores the average
-        blendshape values so they can be subtracted from every subsequent
-        frame, eliminating persistent bias from natural facial morphology
-        (e.g., someone with a resting frown won't be classified as sad).
+    def finalize_baseline(self) -> bool:
         """
-        self._baseline_blendshapes = blendshapes.copy()
+        Average the accumulated calibration frames into the resting-face
+        baseline, mirroring what ActionUnitAnalyzer.set_baseline does.
+
+        A single frame used to be passed in directly, which made a ~50ms
+        sample taken at an arbitrary instant define the subject's resting
+        face for the entire session: a blink or a swallow at that moment
+        biased every later prediction. Averaging the whole period is what
+        this class's baseline subtraction always assumed it was getting.
+
+        Returns whether a baseline could be established.
+        """
+        if not self._calibration_buffer:
+            print("[!!] Emotion baseline not set: no blendshape frames captured")
+            return False
+
+        keys = set()
+        for frame in self._calibration_buffer:
+            keys.update(frame.keys())
+
+        self._baseline_blendshapes = {
+            key: float(np.mean([f[key] for f in self._calibration_buffer if key in f]))
+            for key in keys
+        }
         self._baseline_set = True
-        print(f"[OK] Emotion classifier baseline set ({len(blendshapes)} blendshapes)")
+        n_frames = len(self._calibration_buffer)
+        self._calibration_buffer.clear()
+        print(f"[OK] Emotion classifier baseline set from {n_frames} frames "
+              f"({len(self._baseline_blendshapes)} blendshapes)")
+        return True
+
+    def reset_baseline(self) -> None:
+        """Clear the baseline and buffer so recalibration starts clean."""
+        self._baseline_blendshapes = None
+        self._baseline_set = False
+        self._calibration_buffer.clear()
 
     def _subtract_baseline(self, blendshapes: dict[str, float]) -> dict[str, float]:
         """
@@ -398,8 +442,12 @@ class EmotionClassifier:
             and margin > self.switch_confidence_threshold
         )
 
-        # Also switch if current emotion has dropped very low
-        if current_confidence < 0.05:
+        # Also switch when the displayed emotion is no longer even a runner-up.
+        # The previous escape hatch required it to fall below 0.05, which with
+        # nine competing labels almost never happened, so a stuck emotion had no
+        # way back out.
+        ranked = sorted(smoothed_probs, key=smoothed_probs.get, reverse=True)
+        if self._current_emotion not in ranked[:2]:
             should_switch = True
 
         if should_switch and top_emotion != self._current_emotion:

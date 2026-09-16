@@ -90,7 +90,7 @@ class DashboardUI {
 
         if (data.type === 'frame_result') {
             this.updateCalibration(data.is_calibrating, data.calibration_progress);
-            this.updateEmotion(data.emotion, data.confidence);
+            this.updateEmotion(data.emotion, data.confidence, data.is_calibrating);
             this.updateHeartRate(data.heart_rate);
             this.updateCongruence(data.congruence_score, data.congruence_breakdown);
             this.updateEVMFrame(data.evm_frame);
@@ -102,8 +102,12 @@ class DashboardUI {
 
             this.updateNoiseState(data.noise_state);
 
-            // Chart update throttled inside DashboardCharts
-            this.charts.updateTimeline(data.timestamp, data.emotion_probabilities);
+            // Chart update throttled inside DashboardCharts. Skipped while
+            // calibrating for the same reason the reading above is hidden --
+            // otherwise the timeline opens with 30s of pre-baseline values.
+            if (!data.is_calibrating) {
+                this.charts.updateTimeline(data.timestamp, data.emotion_probabilities);
+            }
         }
     }
 
@@ -227,6 +231,15 @@ class DashboardUI {
                         <span>🤫 No hables</span>
                         <span>👁️ Parpadea normal</span>
                     </div>
+                    <div class="calib-note">
+                        Tu rostro en reposo se mide durante estos 30s y se resta del
+                        resto de la sesion, por eso conviene mantenerlo neutral.
+                        <br>
+                        La <strong>emocion dominante</strong> refleja el estado sostenido:
+                        tarda cerca de un segundo en cambiar y se estabiliza a proposito.
+                        Los cambios instantaneos aparecen en el panel de
+                        <strong>micro-expresiones</strong>, que detecta gestos de 40 a 500 ms.
+                    </div>
                 `;
                 this.elCalibInstr.classList.remove('hidden');
             }
@@ -237,7 +250,20 @@ class DashboardUI {
         }
     }
 
-    updateEmotion(emotionKey, confidence) {
+    updateEmotion(emotionKey, confidence, isCalibrating) {
+        // Predictions made before the baseline exists have not had the subject's
+        // resting facial morphology subtracted, so they carry whatever bias that
+        // face has at rest. Showing them invites reading a real emotion into an
+        // artifact of the calibration period.
+        if (isCalibrating) {
+            this.elEmotionIcon.textContent  = '⏳';
+            this.elEmotionName.textContent  = 'Calibrando...';
+            this.elEmotionName.style.color  = 'var(--text-muted)';
+            this.elConfidenceFill.style.width = '0%';
+            this.elConfidenceText.textContent = '--';
+            return;
+        }
+
         const config      = CONFIG.EMOTIONS[emotionKey] || CONFIG.EMOTIONS['neutral'];
         const confPercent = Math.round(confidence * 100);
 

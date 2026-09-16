@@ -19,6 +19,13 @@ data/reports/
 backend/ml/saved_models/*.pt
 backend/ml/saved_models/*.pth
 
+# Labelled test footage. RAVDESS is CC BY-NC-SA 4.0: redistributing it from
+# this repo would breach the licence, and it is hundreds of MB. The builder
+# script is tracked; the media it downloads and produces is not.
+data/test_videos/*
+!data/test_videos/build_test_video.py
+!data/test_videos/evaluate.py
+
 # Editor / OS
 .vscode/*
 !.vscode/settings.json

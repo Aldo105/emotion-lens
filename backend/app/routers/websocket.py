@@ -11,6 +11,7 @@ import asyncio
 import base64
 import json
 import os
+import sys
 import threading
 import time
 import traceback
@@ -37,6 +38,27 @@ from backend.app.models.database import async_session_factory, MicroExpression a
 from backend.app.utils.image_preprocessing import AdaptivePreprocessor
 
 
+def _lower_thread_priority() -> None:
+    """
+    Drop this thread below normal priority.
+
+    Rendering shares the process with the live analysis loop, so on a machine
+    with few cores it would otherwise compete with the session the interviewer
+    is still running. Best effort — a failure here only costs responsiveness.
+    """
+    try:
+        if sys.platform == "win32":
+            import ctypes
+
+            THREAD_PRIORITY_LOWEST = -2
+            handle = ctypes.windll.kernel32.GetCurrentThread()
+            ctypes.windll.kernel32.SetThreadPriority(handle, THREAD_PRIORITY_LOWEST)
+        else:
+            os.nice(10)
+    except Exception as e:
+        print(f"[WARN] Could not lower render thread priority: {e}")
+
+
 def _render_session_videos(
     raw_path: str,
     meta_path: str,
@@ -53,6 +75,8 @@ def _render_session_videos(
     raw_path/meta_path, so deletion is deferred to this function regardless
     of each renderer's own delete_raw setting.
     """
+    _lower_thread_priority()
+
     evm_renderer = EVMRenderer(
         amplification=settings.evm_amplification,
         freq_low=settings.evm_freq_low,
@@ -454,6 +478,7 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                 micro_engine.baseline_set = False
                 micro_engine.baseline_aus = {}
                 micro_engine.baseline_variability = {}
+                emotion_classifier.reset_baseline()
                 await manager.send_json(websocket, WSStatusMessage(
                     type="status",
                     message="Recalibration started. Please maintain a neutral expression.",
@@ -560,6 +585,7 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
             # Feed calibration frames to micro-expression engine for habitual tracking
             if not baseline_calibrated and is_calibrating:
                 micro_engine.record_calibration_frame(action_units)
+                emotion_classifier.record_calibration_frame(detection.get("blendshapes"))
 
             if not baseline_calibrated and not is_calibrating:
                 # Calibration period just ended -- set baselines
@@ -572,10 +598,12 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                     congruence_scorer.set_baseline(au_analyzer.baseline_aus)
                     noise_filter.set_baseline(au_analyzer.baseline_aus)
 
-                    # Set emotion classifier baseline from blendshapes (Problem 5 fix)
-                    # so resting facial morphology is subtracted from predictions
-                    if detection.get("blendshapes"):
-                        emotion_classifier.set_baseline(detection["blendshapes"])
+                # Averaged over the whole calibration period, and deliberately
+                # outside the branch above: nesting it under the AU baseline
+                # meant a failure to compute AU baselines silently left the
+                # emotion classifier with no baseline at all, while the session
+                # still reported itself as calibrated.
+                emotion_classifier.finalize_baseline()
 
                 baseline_calibrated = True
                 calibration_start = None  # Reset recalibration timer

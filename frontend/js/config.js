@@ -24,16 +24,19 @@ const CONFIG = {
         'confidence': { color: 'var(--color-confidence)', icon: '😎', label: 'Confiado' }
     },
 
+    // Literal values rather than CSS variables: these feed canvas charts,
+    // which cannot resolve var(). Muted to match the pastel palette and chosen
+    // to stay legible on both the cream and the charcoal background.
     ANALYSIS_DIMENSIONS: {
-        technical_mastery: { label: 'Dominio Técnico', color: '#3b82f6', icon: '🔧' },
-        emotional_stability: { label: 'Estabilidad Emocional', color: '#10b981', icon: '⚖️' },
-        authenticity: { label: 'Autenticidad', color: '#8b5cf6', icon: '🎭' },
-        self_confidence: { label: 'Autoconfianza', color: '#f59e0b', icon: '💪' },
-        communication: { label: 'Comunicación', color: '#ec4899', icon: '💬' },
+        technical_mastery: { label: 'Dominio Técnico', color: '#7F9BC4', icon: '🔧' },
+        emotional_stability: { label: 'Estabilidad Emocional', color: '#7FA88C', icon: '⚖️' },
+        authenticity: { label: 'Autenticidad', color: '#A38BC4', icon: '🎭' },
+        self_confidence: { label: 'Autoconfianza', color: '#D9A566', icon: '💪' },
+        communication: { label: 'Comunicación', color: '#CE87A6', icon: '💬' },
     },
     SEVERITY_COLORS: {
-        high: '#ef4444',
-        medium: '#f59e0b',
-        low: '#6b7280',
+        high: '#C97D7D',
+        medium: '#D9A566',
+        low: '#9B9892',
     }
 };

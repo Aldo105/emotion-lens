@@ -145,6 +145,11 @@ class VideoProcessor:
                 # ── Step 3: Baseline calibration ─────────────────────
                 is_calibrating = timestamp < settings.baseline_calibration_seconds
 
+                if not baseline_calibrated and is_calibrating:
+                    emotion_classifier.record_calibration_frame(
+                        detection.get("blendshapes")
+                    )
+
                 if not baseline_calibrated and not is_calibrating:
                     au_analyzer.set_baseline()
                     if au_analyzer.baseline_aus:
@@ -153,6 +158,10 @@ class VideoProcessor:
                             variability=None,
                         )
                         congruence_scorer.set_baseline(au_analyzer.baseline_aus)
+                    # Uploaded video went through this whole function without
+                    # ever giving the classifier a baseline, so resting facial
+                    # morphology was never subtracted here the way it is live.
+                    emotion_classifier.finalize_baseline()
                     baseline_calibrated = True
 
                 # ── Step 4: Emotion classification ───────────────────

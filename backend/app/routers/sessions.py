@@ -68,7 +68,26 @@ async def list_sessions(
     result = await db.execute(query)
     sessions = result.scalars().all()
 
-    return SessionListResponse(sessions=sessions, total=total)
+    # Attach each session's summary figures in one extra query rather than
+    # letting the client fetch a summary per card.
+    session_ids = [s.id for s in sessions]
+    summaries = {}
+    if session_ids:
+        summary_result = await db.execute(
+            select(SessionSummary).where(SessionSummary.session_id.in_(session_ids))
+        )
+        summaries = {row.session_id: row for row in summary_result.scalars().all()}
+
+    items = []
+    for session in sessions:
+        item = SessionResponse.model_validate(session)
+        summary = summaries.get(session.id)
+        if summary:
+            item.average_congruence = summary.average_congruence
+            item.dominant_emotion = summary.dominant_emotion
+        items.append(item)
+
+    return SessionListResponse(sessions=items, total=total)
 
 
 # ── Get Session ───────────────────────────────────────────────────────
