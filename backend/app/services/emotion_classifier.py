@@ -123,7 +123,12 @@ class EmotionClassifier:
         self.mode = "heuristic"  # "cnn", "blendshape", or "heuristic"
 
         # ── Temporal Smoothing ────────────────────────────────────────
-        self.smoothing_window = 12        # Average over last N frames
+        # Averaging window. Measured on labelled footage: the raw per-frame
+        # argmax scores 57%, smoothing alone keeps it at 57%, but adding
+        # hysteresis on a 12-frame window drops it to 50%. A 20-frame window
+        # gives hysteresis a steadier signal to work from and recovers the
+        # full 57%, at the cost of a slightly slower reaction.
+        self.smoothing_window = 20        # Average over last N frames
         # Time-based switching (Improvement 10): require 250ms, not frame count
         self.min_switch_time_s = 0.25     # Require 250ms of sustained signal
         # New emotion must beat the current one by this margin. Measured on real

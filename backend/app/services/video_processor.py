@@ -165,7 +165,17 @@ class VideoProcessor:
                     baseline_calibrated = True
 
                 # ── Step 4: Emotion classification ───────────────────
+                # Without face_image, predict() skips the CNN branch entirely
+                # and always falls back to blendshapes, so uploaded video was
+                # never analysed by the trained model even when it was loaded.
+                face_image = None
+                if emotion_classifier.mode == "cnn":
+                    face_image = EmotionClassifier.preprocess_face(
+                        frame, detection["bbox"]
+                    )
+
                 emotion_result = emotion_classifier.predict(
+                    face_image=face_image,
                     action_units=action_units,
                     blendshapes=detection.get("blendshapes"),
                 )
