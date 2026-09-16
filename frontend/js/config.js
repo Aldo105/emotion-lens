@@ -1,7 +1,12 @@
 const CONFIG = {
-    // Backend API URLs
-    WS_URL: `ws://${window.location.host}/ws/emotion`,
-    API_URL: `http://${window.location.host}/api`,
+    // Backend API URLs. Scheme follows the page's own: served over the
+    // Cloudflare tunnel (https), a hardcoded ws:// or http:// is insecure
+    // content on a secure page, which browsers block outright — the camera
+    // permission still succeeds (that's a separate, same-origin check), so
+    // the button looked like it did nothing while the socket silently
+    // never connected.
+    WS_URL: `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/emotion`,
+    API_URL: `${window.location.protocol}//${window.location.host}/api`,
     
     // Video capture settings
     CAPTURE_FPS: 20,        // Frames per second — 20 FPS needed for micro-expression detection
@@ -13,15 +18,15 @@ const CONFIG = {
     // (see I18nManager.updateEmotionLabels) — keeping them in sync here avoids
     // the label changing on first toggle away and back to Spanish.
     EMOTIONS: {
-        'happy': { color: 'var(--color-happy)', label: 'Feliz' },
-        'sad': { color: 'var(--color-sad)', label: 'Triste' },
-        'angry': { color: 'var(--color-angry)', label: 'Enojado' },
-        'surprise': { color: 'var(--color-surprise)', label: 'Sorpresa' },
-        'disgust': { color: 'var(--color-disgust)', label: 'Disgusto' },
-        'fear': { color: 'var(--color-fear)', label: 'Miedo' },
-        'neutral': { color: 'var(--color-neutral)', label: 'Neutral' },
-        'nervousness': { color: 'var(--color-nervousness)', label: 'Nervioso' },
-        'confidence': { color: 'var(--color-confidence)', label: 'Confiado' }
+        'happy': { color: 'var(--color-happy)', label: 'Feliz', icon: '😊' },
+        'sad': { color: 'var(--color-sad)', label: 'Triste', icon: '😢' },
+        'angry': { color: 'var(--color-angry)', label: 'Enojado', icon: '😠' },
+        'surprise': { color: 'var(--color-surprise)', label: 'Sorpresa', icon: '😲' },
+        'disgust': { color: 'var(--color-disgust)', label: 'Disgusto', icon: '🤢' },
+        'fear': { color: 'var(--color-fear)', label: 'Miedo', icon: '😨' },
+        'neutral': { color: 'var(--color-neutral)', label: 'Neutral', icon: '😐' },
+        'nervousness': { color: 'var(--color-nervousness)', label: 'Nervioso', icon: '😰' },
+        'confidence': { color: 'var(--color-confidence)', label: 'Confiado', icon: '😎' }
     },
 
     // Literal values rather than CSS variables: these feed canvas charts,

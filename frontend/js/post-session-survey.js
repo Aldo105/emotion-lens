@@ -64,13 +64,13 @@ class PostSessionSurvey {
                     ¿Cual fue tu estado emocional predominante durante la sesion?
                 </p>
                 <div class="survey-emotion-selector" id="survey-emotion-selector">
-                    <span class="survey-emotion-pill" data-emotion="neutral">${Icons.dot((CONFIG.EMOTIONS["neutral"]||{}).color)} Tranquilo</span>
-                    <span class="survey-emotion-pill" data-emotion="nervousness">${Icons.dot((CONFIG.EMOTIONS["nervousness"]||{}).color)} Nervioso</span>
-                    <span class="survey-emotion-pill" data-emotion="happy">${Icons.dot((CONFIG.EMOTIONS["happy"]||{}).color)} Contento</span>
-                    <span class="survey-emotion-pill" data-emotion="angry">${Icons.dot((CONFIG.EMOTIONS["angry"]||{}).color)} Molesto</span>
-                    <span class="survey-emotion-pill" data-emotion="fear">${Icons.dot((CONFIG.EMOTIONS["fear"]||{}).color)} Ansioso</span>
-                    <span class="survey-emotion-pill" data-emotion="sad">${Icons.dot((CONFIG.EMOTIONS["sad"]||{}).color)} Triste</span>
-                    <span class="survey-emotion-pill" data-emotion="confidence">${Icons.dot((CONFIG.EMOTIONS["confidence"]||{}).color)} Seguro</span>
+                    <span class="survey-emotion-pill" data-emotion="neutral">${(CONFIG.EMOTIONS["neutral"]||{}).icon || ""} Tranquilo</span>
+                    <span class="survey-emotion-pill" data-emotion="nervousness">${(CONFIG.EMOTIONS["nervousness"]||{}).icon || ""} Nervioso</span>
+                    <span class="survey-emotion-pill" data-emotion="happy">${(CONFIG.EMOTIONS["happy"]||{}).icon || ""} Contento</span>
+                    <span class="survey-emotion-pill" data-emotion="angry">${(CONFIG.EMOTIONS["angry"]||{}).icon || ""} Molesto</span>
+                    <span class="survey-emotion-pill" data-emotion="fear">${(CONFIG.EMOTIONS["fear"]||{}).icon || ""} Ansioso</span>
+                    <span class="survey-emotion-pill" data-emotion="sad">${(CONFIG.EMOTIONS["sad"]||{}).icon || ""} Triste</span>
+                    <span class="survey-emotion-pill" data-emotion="confidence">${(CONFIG.EMOTIONS["confidence"]||{}).icon || ""} Seguro</span>
                 </div>
 
                 <div class="survey-toggle-row" style="margin-top: 16px;">

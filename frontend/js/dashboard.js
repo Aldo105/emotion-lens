@@ -271,7 +271,7 @@ class DashboardUI {
         const config = CONFIG.EMOTIONS[peak.emotion] || CONFIG.EMOTIONS['neutral'];
         this.elPeakEmotion.innerHTML =
             `<span class="peak-flash">${Icons.render('spark', {size: 14})}</span> destello: ` +
-            `${Icons.dot(config.color)} ${config.label}` +
+            `${config.icon} ${config.label}` +
             ` <span class="peak-conf">${Math.round(peak.confidence * 100)}%</span>`;
         this.elPeakEmotion.style.borderColor = config.color;
         this.elPeakEmotion.classList.remove('hidden');
@@ -299,7 +299,7 @@ class DashboardUI {
         const config      = CONFIG.EMOTIONS[emotionKey] || CONFIG.EMOTIONS['neutral'];
         const confPercent = Math.round(confidence * 100);
 
-        this.elEmotionIcon.innerHTML = Icons.dot(config.color, 16);
+        this.elEmotionIcon.textContent = config.icon;
         this.elEmotionName.textContent = config.label;
         this.elEmotionName.style.color = config.color;
 

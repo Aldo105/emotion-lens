@@ -91,7 +91,7 @@ class SessionManager {
                 <div class="session-card-stats">
                     <div class="session-stat">
                         <span class="session-stat-label">Emoción dominante</span>
-                        <span class="session-stat-value">${Icons.dot(emotionConfig.color)} ${emotionConfig.label}</span>
+                        <span class="session-stat-value">${emotionConfig.icon} ${emotionConfig.label}</span>
                     </div>
                     <div class="session-stat">
                         <span class="session-stat-label">Congruencia</span>
@@ -154,7 +154,7 @@ class SessionManager {
                 const pct = Math.round(value * 100);
                 return `
                     <div class="detail-emotion-row">
-                        <span class="detail-emotion-label">${Icons.dot(cfg.color)} ${cfg.label}</span>
+                        <span class="detail-emotion-label">${cfg.icon} ${cfg.label}</span>
                         <div class="detail-emotion-bar-track">
                             <div class="detail-emotion-bar-fill" style="width: ${pct}%; background: ${cfg.color}"></div>
                         </div>
@@ -528,7 +528,7 @@ class SessionManager {
                 const color = score >= 70 ? '#10b981' : score >= 40 ? '#f59e0b' : '#ef4444';
                 return `
                     <div class="dimension-card">
-                        <div>${Icons.dot(cfg.color, 12)}</div>
+                        <div style="font-size: 1.2rem">${cfg.icon}</div>
                         <div class="dimension-score" style="color: ${color}">${Math.round(score)}</div>
                         <div class="dimension-label">${cfg.label}</div>
                         <div class="dimension-bar">
