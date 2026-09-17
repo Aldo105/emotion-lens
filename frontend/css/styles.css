@@ -1574,6 +1574,12 @@ h1, h2, h3, h4 {
        pantallas estrechas en vez de encogerse. */
     .compare-selector-group { min-width: 0; }
 
+    /* Los controles del video (toggle EVM, calidad, selector de cámara y
+       recalibrar) no cabían en una sola línea al sumarse el selector. */
+    .video-controls { flex-wrap: wrap; gap: 10px; }
+    .video-controls > div { flex-wrap: wrap; }
+    .camera-picker select { max-width: 140px; }
+
     .modal-content { max-width: 100%; margin: 0 8px; }
 
     /* Tablas y gráficos se desplazan dentro de su caja, no arrastrando la
