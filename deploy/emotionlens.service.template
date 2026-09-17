@@ -1,0 +1,26 @@
+[Unit]
+Description=EmotionLens - Emotion Analysis Platform
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=APP_USER_PLACEHOLDER
+Group=APP_USER_PLACEHOLDER
+WorkingDirectory=APP_DIR_PLACEHOLDER
+Environment="PATH=APP_DIR_PLACEHOLDER/venv/bin"
+ExecStart=APP_DIR_PLACEHOLDER/venv/bin/gunicorn backend.app.main:app \
+    --workers 1 \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --bind 127.0.0.1:8000 \
+    --timeout 120 \
+    --access-logfile /var/log/emotionlens/access.log \
+    --error-logfile /var/log/emotionlens/error.log
+Restart=always
+RestartSec=5
+
+# Hardening (safe defaults for a single-purpose app user)
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -7,12 +7,13 @@ This guide covers deploying EmotionLens in various environments.
 ## Table of Contents
 
 1. [Local Development](#local-development)
-2. [Production Server (Linux)](#production-server-linux)
-3. [Docker Deployment](#docker-deployment)
-4. [Cloud Deployment (AWS/GCP)](#cloud-deployment)
-5. [Environment Variables](#environment-variables)
-6. [HTTPS / TLS Setup](#https--tls-setup)
-7. [Monitoring](#monitoring)
+2. [Production Server — Budget CPU VPS (Recommended Start)](#production-server--budget-cpu-vps-recommended-start)
+3. [Production Server (Linux, GPU)](#production-server-linux)
+4. [Docker Deployment](#docker-deployment)
+5. [Cloud Deployment (AWS/GCP)](#cloud-deployment)
+6. [Environment Variables](#environment-variables)
+7. [HTTPS / TLS Setup](#https--tls-setup)
+8. [Monitoring](#monitoring)
 
 ---
 
@@ -44,6 +45,49 @@ python -m uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
 - **Dashboard**: http://localhost:8000
 - **API Docs**: http://localhost:8000/docs
 - **WebSocket**: ws://localhost:8000/ws/emotion
+
+---
+
+## Production Server — Budget CPU VPS (Recommended Start)
+
+For a low-cost "always on" deployment without a GPU (e.g. a $12-24/mo
+DigitalOcean/Hetzner/Linode droplet, Ubuntu 22.04, 2 vCPU / 4GB RAM), use the
+turnkey scripts in `deploy/`:
+
+```bash
+# On a fresh Ubuntu 22.04 VPS, as root:
+git clone https://github.com/your-org/emotion-lens.git /tmp/emotion-lens
+sudo bash /tmp/emotion-lens/deploy/setup_vps.sh your-domain.com https://github.com/your-org/emotion-lens.git
+```
+
+This installs system packages, creates a dedicated `emotionlens` system user,
+sets up a Python venv with **CPU-only** PyTorch wheels
+(`deploy/requirements-cpu.txt` — no conda/CUDA needed), provisions a local
+PostgreSQL database, installs a `systemd` service
+(`deploy/emotionlens.service.template`, `Restart=always` so it comes back up
+after a crash or reboot), configures Nginx as a reverse proxy
+(`deploy/nginx.conf.template`, with WebSocket support for `/ws/`), and
+requests an HTTPS certificate via Certbot — required in production because
+browsers block camera access (`getUserMedia`) on non-HTTPS origins.
+
+To ship updates after the initial setup:
+
+```bash
+sudo -u emotionlens bash deploy/deploy.sh
+```
+
+Trade-off: without a GPU, CNN inference during live analysis runs on CPU and
+will process fewer frames per second than a local GPU dev machine. This is
+the cheapest path to a permanent public URL; move to the GPU section below
+if real-time performance under load becomes a problem.
+
+Useful commands once running:
+
+```bash
+systemctl status emotionlens     # is it up?
+journalctl -u emotionlens -f     # live logs
+sudo systemctl restart emotionlens
+```
 
 ---
 

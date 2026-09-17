@@ -1,0 +1,29 @@
+name: Deploy to VPS
+
+# Optional auto-deploy: pushes to master SSH into the VPS and run
+# deploy/deploy.sh. Requires these repo secrets to be set first
+# (Settings → Secrets and variables → Actions):
+#   VPS_HOST     - server IP or domain
+#   VPS_USER     - ssh user allowed to run `sudo systemctl restart emotionlens`
+#   VPS_SSH_KEY  - private key with access to that user
+#
+# Until those secrets exist, this workflow will fail — that's expected;
+# redeploy manually with `bash deploy/deploy.sh` on the VPS in the meantime.
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH and redeploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /home/emotionlens/emotion-lens
+            bash deploy/deploy.sh
