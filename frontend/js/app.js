@@ -107,10 +107,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     const noteInput = document.getElementById('note-input');
     const btnAddNote = document.getElementById('btn-add-note');
     const notesList = document.getElementById('notes-list');
+    const cameraSelect = document.getElementById('camera-select');
 
     let sessionActive = false;
     let sessionTimerInterval = null;
     let sessionStartTime = null;
+
+    // ── Camera picker ──
+    // Device labels stay empty until the user grants camera permission, so the
+    // list is refreshed again after the first stream starts.
+    async function refreshCameraList() {
+        if (!cameraSelect) return;
+        const cameras = await webcam.listCameras();
+        cameraSelect.innerHTML = '';
+
+        const optDefault = document.createElement('option');
+        optDefault.value = '';
+        optDefault.textContent = i18n.t('live.cameraDefault', 'System default');
+        cameraSelect.appendChild(optDefault);
+
+        cameras.forEach((cam, index) => {
+            const opt = document.createElement('option');
+            opt.value = cam.deviceId;
+            opt.textContent = cam.label || `${i18n.t('live.cameraSource', 'Camera')} ${index + 1}`;
+            cameraSelect.appendChild(opt);
+        });
+
+        const known = cameras.some(c => c.deviceId === webcam.deviceId);
+        cameraSelect.value = known ? webcam.deviceId : '';
+    }
+
+    if (cameraSelect) {
+        cameraSelect.addEventListener('change', async () => {
+            await webcam.switchCamera(cameraSelect.value || null);
+        });
+        // Plugging in a webcam, or a phone virtual camera appearing, changes the list.
+        navigator.mediaDevices?.addEventListener('devicechange', refreshCameraList);
+        refreshCameraList();
+    }
 
     // ── Timer ──
     function updateTimer() {
@@ -128,6 +162,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnStart.addEventListener('click', async () => {
         const streamReady = await webcam.start();
         if (streamReady) {
+            refreshCameraList();
             ws.connect(webcam);
             
             sessionActive = true;

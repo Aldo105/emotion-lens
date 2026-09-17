@@ -41,6 +41,8 @@
     "showPulse": "Mostrar Pulso (EVM)",
     "noFaceDetected": "Rostro no detectado",
     "cameraQuality": "Cámara:",
+    "cameraSource": "Fuente:",
+    "cameraDefault": "Predeterminada del sistema",
     "recalibrate": "🔄 Recalibrar"
   },
 

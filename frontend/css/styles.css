@@ -371,6 +371,33 @@ h1, h2, h3, h4 {
 .quality-indicator.fair { color: var(--warning); }
 .quality-indicator.poor { color: var(--danger); }
 
+.camera-picker {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    min-width: 0;
+}
+
+.camera-picker select {
+    max-width: 180px;
+    padding: 4px 8px;
+    background: transparent;
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-sm);
+    color: var(--text-main);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.8rem;
+    outline: none;
+    cursor: pointer;
+    text-overflow: ellipsis;
+    transition: border-color 0.2s;
+}
+
+.camera-picker select:focus { border-color: var(--primary); }
+.camera-picker select option { background: var(--bg-dark); color: var(--text-main); }
+
 .toggle-switch {
     display: flex;
     align-items: center;
