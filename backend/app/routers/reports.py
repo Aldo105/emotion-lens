@@ -166,7 +166,7 @@ async def _get_report_data(session_id: int, db: AsyncSession) -> dict:
                 "authenticity": analysis.authenticity_score,
                 "self_confidence": analysis.self_confidence_score,
                 "communication": analysis.communication_score,
-                "overall": analysis.overall_score,
+                "overall_score": analysis.overall_score,
             } if analysis else None,
             "behavioral_patterns": analysis.behavioral_patterns if analysis else [],
             "red_flags": analysis.red_flags if analysis else [],

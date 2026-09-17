@@ -545,7 +545,7 @@ class SessionManager {
         const dimConfig = CONFIG.ANALYSIS_DIMENSIONS || {};
         
         dims.innerHTML = Object.entries(scores)
-            .filter(([key]) => key !== 'overall')
+            .filter(([key]) => key !== 'overall_score')
             .map(([key, score]) => {
                 const cfg = dimConfig[key] || { label: key, color: '#888', icon: Icons.render('chart') };
                 const color = score >= 70 ? '#10b981' : score >= 40 ? '#f59e0b' : '#ef4444';
@@ -563,7 +563,7 @@ class SessionManager {
         
         // Overall score
         const overallEl = document.getElementById('detail-overall-score');
-        const overall = scores.overall || 0;
+        const overall = scores.overall_score || 0;
         const overallColor = overall >= 70 ? '#10b981' : overall >= 40 ? '#f59e0b' : '#ef4444';
         overallEl.innerHTML = `
             <div class="score-big" style="color: ${overallColor}">${Math.round(overall)}/100</div>
