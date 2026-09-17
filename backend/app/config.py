@@ -60,6 +60,18 @@ class Settings(BaseSettings):
     micro_expr_max_duration_ms: int = 500    # Max duration (ms)
     micro_expr_relevance_threshold: int = 60  # Min relevance score (0-100)
     baseline_calibration_seconds: int = 30   # Baseline capture duration
+
+    # ── Pose-Guided Calibration ──────────────────────────────────────
+    # Counted in accepted frames, not seconds: a pose the subject never
+    # actually holds must not be treated as calibrated just because the clock
+    # ran out. At 20 FPS these are ~12s frontal and ~6s per turned pose of
+    # held time, plus however long they take to get into each position.
+    # The centre needs more than the rest because it also supplies the per-AU
+    # variability the micro-expression thresholds are built from.
+    pose_calibration_center_samples: int = 240
+    pose_calibration_turned_samples: int = 120
+    # A pose nobody can hold would otherwise stall the session indefinitely.
+    pose_calibration_pose_timeout_seconds: float = 25.0
     baseline_deviation_multiplier: float = 2.0  # Flag if > 2x baseline
 
     # ── Congruence / Trustworthiness ─────────────────────────────────

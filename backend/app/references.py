@@ -311,6 +311,51 @@ CONSTANTS: tuple[ConstantEvidence, ...] = (
              "(4–48 ppm), lo que exige normalización intra-sujeto, no cortes absolutos.",
     ),
 
+    # ── Calibración guiada por pose ───────────────────────────────────
+    ConstantEvidence(
+        name="Anclas de pose de calibración",
+        location="pose_calibration.py:POSE_ANCHORS",
+        current_value="centro (0,0); izq/der ±22° yaw; arriba/abajo ∓18° pitch",
+        tier=Tier.HEURISTIC,
+        refs=(),
+        note="Objetivos de captura, no medidas de un sujeto. Se piden giros cómodos "
+             "y no extremos porque MediaPipe pierde precisión en los landmarks más "
+             "allá de ~35°, y una línea base tomada ahí no sería fiable. Los grados "
+             "son los de _estimate_head_pose (websocket.py), que es una aproximación "
+             "por desplazamiento de la nariz respecto a los ojos y el eje "
+             "frente-mentón, no una estimación de pose 3D calibrada: la escala es "
+             "consistente consigo misma, no con grados reales. Sin validar contra "
+             "ground truth de pose.",
+    ),
+    ConstantEvidence(
+        name="Tolerancia de pose para aceptar muestras",
+        location="pose_calibration.py:POSE_TOLERANCE_DEG, CENTER_TOLERANCE_DEG",
+        current_value="12° (poses giradas), 8° (centro)",
+        tier=Tier.HEURISTIC,
+        refs=(),
+        note="El objetivo es cubrir una región de ángulos, no clavar un valor exacto, "
+             "y un margen estrecho deja al sujeto atrapado intentando acertar un "
+             "número que no ve. El centro se exige más estricto porque define el "
+             "reposo frontal del que se resta todo lo demás. Sin ajustar con datos "
+             "de uso real.",
+    ),
+    ConstantEvidence(
+        name="Interpolación de línea base entre poses",
+        location="pose_calibration.py:INTERPOLATION_POWER, CORRECTION_FULL_DEG, CORRECTION_ZERO_DEG",
+        current_value="Shepard IDW p=2; corrección completa ≤18°, nula ≥40° del ancla más cercana",
+        tier=Tier.HEURISTIC,
+        refs=(),
+        note="Se eligió un interpolador (Shepard) y no un promedio ponderado con "
+             "núcleo gaussiano porque el promedio no reproduce el valor del ancla al "
+             "consultarlo en el ancla: corregía frames frontales contra una línea "
+             "base contaminada por las poses giradas. La continuidad importa porque "
+             "un salto de línea base se detecta aguas abajo como una microexpresión "
+             "falsa. El desvanecimiento fuera de la región calibrada evita "
+             "extrapolar una corrección grande sin datos que la respalden. "
+             "Pendiente: medir la tasa de falsos positivos de microexpresión con y "
+             "sin corrección, con la cabeza girada.",
+    ),
+
     # ── rPPG ──────────────────────────────────────────────────────────
     ConstantEvidence(
         name="Coeficientes CHROM (3R−2G, 1.5R+G−1.5B)",

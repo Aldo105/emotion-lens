@@ -214,6 +214,9 @@ class WSFrameResult(BaseModel):
     # Calibration status
     is_calibrating: bool = False
     calibration_progress: float = 0.0  # 0.0 - 1.0
+    # Which head pose the guided calibration is asking for, and whether the
+    # subject is currently holding it. None once calibration is done.
+    calibration_pose: Optional[dict] = None
 
     # Noise filter state
     noise_state: Optional[dict] = None

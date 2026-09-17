@@ -190,25 +190,32 @@ class ActionUnitAnalyzer:
         except Exception:
             return lm
 
-    def set_baseline(self):
+    def set_baseline(self, samples: list[dict[str, float]] | None = None):
         """
         Set the baseline from accumulated readings.
         Called after the calibration period (typically 30 seconds).
+
+        `samples` overrides the internally buffered readings. Pose-guided
+        calibration passes the frontal samples explicitly: compute() buffers
+        every frame while no baseline exists, which during that sequence
+        includes the turned-head poses, and averaging those into the resting
+        face is exactly the contamination the pose calibration exists to undo.
         
         Computes both the mean AND the standard deviation per AU.
         The standard deviation is critical for adaptive micro-expression
         thresholds — each person has different natural facial variability.
         """
-        if not self._baseline_buffer:
+        readings = samples if samples is not None else self._baseline_buffer
+        if not readings:
             return
 
         # Average and std for all AU readings to get stable baseline
         self.baseline_aus = {}
         self.baseline_variability = {}
-        all_keys = self._baseline_buffer[0].keys()
+        all_keys = readings[0].keys()
 
         for key in all_keys:
-            values = [reading[key] for reading in self._baseline_buffer if key in reading]
+            values = [reading[key] for reading in readings if key in reading]
             self.baseline_aus[key] = float(np.mean(values))
             self.baseline_variability[key] = float(np.std(values)) if len(values) > 1 else 0.05
 
@@ -217,7 +224,7 @@ class ActionUnitAnalyzer:
             self._blink_rate_raw_buffer.clear()
 
         self.baseline_set = True
-        n_frames = len(self._baseline_buffer)
+        n_frames = len(readings)
         self._baseline_buffer.clear()
         print(f"[OK] Baseline calibrated with {len(self.baseline_aus)} AUs from {n_frames} frames")
         print(f"[OK] Per-AU variability range: "

@@ -17,7 +17,7 @@
     "disconnected": "Disconnected",
     "connecting": "Connecting...",
     "connected": "Connected",
-    "calibrating": "Calibrating Baseline... Please maintain a neutral expression.",
+    "calibrating": "Guided calibration... Follow the head pose instructions on screen.",
     "dominantEmotion": "Dominant Emotion",
     "heartRate": "Heart Rate (rPPG)",
     "bpm": "BPM",

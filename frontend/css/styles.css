@@ -1767,6 +1767,58 @@ h1, h2, h3, h4 {
     border: 1px solid rgba(var(--overlay-rgb), 0.06);
 }
 
+.calib-steps {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.calib-step {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    font-size: 0.72rem;
+    font-weight: 600;
+    border: 1px solid rgba(var(--overlay-rgb), 0.15);
+    color: var(--text-muted);
+}
+
+.calib-step-done {
+    background: var(--success, #7FA88C);
+    border-color: var(--success, #7FA88C);
+    color: #fff;
+}
+
+.calib-step-active {
+    background: rgba(var(--accent-rgb), 0.18);
+    border-color: var(--accent-soft);
+    color: var(--accent-soft);
+}
+
+.calib-pose-label {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary, inherit);
+    margin-bottom: 4px;
+}
+
+.calib-pose-status {
+    font-size: 0.8rem;
+    margin-bottom: 4px;
+}
+
+.calib-ok {
+    color: var(--success, #7FA88C);
+    font-weight: 600;
+}
+
+.calib-wait {
+    color: var(--warning, #D9A566);
+}
+
 .calib-note {
     margin-top: 10px;
     padding-top: 10px;

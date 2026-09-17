@@ -30,6 +30,10 @@ from backend.app.services.micro_expressions import MicroExpressionEngine
 from backend.app.services.congruence import CongruenceScorer
 from backend.app.services.heart_rate import HeartRateEstimator
 from backend.app.services.noise_filter import FacialNoiseFilter
+from backend.app.services.pose_calibration import (
+    PoseBaselines,
+    PoseCalibrationSession,
+)
 from backend.app.services.video_recorder import SessionVideoRecorder
 from backend.app.services.evm_renderer import EVMRenderer
 from backend.app.services.micro_expression_highlight_renderer import MicroExpressionHighlightRenderer
@@ -57,6 +61,20 @@ def _lower_thread_priority() -> None:
             os.nice(10)
     except Exception as e:
         print(f"[WARN] Could not lower render thread priority: {e}")
+
+
+def _new_pose_session() -> PoseCalibrationSession:
+    """A guided pose calibration configured from settings."""
+    return PoseCalibrationSession(
+        samples_per_pose={
+            "center": settings.pose_calibration_center_samples,
+            "right": settings.pose_calibration_turned_samples,
+            "left": settings.pose_calibration_turned_samples,
+            "down": settings.pose_calibration_turned_samples,
+            "up": settings.pose_calibration_turned_samples,
+        },
+        seconds_per_pose_limit=settings.pose_calibration_pose_timeout_seconds,
+    )
 
 
 def _render_session_videos(
@@ -398,7 +416,8 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
     processed_frame_count = 0
     session_start = time.time()
     baseline_calibrated = False
-    calibration_start = None  # For recalibration timing
+    pose_session = _new_pose_session()
+    pose_baselines: PoseBaselines | None = None
     current_skin_tone = "medium"  # Updated per-frame from quality check
 
     # ── Throttle counters ─────────────────────────────────────────────
@@ -466,11 +485,15 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                 except Exception as e:
                     print(f"[WARN] Failed to parse JSON from WebSocket message: {e}")
 
-            # Handle recalibration request
-            if request_recalibrate and baseline_calibrated:
+            # Handle recalibration request. Deliberately not gated on an
+            # already-finished calibration: the button did nothing whenever the
+            # first pass had not completed, which is exactly when a session goes
+            # wrong and the subject reaches for it.
+            if request_recalibrate:
                 print("[INFO] Recalibration requested by client")
                 baseline_calibrated = False
-                calibration_start = time.time()
+                pose_session = _new_pose_session()
+                pose_baselines = None
                 au_analyzer.baseline_set = False
                 au_analyzer.baseline_aus = None
                 au_analyzer.baseline_variability = None
@@ -481,7 +504,8 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                 emotion_classifier.reset_baseline()
                 await manager.send_json(websocket, WSStatusMessage(
                     type="status",
-                    message="Recalibration started. Please maintain a neutral expression.",
+                    message="Recalibración iniciada. Sigue las instrucciones en pantalla.",
+                    data={"calibration": pose_session.progress().as_dict()},
                 ).model_dump())
                 continue
 
@@ -571,25 +595,57 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                 timestamp=timestamp,
             )
 
-            # Step 3: Baseline Calibration Check
-            # Support both initial calibration and recalibration
-            if calibration_start is not None:
-                # Recalibration mode — use time since recalibration started
-                calib_elapsed = time.time() - calibration_start
-                is_calibrating = calib_elapsed < settings.baseline_calibration_seconds
-                calibration_progress = min(1.0, calib_elapsed / settings.baseline_calibration_seconds)
-            else:
-                is_calibrating = timestamp < settings.baseline_calibration_seconds
-                calibration_progress = min(1.0, timestamp / settings.baseline_calibration_seconds)
+            # Step 2.5: Head pose, needed both to drive the guided calibration
+            # and to undo the foreshortening it measures.
+            frame_h, frame_w = detection["frame_shape"]
+            yaw, pitch = _estimate_head_pose(detection["landmarks"], frame_w, frame_h)
 
-            # Feed calibration frames to micro-expression engine for habitual tracking
-            if not baseline_calibrated and is_calibrating:
-                micro_engine.record_calibration_frame(action_units)
-                emotion_classifier.record_calibration_frame(detection.get("blendshapes"))
+            blendshapes = detection.get("blendshapes")
 
-            if not baseline_calibrated and not is_calibrating:
-                # Calibration period just ended -- set baselines
-                au_analyzer.set_baseline()
+            # Step 3: Pose-Guided Baseline Calibration
+            # The subject holds five poses (centre, right, left, down, up) so
+            # each one gets its own resting baseline. Turning the head shortens
+            # the 2D landmark distances the AUs are built from, so a single
+            # frontal baseline reads every turned frame as a deviation from
+            # rest even when the face has not moved.
+            is_calibrating = not baseline_calibrated
+            calibration_progress = 1.0
+            calibration_state = None
+
+            if is_calibrating:
+                requested_pose = pose_session.current_pose
+                progress = pose_session.record(
+                    action_units, blendshapes, yaw, pitch, timestamp
+                )
+                # A pose the subject cannot reach would otherwise stall the
+                # session forever; move on and calibrate with what was caught.
+                if not pose_session.complete and pose_session.timed_out(timestamp):
+                    print(f"[WARN] Pose {requested_pose} timed out - skipping")
+                    pose_session.skip_current_pose()
+                    progress = pose_session.progress()
+
+                calibration_progress = progress.total_progress
+                calibration_state = progress.as_dict()
+
+                # Frontal frames only. The habitual-movement tracker and the
+                # emotion baseline both describe the resting face; feeding them
+                # the turned poses would file the foreshortening itself as a
+                # habitual movement and bias every later prediction with it.
+                if requested_pose == "center" and progress.aligned:
+                    micro_engine.record_calibration_frame(action_units)
+                    emotion_classifier.record_calibration_frame(blendshapes)
+
+            if not baseline_calibrated and pose_session.complete:
+                pose_baselines = pose_session.build_baselines()
+                if pose_baselines.usable:
+                    print(f"[OK] Pose baselines: {', '.join(pose_baselines.calibrated_poses)}")
+                else:
+                    print("[WARN] Not enough poses captured — running without pose correction")
+
+                # Explicitly from the frontal samples: compute() buffers every
+                # frame while no baseline exists, and during this sequence that
+                # includes the turned poses.
+                au_analyzer.set_baseline(pose_session.center_samples() or None)
                 if au_analyzer.baseline_aus:
                     micro_engine.set_baseline(
                         baseline_aus=au_analyzer.baseline_aus,
@@ -606,12 +662,26 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                 emotion_classifier.finalize_baseline()
 
                 baseline_calibrated = True
-                calibration_start = None  # Reset recalibration timer
+                is_calibrating = False
+                calibration_progress = 1.0
+                calibration_state = None
 
                 await manager.send_json(websocket, WSStatusMessage(
                     type="calibration_complete",
-                    message="Baseline calibration complete. Analysis active.",
+                    message="Calibración completa. Análisis activo.",
+                    data={"poses": pose_baselines.calibrated_poses},
                 ).model_dump())
+
+            # Step 3.2: Bring the frame into the frontal frame of reference.
+            # Everything downstream was written against a single resting
+            # baseline, so the pose component is removed here rather than
+            # teaching each consumer about head angle.
+            if pose_baselines is not None and pose_baselines.usable:
+                action_units = pose_baselines.to_frontal(action_units, yaw, pitch)
+                if blendshapes:
+                    blendshapes = pose_baselines.blendshapes_to_frontal(
+                        blendshapes, yaw, pitch
+                    )
 
             # Step 3.5: Noise Filtering (speech, yawns, tics, scratching)
             noise_state = noise_filter.analyze(
@@ -631,7 +701,7 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
             emotion_result = emotion_classifier.predict(
                 face_image=face_image,
                 action_units=action_units,
-                blendshapes=detection.get("blendshapes"),
+                blendshapes=blendshapes,
                 quality_penalty=quality_penalty,
             )
 
@@ -740,6 +810,7 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                 camera_quality=camera_quality,
                 is_calibrating=is_calibrating,
                 calibration_progress=round(calibration_progress, 2),
+                calibration_pose=calibration_state,
                 noise_state={
                     "is_speaking": noise_state.is_speaking,
                     "is_yawning": noise_state.is_yawning,

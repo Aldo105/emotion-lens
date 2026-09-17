@@ -218,6 +218,74 @@ sobre el gesto correcto.
 
 ---
 
+## 1c. Calibración guiada por pose de cabeza
+
+### Qué se añadió
+
+La calibración ya no son 30 s mirando al frente, sino una secuencia guiada de
+cinco poses: centro, derecha, izquierda, abajo, arriba. La pantalla indica qué
+pose sostener y solo cuenta muestras cuando el ángulo medido coincide con el
+pedido, así que una pose que no se sostiene no se da por calibrada.
+
+**Motivo:** las Action Units se calculan sobre distancias entre landmarks 2D, y
+girar la cabeza las acorta por escorzo. Con una sola línea base frontal,
+cualquier frame con la cabeza girada aparece como desviación respecto al reposo
+aunque la cara no haya cambiado de expresión — infla el detector de
+microexpresiones y sesga al clasificador justo cuando la persona deja de mirar
+a la cámara, que en una entrevista es la mayor parte del tiempo.
+
+**Cómo se aplica:** `PoseBaselines.to_frontal()` resta de cada frame la
+diferencia entre la línea base interpolada para el ángulo actual y la del
+centro, antes de que el resto del pipeline lo vea. Los consumidores
+(microexpresiones, congruencia, clasificador) siguen trabajando contra la línea
+base frontal y no necesitaron cambios.
+
+Se interpola entre poses vecinas con Shepard (IDW) en vez de elegir la más
+cercana: un salto de línea base al cruzar de una región a otra se detectaría
+aguas abajo como una microexpresión falsa. Fuera de la región calibrada la
+corrección se desvanece en vez de extrapolar.
+
+Archivos: `backend/app/services/pose_calibration.py` (nuevo, 17 pruebas en
+`backend/tests/test_pose_calibration.py`), integración en `websocket.py`,
+instrucciones en `dashboard.js`, constantes registradas en `references.py`.
+
+### Falta verificar con webcam real
+
+1. **El signo del yaw.** `_estimate_head_pose` deriva el ángulo del
+   desplazamiento de la nariz; no verifiqué contra cámara si yaw positivo
+   corresponde a "derecha" tal como se le pide al sujeto. Si las instrucciones
+   salen invertidas, se intercambian los valores de `right` y `left` en
+   `POSE_ANCHORS`.
+2. **Que los ángulos pedidos sean alcanzables** y que MediaPipe mantenga los
+   landmarks en ellos. Si a ±22° pierde precisión, bajar las anclas.
+3. **Que la corrección reduzca de verdad los falsos positivos.** Medir la tasa
+   de microexpresiones detectadas con la cabeza girada, con y sin corrección:
+   es el número que justifica toda la función.
+4. **Duración total.** Con los conteos actuales son ~12 s de centro y ~6 s por
+   giro de tiempo sostenido, más lo que tarde la persona en colocarse. Si
+   resulta pesado, bajar `pose_calibration_turned_samples`.
+5. **El *quality gate* puede colgar la calibración.** El `continue` de
+   `websocket.py:556-562` descarta el frame antes del paso de calibración, igual
+   que hace con el ritmo cardíaco (ver 1.3d). Si la cámara puntúa `fail` de
+   forma sostenida, la secuencia no avanza *y el temporizador de pose tampoco
+   corre*, porque solo se evalúa en frames que pasaron el gate: se queda
+   esperando sin aviso. El arreglo del Paso 1 de la sección 1.4 (mover el gate
+   o no aplicarlo a estas etapas) cubre también este caso; mientras tanto, es
+   la primera sospecha si la calibración se queda parada en un paso.
+6. **Menos datos para movimientos habituales.** El rastreador de gestos
+   habituales ahora recibe solo los frames frontales alineados (~240 en vez de
+   ~600). Si aparecen microexpresiones falsas por tics no filtrados, subir
+   `pose_calibration_center_samples`.
+
+### Botón de recalibrar
+
+Estaba condicionado a `baseline_calibrated`: si la primera calibración no había
+terminado, el clic no hacía absolutamente nada y sin aviso alguno — justo
+cuando una sesión va mal y el sujeto recurre al botón. Ya no depende de eso, y
+reinicia la secuencia de poses completa.
+
+---
+
 ## 2. PRIORIDAD MEDIA — Despliegue permanente (VPS económico, CPU)
 
 Archivos ya preparados en `deploy/` (ver `docs/deployment.md`, sección

@@ -89,7 +89,9 @@ class DashboardUI {
         }
 
         if (data.type === 'frame_result') {
-            this.updateCalibration(data.is_calibrating, data.calibration_progress);
+            this.updateCalibration(
+                data.is_calibrating, data.calibration_progress, data.calibration_pose
+            );
             this.updateEmotion(data.emotion, data.confidence, data.is_calibrating);
             if (!data.is_calibrating) {
                 this.updatePeakEmotion(data.peak_emotion);
@@ -217,33 +219,19 @@ class DashboardUI {
         );
     }
 
-    updateCalibration(isCalibrating, progress) {
+    updateCalibration(isCalibrating, progress, pose) {
         if (isCalibrating) {
             this.elCalibration.classList.remove('hidden');
             this.elCalibrationFill.style.width = `${progress * 100}%`;
 
-            if (this.webcam) this.webcam.drawFaceGuide();
+            if (this.webcam) this.webcam.drawFaceGuide(
+                pose && pose.aligned ? 'rgba(127, 168, 140, 0.9)' : 'rgba(79, 70, 229, 0.6)'
+            );
 
             if (this.elCalibInstr) {
-                const remaining = Math.max(0, Math.ceil(30 * (1 - progress)));
-                this.elCalibInstr.innerHTML = `
-                    <div class="calib-title">${Icons.render('target')} Calibrando — ${remaining}s restantes</div>
-                    <div class="calib-tips">
-                        <span>${Icons.render('face')} Expresion neutral</span>
-                        <span>Mira a la cámara</span>
-                        <span>No hables</span>
-                        <span>${Icons.render('eye')} Parpadea normal</span>
-                    </div>
-                    <div class="calib-note">
-                        Tu rostro en reposo se mide durante estos 30s y se resta del
-                        resto de la sesion, por eso conviene mantenerlo neutral.
-                        <br>
-                        La <strong>emocion dominante</strong> refleja el estado sostenido:
-                        tarda cerca de un segundo en cambiar y se estabiliza a proposito.
-                        Los cambios instantaneos aparecen en el panel de
-                        <strong>micro-expresiones</strong>, que detecta gestos de 40 a 500 ms.
-                    </div>
-                `;
+                this.elCalibInstr.innerHTML = pose
+                    ? this.renderPoseInstructions(pose)
+                    : `<div class="calib-title">${Icons.render('target')} Calibrando…</div>`;
                 this.elCalibInstr.classList.remove('hidden');
             }
         } else {
@@ -251,6 +239,43 @@ class DashboardUI {
             if (this.elCalibInstr) this.elCalibInstr.classList.add('hidden');
             if (this.webcam) this.webcam.clearOverlay();
         }
+    }
+
+    renderPoseInstructions(pose) {
+        const held = Math.round(pose.pose_progress * 100);
+        const steps = ['center', 'right', 'left', 'down', 'up'].map((name, i) => {
+            const state = i < pose.pose_index ? 'done'
+                        : i === pose.pose_index ? 'active' : 'pending';
+            return `<span class="calib-step calib-step-${state}">${i + 1}</span>`;
+        }).join('');
+
+        // The subject cannot see the yaw/pitch numbers, so the only feedback
+        // that matters is whether the pose currently counts. Without it they
+        // hold a position that is silently being rejected.
+        const status = pose.aligned
+            ? `<span class="calib-ok">Posición correcta — mantén así (${held}%)</span>`
+            : `<span class="calib-wait">Ajusta la posición para empezar a medir</span>`;
+
+        return `
+            <div class="calib-title">
+                ${Icons.render('target')} Calibración guiada — paso ${pose.pose_index + 1} de ${pose.pose_total}
+            </div>
+            <div class="calib-steps">${steps}</div>
+            <div class="calib-pose-label">${this.escapeHtml(pose.label)}</div>
+            <div class="calib-pose-status">${status}</div>
+            <div class="calib-note">
+                Se mide tu rostro en reposo desde varios ángulos. Girar la cabeza
+                acorta las distancias entre los puntos de la cara, así que sin
+                estas medidas cualquier giro se confundiría con un cambio de
+                expresión. Mantén el rostro <strong>neutral</strong> en cada paso.
+            </div>
+        `;
+    }
+
+    escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str == null ? '' : String(str);
+        return div.innerHTML;
     }
 
     updatePeakEmotion(peak) {
