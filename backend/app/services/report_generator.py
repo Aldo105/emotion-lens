@@ -495,6 +495,45 @@ def generate_pdf_report(session_data: dict, output_path: str) -> str:
         cong_table.setStyle(_table_style(len(cong_rows)))
         elements.append(cong_table)
 
+    # ── Heart Rate (rPPG) ────────────────────────────────────────────
+    hr_stats = _heart_rate_stats(session_data.get("emotion_timeline", []) or [])
+    if hr_stats:
+        elements.append(Paragraph("Ritmo Cardíaco (rPPG)", heading_style))
+
+        hr_rows = [
+            ["Métrica", "Valor"],
+            ["Promedio", f"{hr_stats['mean']:.0f} BPM"],
+            ["Rango habitual", f"{hr_stats['p25']:.0f} – {hr_stats['p75']:.0f} BPM"],
+            ["Mínimo / Máximo", f"{hr_stats['min']:.0f} / {hr_stats['max']:.0f} BPM"],
+            ["Lecturas válidas", f"{hr_stats['count']} ({hr_stats['coverage'] * 100:.0f}% de la sesión)"],
+            ["Calidad media de señal", f"{hr_stats['mean_confidence']:.2f}"],
+        ]
+
+        hr_table = Table(hr_rows, colWidths=[80 * mm, 80 * mm])
+        hr_table.setStyle(_table_style(len(hr_rows)))
+        elements.append(hr_table)
+
+        elements.append(Spacer(1, 4 * mm))
+        elements.append(Paragraph(
+            "Estimado por fotopletismografía remota (rPPG) a partir del color de "
+            "la piel de la frente. El <b>rango habitual</b> es el intervalo "
+            "intercuartílico: descarta los extremos, que suelen venir de una "
+            "sola ventana ruidosa. Solo se registran lecturas cuando la señal "
+            "es utilizable, por eso la cobertura puede ser parcial. "
+            "<b>No es un dispositivo médico</b>: sirve para analizar activación "
+            "fisiológica, no para diagnóstico clínico.",
+            small_style,
+        ))
+    elif session_data.get("emotion_timeline"):
+        elements.append(Paragraph("Ritmo Cardíaco (rPPG)", heading_style))
+        elements.append(Paragraph(
+            "No se registraron lecturas de pulso en esta sesión. El estimador "
+            "solo guarda un valor cuando la señal es utilizable; una sesión sin "
+            "lecturas indica que el pulso no pudo recuperarse del video "
+            "(iluminación, movimiento o calidad de cámara insuficientes).",
+            body_style,
+        ))
+
     # ── Micro-Expression Log ─────────────────────────────────────────
     micros = session_data.get("micro_expressions", [])
     if micros:
@@ -1102,9 +1141,10 @@ def generate_pdf_report(session_data: dict, output_path: str) -> str:
 
 def generate_csv_report(session_data: dict, output_path: str) -> str:
     """
-    Generate a CSV report with the emotion timeline.
+    Generate a CSV report with the emotion timeline, one row per second.
 
-    Columns: timestamp, emotion, confidence, congruence_score, action_units
+    Columns: tiempo, segundo, emocion, confianza, congruencia, bpm,
+    bpm_confianza, frames, action_units
 
     Args:
         session_data: Complete session data dict.
@@ -1115,29 +1155,10 @@ def generate_csv_report(session_data: dict, output_path: str) -> str:
     """
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-    timeline = session_data.get("emotion_timeline", [])
-
     with open(output_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow([
-            "timestamp", "emotion", "confidence",
-            "congruence_score", "action_units",
-        ])
-
-        for record in timeline:
-            action_units_str = ""
-            if record.get("action_units"):
-                action_units_str = "; ".join(
-                    f"{k}={v}" for k, v in record["action_units"].items()
-                )
-
-            writer.writerow([
-                record.get("timestamp", ""),
-                record.get("emotion", ""),
-                record.get("confidence", ""),
-                record.get("congruence_score", ""),
-                action_units_str,
-            ])
+        writer.writerow(CSV_HEADER)
+        writer.writerows(_csv_rows(session_data))
 
     return output_path
 
@@ -1152,27 +1173,8 @@ def generate_csv_string(session_data: dict) -> str:
     """
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow([
-        "timestamp", "emotion", "confidence",
-        "congruence_score", "action_units",
-    ])
-
-    timeline = session_data.get("emotion_timeline", [])
-    for record in timeline:
-        action_units_str = ""
-        if record.get("action_units"):
-            action_units_str = "; ".join(
-                f"{k}={v}" for k, v in record["action_units"].items()
-            )
-
-        writer.writerow([
-            record.get("timestamp", ""),
-            record.get("emotion", ""),
-            record.get("confidence", ""),
-            record.get("congruence_score", ""),
-            action_units_str,
-        ])
-
+    writer.writerow(CSV_HEADER)
+    writer.writerows(_csv_rows(session_data))
     return output.getvalue()
 
 
@@ -1254,3 +1256,159 @@ def _format_video_time(seconds) -> str:
     """Format elapsed session time as MM:SS for human review."""
     seconds = max(0, int(round(seconds or 0)))
     return f"{seconds // 60:02d}:{seconds % 60:02d}"
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# HEART RATE (rPPG)
+# ═══════════════════════════════════════════════════════════════════════
+
+def _heart_rate_series(timeline: list) -> list[tuple[float, float, float]]:
+    """
+    (timestamp, bpm, confidence) for every record that carries a reading.
+
+    The live pipeline stores the estimate alongside the Action Units and only
+    while the estimator reports a usable signal, so a session can legitimately
+    have none: a gap here means the pulse was not recoverable from the video,
+    not that the field is missing.
+    """
+    series = []
+    for record in timeline:
+        aus = record.get("action_units") or {}
+        bpm = aus.get("hr_bpm")
+        if bpm is None:
+            continue
+        try:
+            bpm = float(bpm)
+        except (TypeError, ValueError):
+            continue
+        if bpm <= 0:
+            continue
+        try:
+            confidence = float(aus.get("hr_confidence") or 0.0)
+        except (TypeError, ValueError):
+            confidence = 0.0
+        series.append((float(record.get("timestamp") or 0.0), bpm, confidence))
+    return series
+
+
+def _heart_rate_stats(timeline: list) -> Optional[dict]:
+    """Summary of the session's pulse, or None if nothing was measured."""
+    series = _heart_rate_series(timeline)
+    if not series:
+        return None
+
+    values = sorted(bpm for _, bpm, _ in series)
+    confidences = [c for _, _, c in series]
+
+    def percentile(p: float) -> float:
+        if len(values) == 1:
+            return values[0]
+        position = p * (len(values) - 1)
+        low = int(position)
+        high = min(low + 1, len(values) - 1)
+        return values[low] + (values[high] - values[low]) * (position - low)
+
+    return {
+        "count": len(values),
+        "coverage": len(series) / len(timeline) if timeline else 0.0,
+        "mean": sum(values) / len(values),
+        "min": values[0],
+        "max": values[-1],
+        # Typical band rather than the extremes: a single bad window sets the
+        # min and max, so on its own the full range overstates the spread.
+        "p25": percentile(0.25),
+        "p75": percentile(0.75),
+        "mean_confidence": sum(confidences) / len(confidences),
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# CSV ROW BUILDING
+# ═══════════════════════════════════════════════════════════════════════
+
+CSV_HEADER = [
+    "tiempo", "segundo", "emocion", "confianza",
+    "congruencia", "bpm", "bpm_confianza", "frames", "action_units",
+]
+
+
+def _dominant(labels: list[str]) -> str:
+    """The most frequent label, ties broken by first appearance."""
+    if not labels:
+        return ""
+    counts: dict[str, int] = {}
+    for label in labels:
+        counts[label] = counts.get(label, 0) + 1
+    best = max(counts.values())
+    for label in labels:
+        if counts[label] == best:
+            return label
+    return labels[0]
+
+
+def _mean(values: list) -> Optional[float]:
+    numbers = []
+    for value in values:
+        try:
+            numbers.append(float(value))
+        except (TypeError, ValueError):
+            continue
+    return sum(numbers) / len(numbers) if numbers else None
+
+
+def _csv_rows(session_data: dict) -> list[list]:
+    """
+    One row per second of session, not one per frame.
+
+    The pipeline writes a record per processed frame (~20 a second), so the
+    raw timeline repeats every second twenty times over and a few minutes of
+    interview become thousands of near-identical rows — unreadable as a
+    timeline, which is what this export is for. Each second is collapsed to
+    its dominant emotion and the mean of the numeric columns; `frames` keeps
+    how many readings went into it, so a second thinned by dropped frames is
+    still visible as such.
+    """
+    timeline = session_data.get("emotion_timeline", []) or []
+
+    buckets: dict[int, list[dict]] = {}
+    for record in timeline:
+        try:
+            second = int(float(record.get("timestamp") or 0.0))
+        except (TypeError, ValueError):
+            continue
+        buckets.setdefault(second, []).append(record)
+
+    rows = []
+    for second in sorted(buckets):
+        records = buckets[second]
+        aus_list = [r.get("action_units") or {} for r in records]
+
+        bpm_values = [a.get("hr_bpm") for a in aus_list if a.get("hr_bpm")]
+        bpm = _mean(bpm_values)
+        bpm_confidence = _mean([a.get("hr_confidence") for a in aus_list if a.get("hr_bpm")])
+
+        confidence = _mean([r.get("confidence") for r in records])
+        congruence = _mean([r.get("congruence_score") for r in records])
+
+        # Mean of each Action Unit across the second, keeping the existing
+        # "name=value" shape so anything already parsing this column still can.
+        au_keys = sorted({k for a in aus_list for k in a if not k.startswith("hr_")})
+        action_units_str = "; ".join(
+            f"{key}={value:.4f}"
+            for key in au_keys
+            if (value := _mean([a.get(key) for a in aus_list])) is not None
+        )
+
+        rows.append([
+            _format_video_time(second),
+            second,
+            _dominant([r.get("emotion", "") for r in records]),
+            f"{confidence:.3f}" if confidence is not None else "",
+            f"{congruence:.1f}" if congruence is not None else "",
+            f"{bpm:.1f}" if bpm is not None else "",
+            f"{bpm_confidence:.3f}" if bpm_confidence is not None else "",
+            len(records),
+            action_units_str,
+        ])
+
+    return rows

@@ -286,6 +286,33 @@ reinicia la secuencia de poses completa.
 
 ---
 
+## 1d. Ritmo cardíaco en reportes y CSV por segundo
+
+**PDF** — nueva sección "Ritmo Cardíaco (rPPG)" tras Congruencia: promedio,
+rango habitual (intercuartílico), mínimo/máximo, número de lecturas válidas con
+su cobertura, y calidad media de señal. Se reporta el rango intercuartílico
+además de los extremos porque una sola ventana ruidosa fija el mínimo y el
+máximo, y por sí solo el rango completo exagera la dispersión. Si no hubo
+lecturas, la sección lo dice explícitamente en vez de omitirse en silencio.
+
+**CSV** — ahora una fila por segundo en vez de una por frame. El pipeline
+escribía un registro por frame procesado (~20/s), así que cada segundo se
+repetía veinte veces y unos minutos de entrevista eran miles de filas casi
+idénticas. Cada segundo se colapsa a su emoción dominante y la media de las
+columnas numéricas. Columnas nuevas: `tiempo` (mm:ss), `segundo` (crudo),
+`bpm`, `bpm_confianza` y `frames` (cuántas lecturas entraron en esa fila, para
+que un segundo adelgazado por frames descartados se vea como tal).
+
+Pruebas en `backend/tests/test_report_heart_rate.py`.
+
+**Dependencia importante:** ambas cosas leen `action_units.hr_bpm`, que el
+pipeline solo persiste cuando `signal_ready` (ver 1.3e). Mientras no se
+apliquen los arreglos de la sección 1.4, **las sesiones existentes no tienen
+ritmo cardíaco guardado** y estas secciones saldrán vacías. No es un fallo del
+reporte: es el mismo problema de origen.
+
+---
+
 ## 2. PRIORIDAD MEDIA — Despliegue permanente (VPS económico, CPU)
 
 Archivos ya preparados en `deploy/` (ver `docs/deployment.md`, sección
