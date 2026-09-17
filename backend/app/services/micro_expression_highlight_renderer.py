@@ -48,6 +48,28 @@ MIN_CLIP_FRAMES = 8
 MIN_VALID_BBOX_RATIO = 0.5
 
 
+def _clip_bounds(
+    frame_timestamps: np.ndarray,
+    event_timestamp: float,
+    padding_sec: float,
+    total_frames: int,
+) -> tuple[int, int]:
+    """
+    Frame range covering `event_timestamp` +/- `padding_sec`.
+
+    Located by searching the recorder's per-frame timestamps rather than by
+    multiplying by a nominal FPS. The recording is written at a declared 20 FPS
+    but the browser delivers frames on a best-effort interval, so the real rate
+    is lower and varies; assuming the nominal rate offsets every clip by a
+    margin that grows with session time, until late events index past the end
+    of the video and get dropped as "too short".
+    """
+    start = int(np.searchsorted(frame_timestamps, event_timestamp - padding_sec, side="left"))
+    end = int(np.searchsorted(frame_timestamps, event_timestamp + padding_sec, side="right"))
+    limit = min(total_frames, len(frame_timestamps))
+    return max(0, start), min(limit, end)
+
+
 class MicroExpressionHighlightRenderer:
     """
     Offline renderer that builds a single MP4 of amplified, slow-motion clips
@@ -133,6 +155,7 @@ class MicroExpressionHighlightRenderer:
     ) -> str | None:
         meta = np.load(metadata_path, allow_pickle=True)
         face_bboxes = meta["face_bboxes"]  # (N, 4) int32
+        frame_timestamps = meta["timestamps"]  # (N,) float64, session-relative
         fps_arr = meta["fps"]
         fps = float(fps_arr[0]) if len(fps_arr) > 0 else 20.0
 
@@ -176,8 +199,8 @@ class MicroExpressionHighlightRenderer:
                 f"clip {idx + 1}/{len(selected)}"
             )
             ok = self._render_one_clip(
-                cap, face_bboxes, fps, total_frames, frame_w, frame_h,
-                event, idx, len(selected), writer,
+                cap, face_bboxes, frame_timestamps, fps, total_frames,
+                frame_w, frame_h, event, idx, len(selected), writer,
             )
             if ok:
                 rendered_count += 1
@@ -204,6 +227,7 @@ class MicroExpressionHighlightRenderer:
         self,
         cap: cv2.VideoCapture,
         face_bboxes: np.ndarray,
+        frame_timestamps: np.ndarray,
         fps: float,
         total_frames: int,
         frame_w: int,
@@ -214,11 +238,9 @@ class MicroExpressionHighlightRenderer:
         writer: cv2.VideoWriter,
     ) -> bool:
         timestamp = float(event.get("timestamp", 0.0))
-        center_frame = int(round(timestamp * fps))
-        pad_frames = int(round(self.clip_padding_sec * fps))
-
-        start_frame = max(0, center_frame - pad_frames)
-        end_frame = min(total_frames, center_frame + pad_frames)
+        start_frame, end_frame = _clip_bounds(
+            frame_timestamps, timestamp, self.clip_padding_sec, total_frames
+        )
 
         if end_frame - start_frame < MIN_CLIP_FRAMES:
             print(f"[WARN] Skipping micro-expression at {timestamp:.2f}s — clip too short")

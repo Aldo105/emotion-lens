@@ -172,6 +172,52 @@ a ser calibración sintética.
 
 ---
 
+## 1b. Botón de microexpresiones del reporte final
+
+### Síntoma
+
+En el reporte final terminado, el botón "Video Microexpresiones" no funciona,
+mientras que el de "Video EVM" sí.
+
+### Causa (ya corregida en el repo)
+
+`micro_expression_highlight_renderer.py` ubicaba cada clip con
+`center_frame = int(round(timestamp * fps))`, usando los 20 FPS **nominales**.
+El MP4 se declara a 20 FPS, pero el navegador entrega frames con un
+`setInterval` best-effort (`frontend/js/config.js:12`) y la tasa real es menor
+y variable, así que el desfase **crece con la duración de la sesión**: para una
+sesión de 3 minutos entregada a 14 FPS, un evento en t=150 s se buscaba en el
+frame 3000 de un video que solo tiene ~2520. El clip se descartaba por
+"demasiado corto", y si se descartan todos, `_render_impl` devuelve `None`, el
+estado queda en `failed` y el botón solo muestra el aviso de error.
+
+Por eso fallaba solo este botón: el renderer EVM recorre el video en bloques
+secuenciales y nunca convierte un tiempo a un índice de frame.
+
+El grabador **ya guardaba** el timestamp real de cada frame
+(`video_recorder.py:136`), pero ningún consumidor lo leía. El arreglo usa ese
+arreglo con `np.searchsorted` (`_clip_bounds`), con pruebas en
+`backend/tests/test_micro_highlight_bounds.py`.
+
+**Falta verificarlo con una sesión real**: grabar una sesión con al menos una
+microexpresión tardía y comprobar que el video se genera y que cada clip cae
+sobre el gesto correcto.
+
+### Pendientes relacionados (no corregidos)
+
+1. **Las sesiones de video subido nunca generan este video.**
+   `video_processor.py` no graba video crudo ni lanza el render, así que para
+   esas sesiones el botón siempre dirá "no disponible". Decidir si se soporta
+   o si el botón se oculta cuando `input_type != "webcam"`.
+2. **La banda del filtro del renderer usa la FPS nominal.** `nyquist = fps / 2`
+   con `fps=20` mientras la tasa real es ~14 desplaza la banda de 2-12 Hz de la
+   amplificación. Conviene derivar la FPS efectiva de los timestamps del clip.
+3. **El overlay de BPM del video EVM tiene el mismo defecto** (`evm_renderer.py`
+   línea ~500, `current_time = frame_idx / fps`): no rompe nada, pero etiqueta
+   cada lectura con un tiempo desplazado.
+
+---
+
 ## 2. PRIORIDAD MEDIA — Despliegue permanente (VPS económico, CPU)
 
 Archivos ya preparados en `deploy/` (ver `docs/deployment.md`, sección
