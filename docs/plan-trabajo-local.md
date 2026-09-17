@@ -313,6 +313,58 @@ reporte: es el mismo problema de origen.
 
 ---
 
+## 1e. El interruptor "Show Pulse (EVM)" en vivo
+
+### Por qué no hacía nada
+
+No estaba conectado al filtro EVM. Llamaba a
+`HeartRateEstimator.get_magnified_frame`, que no era magnificación Euleriana
+sino un tinte plano de color sobre la frente cuya intensidad seguía la fase del
+pulso estimado. Y como se alimentaba de los buffers del estimador de ritmo
+cardíaco, en cuanto ese estimador se quedaba sin señal —lo habitual, ver
+sección 1.3— devolvía el cuadro intacto: el interruptor cambiaba la imagen por
+una copia del video que iba y volvía del servidor, visualmente idéntica pero
+más lenta y a tirones. De ahí la impresión de que no funciona.
+
+### Qué hace ahora
+
+`backend/app/services/live_evm.py` aplica el **mismo filtro que el video
+"Generar EVM"** del reporte, con los mismos parámetros de `config.py`: recorte
+del rostro, BGR→YIQ, pirámide gaussiana, pasa-banda temporal en la banda del
+pulso, se anula el canal Y (magnificación solo de color), se amplifica y se
+funde de vuelta.
+
+La única diferencia con el render offline está en el filtro temporal, y es
+inevitable: offline se tiene el video entero y se usa `filtfilt`; en vivo no
+existe el futuro. Se usa el pasa-banda IIR de la formulación en tiempo real del
+propio artículo de EVM (diferencia de dos medias móviles exponenciales), con
+dos secciones en cascada por corte. Con una sola sección la caída fuera de
+banda era de 6 dB/octava y el ruido rápido salía casi tan amplificado como el
+pulso, que a ×40 se ve como grano; medido con oscilaciones sintéticas, la
+cascada deja el pulso (1.2 Hz) en 180 niveles frente a 69 del ruido a 6 Hz.
+
+No depende del estimador de ritmo cardíaco, así que funciona aunque el pulso no
+sea recuperable. 13 pruebas en `backend/tests/test_live_evm.py`.
+
+Se eliminó `get_magnified_frame` y el parámetro `amplification_factor` de
+`heart_rate.py`, que quedaron sin uso.
+
+### Falta verificar con webcam real
+
+1. **Que la amplificación se vea bien en una cara de verdad.** Las pruebas usan
+   oscilaciones sintéticas de amplitud conocida; la señal real es mucho más
+   débil. Si se ve poco, subir `evm_amplification`; si se ve con grano,
+   bajarlo.
+2. **Que el costo por cuadro no frene el análisis en vivo.** El filtro corre
+   dentro del bucle del WebSocket. El ROI se normaliza a 160×160 antes de la
+   pirámide para acotarlo, pero conviene mirar los FPS reales con el
+   interruptor encendido y apagado.
+3. **Que se parezca al video del reporte.** Comparar lado a lado; si el efecto
+   en vivo se ve más débil, es la diferencia de ganancia entre el IIR y el
+   Butterworth, y se compensa con `evm_amplification`.
+
+---
+
 ## 2. PRIORIDAD MEDIA — Despliegue permanente (VPS económico, CPU)
 
 Archivos ya preparados en `deploy/` (ver `docs/deployment.md`, sección

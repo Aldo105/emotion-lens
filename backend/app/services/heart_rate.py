@@ -57,7 +57,6 @@ class HeartRateEstimator:
         fps: float = 15.0,
         freq_low: float = 0.7,    # 42 BPM minimum
         freq_high: float = 2.5,   # 150 BPM maximum
-        amplification_factor: float = 50.0,
         motion_threshold: float = 15.0,  # Normalized pixel displacement threshold
         min_estimation_seconds: float = 8.0,
         min_confidence: float = 0.40,
@@ -78,7 +77,6 @@ class HeartRateEstimator:
                        argmax. Widening this reintroduces readings of 190-220 BPM
                        under webcam noise (see references.py, "Banda del
                        estimador rPPG en vivo").
-            amplification_factor: Color amplification factor for visual output.
             motion_threshold: Maximum landmark displacement (in normalized pixels,
                               i.e. already scaled by frame diagonal) before a frame
                               is rejected as motion-corrupted. MediaPipe's own
@@ -115,7 +113,6 @@ class HeartRateEstimator:
         self.fps = fps
         self.freq_low = freq_low
         self.freq_high = freq_high
-        self.amplification_factor = amplification_factor
         self.buffer_size = int(buffer_seconds * fps)
         self.motion_threshold = motion_threshold
         self.min_estimation_seconds = min_estimation_seconds
@@ -381,116 +378,6 @@ class HeartRateEstimator:
         return float(
             np.clip(bpm, self._last_bpm - max_delta, self._last_bpm + max_delta)
         )
-
-    def get_magnified_frame(
-        self,
-        frame: np.ndarray,
-        landmarks: list[dict],
-        frame_shape: tuple[int, int],
-    ) -> np.ndarray:
-        """
-        Return the frame with Eulerian color magnification applied to the
-        forehead region, making the pulse visible.
-
-        This is for visual feedback in the dashboard — the viewer can
-        actually see the blood flow pulsing through the skin.
-
-        The effect works by:
-          1. Computing the CHROM pulse signal from R, G, B channel histories
-          2. Bandpass filtering the combined CHROM signal
-          3. Normalizing the filtered value to [-1, +1]
-          4. Mapping pulse phase to a vivid red ↔ cyan color shift
-          5. Alpha-blending the color overlay onto the forehead ROI
-          6. Drawing a glowing contour around the forehead region
-          7. Adding an on-screen BPM readout
-        """
-        if not SCIPY_AVAILABLE or len(self._green_signal) < int(self.fps * 3):
-            return frame
-
-        h, w = frame_shape
-
-        # Get forehead polygon
-        forehead_pts = self._get_forehead_polygon(landmarks, h, w)
-        if forehead_pts is None:
-            return frame
-
-        # Create forehead mask with feathered (blurred) edges
-        mask = np.zeros((h, w), dtype=np.uint8)
-        cv2.fillPoly(mask, [forehead_pts], 255)
-        mask_blurred = cv2.GaussianBlur(mask, (21, 21), 10)
-        mask_float = mask_blurred.astype(np.float32) / 255.0
-
-        # Compute the CHROM pulse signal and apply bandpass filter
-        chrom_signal = self._compute_chrom_signal()
-        if chrom_signal is None or len(chrom_signal) == 0:
-            return frame
-
-        # Detrend before filtering (remove DC / slow drift)
-        chrom_signal = chrom_signal - np.mean(chrom_signal)
-        filtered = self._bandpass_filter(chrom_signal)
-
-        if filtered is None or len(filtered) == 0:
-            return frame
-
-        # ── Normalize the pulse signal to [-1, +1] ──────────────────
-        # Use the recent standard deviation for consistent normalization
-        std_val = np.std(filtered)
-        if std_val < 1e-6:
-            # No meaningful variation yet — return frame with ROI outline only
-            output = frame.copy()
-            cv2.polylines(output, [forehead_pts], True, (255, 255, 0), 1, cv2.LINE_AA)
-            return output
-
-        normalized_pulse = np.clip(filtered[-1] / (std_val * 2.0), -1.0, 1.0)
-
-        # ── Map pulse phase to a vivid color ─────────────────────────
-        # positive pulse (systole / blood inflow)  → warm red tint
-        # negative pulse (diastole / blood outflow) → cool cyan tint
-        # This makes the pulsing dramatically visible
-        alpha_strength = 0.55  # Overlay opacity (0.0–1.0)
-
-        if normalized_pulse > 0:
-            # Red-ish overlay: BGR = (0, 0, 255) scaled by pulse strength
-            color = np.array([0, 30, 255], dtype=np.float32) * abs(normalized_pulse)
-        else:
-            # Cyan-ish overlay: BGR = (200, 180, 0) scaled by pulse strength
-            color = np.array([200, 180, 0], dtype=np.float32) * abs(normalized_pulse)
-
-        # Build the 3-channel overlay
-        overlay = frame.copy().astype(np.float32)
-        for c in range(3):
-            overlay[:, :, c] += color[c] * mask_float * alpha_strength
-
-        overlay = np.clip(overlay, 0, 255).astype(np.uint8)
-
-        # ── Draw pulsing contour around the forehead ROI ─────────────
-        # Contour color pulses between cyan and red with the heartbeat
-        pulse_lerp = (normalized_pulse + 1.0) / 2.0  # Map to [0, 1]
-        contour_b = int(200 * (1.0 - pulse_lerp))
-        contour_g = int(180 * (1.0 - pulse_lerp) + 50)
-        contour_r = int(255 * pulse_lerp)
-        contour_color = (contour_b, contour_g, contour_r)
-
-        # Thicker line that pulses
-        thickness = 2 + int(abs(normalized_pulse) * 2)
-        cv2.polylines(overlay, [forehead_pts], True, contour_color, thickness, cv2.LINE_AA)
-
-        # ── On-screen BPM readout ────────────────────────────────────
-        if self._last_bpm > 0:
-            bpm_text = f"HR: {int(self._last_bpm)} BPM"
-            # Position above the forehead ROI
-            text_x = int(np.mean(forehead_pts[:, 0])) - 50
-            text_y = max(int(np.min(forehead_pts[:, 1])) - 15, 20)
-
-            # Background rectangle for readability
-            (tw, th), _ = cv2.getTextSize(bpm_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
-            cv2.rectangle(overlay, (text_x - 4, text_y - th - 6),
-                          (text_x + tw + 4, text_y + 4),
-                          (0, 0, 0), -1)
-            cv2.putText(overlay, bpm_text, (text_x, text_y),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, contour_color, 2, cv2.LINE_AA)
-
-        return overlay
 
     # ══════════════════════════════════════════════════════════════════
     # INTERNAL METHODS

@@ -29,6 +29,7 @@ from backend.app.services.emotion_classifier import EmotionClassifier
 from backend.app.services.micro_expressions import MicroExpressionEngine
 from backend.app.services.congruence import CongruenceScorer
 from backend.app.services.heart_rate import HeartRateEstimator
+from backend.app.services.live_evm import LiveEVMMagnifier
 from backend.app.services.noise_filter import FacialNoiseFilter
 from backend.app.services.pose_calibration import (
     PoseBaselines,
@@ -409,6 +410,15 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
     micro_engine = MicroExpressionEngine()
     congruence_scorer = CongruenceScorer()
     heart_rate_estimator = HeartRateEstimator(fps=20.0)
+    # Same parameters as the offline report render, so the live preview and the
+    # downloadable video show the same effect.
+    live_evm = LiveEVMMagnifier(
+        amplification=settings.evm_amplification,
+        freq_low=settings.evm_freq_low,
+        freq_high=settings.evm_freq_high,
+        pyramid_levels=settings.evm_pyramid_levels,
+        fps=20.0,
+    )
     preprocessor = AdaptivePreprocessor()
     noise_filter = FacialNoiseFilter()
 
@@ -761,15 +771,16 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                         confidence=hr_result.get("bpm_confidence", 0.0),
                     )
 
-            # Generate magnified frame if requested
+            # Generate magnified frame if requested. Same Eulerian colour
+            # magnification as the downloadable "Generar EVM" video, so the
+            # toggle previews the filter the report actually produces. The
+            # previous path tinted the forehead by the estimated pulse phase
+            # and, because it ran off the heart rate estimator's buffers,
+            # returned the frame untouched whenever that signal was lost.
             evm_frame_b64 = None
             if request_evm:
                 try:
-                    mag_frame = heart_rate_estimator.get_magnified_frame(
-                        frame=frame,
-                        landmarks=detection["landmarks"],
-                        frame_shape=detection["frame_shape"],
-                    )
+                    mag_frame = live_evm.process(frame, detection["bbox"])
                     # Encode magnified frame back to base64 JPEG
                     _, buffer = cv2.imencode('.jpg', mag_frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
                     evm_frame_b64 = "data:image/jpeg;base64," + base64.b64encode(buffer).decode('utf-8')
