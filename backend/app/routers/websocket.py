@@ -30,6 +30,7 @@ from backend.app.services.micro_expressions import MicroExpressionEngine
 from backend.app.services.congruence import CongruenceScorer
 from backend.app.services.heart_rate import HeartRateEstimator
 from backend.app.services.live_evm import LiveEVMMagnifier
+from backend.app.services.live_score import LiveScoreTracker
 from backend.app.services.noise_filter import FacialNoiseFilter
 from backend.app.services.pose_calibration import (
     PoseBaselines,
@@ -421,6 +422,7 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
     )
     preprocessor = AdaptivePreprocessor()
     noise_filter = FacialNoiseFilter()
+    live_score_tracker = LiveScoreTracker()
 
     frame_count = 0
     processed_frame_count = 0
@@ -504,6 +506,7 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                 baseline_calibrated = False
                 pose_session = _new_pose_session()
                 pose_baselines = None
+                live_score_tracker.reset()
                 au_analyzer.baseline_set = False
                 au_analyzer.baseline_aus = None
                 au_analyzer.baseline_variability = None
@@ -586,14 +589,15 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
             camera_quality = _last_quality_result
             current_skin_tone = camera_quality.get("skin_tone", "medium")
 
-            # Quality gate — discard frames too poor for reliable analysis
-            if camera_quality["quality_gate"] == "fail":
-                await manager.send_json(websocket, {
-                    "type": "quality_warning",
-                    "camera_quality": camera_quality,
-                    "message": "Frame descartado por baja calidad — sigue las sugerencias",
-                })
-                continue
+            # Quality gate — a frame too poor for emotion analysis is still
+            # usable for photoplethysmography, for the guided calibration and
+            # for the magnification preview: sharpness, framing and head angle
+            # penalise the classifier, not the forehead ROI. Discarding the
+            # frame outright starved all three, and because no frame_result was
+            # sent the panels kept their last value with nothing explaining it
+            # — the pose timer only advances on frames that reach it, so a
+            # sustained "fail" left the calibration waiting forever.
+            low_quality = camera_quality["quality_gate"] == "fail"
 
             # Quality penalty for degraded frames
             quality_penalty = 1.0 if camera_quality["quality_gate"] == "pass" else 0.75
@@ -716,8 +720,11 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
             )
 
             # Step 5: Micro-Expression Detection
+            # Skipped on degraded frames: a deviation measured off a blurred or
+            # badly framed face is the false positive the quality gate exists
+            # to prevent.
             micro_event = None
-            if baseline_calibrated:
+            if baseline_calibrated and not low_quality:
                 raw_event = micro_engine.analyze(
                     current_aus=action_units,
                     timestamp=timestamp,
@@ -795,6 +802,18 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                 timestamp=timestamp,
             )
 
+            # Step 6.5: Running performance index. Held back until the baseline
+            # exists — before that the classifier is still measuring against a
+            # resting face it has not seen, and a degraded frame is exactly the
+            # one whose emotion should not move the number.
+            live_score_state = None
+            if baseline_calibrated and not low_quality:
+                live_score_state = live_score_tracker.update(
+                    probabilities=emotion_result["probabilities"],
+                    congruence=congruence_result["score"],
+                    timestamp=timestamp,
+                ).as_dict()
+
             # ═══════════════════════════════════════════════════════
             # BUILD RESPONSE
             # ═══════════════════════════════════════════════════════
@@ -812,6 +831,7 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                 action_units={k: round(v, 3) for k, v in action_units.items()},
                 congruence_score=congruence_result["score"],
                 congruence_breakdown=congruence_result["breakdown"],
+                live_score=live_score_state,
                 micro_expression=micro_event,
                 # Sent even when not signal_ready: the frontend needs to tell
                 # "still filling the signal buffer" apart from "signal too weak
@@ -833,7 +853,9 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
             await manager.send_json(websocket, result.model_dump())
 
             # ── Persist frame data to database (batched) ─────────────
-            if analysis_session_id and baseline_calibrated:
+            # Degraded frames stay out of the session record so the summary and
+            # the report keep describing frames the classifier could trust.
+            if analysis_session_id and baseline_calibrated and not low_quality:
                 processed_frame_count += 1
                 aus_persistidos = {k: round(v, 3) for k, v in action_units.items()}
 
