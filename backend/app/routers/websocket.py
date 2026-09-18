@@ -33,6 +33,7 @@ from backend.app.services.live_evm import LiveEVMMagnifier
 from backend.app.services.live_score import LiveScoreTracker
 from backend.app.services.noise_filter import FacialNoiseFilter
 from backend.app.services.pose_calibration import (
+    POSE_ANCHORS,
     PoseBaselines,
     PoseCalibrationSession,
 )
@@ -179,12 +180,23 @@ def decode_frame(data: str) -> np.ndarray | None:
         return None
 
 
-def _compute_camera_quality(frame: np.ndarray, detection: dict) -> dict:
+def _compute_camera_quality(
+    frame: np.ndarray,
+    detection: dict,
+    requested_pose: str | None = None,
+) -> dict:
     """
     Evaluate camera/capture quality for reliable emotion detection.
 
     Checks: face size, brightness, position, sharpness, contrast,
     head pose, lighting balance, and skin tone.
+
+    Expects the raw camera frame, not the preprocessed one: every measurement
+    here describes the capture, and the preprocessor normalises away the very
+    things being measured.
+
+    `requested_pose` is the pose the guided calibration is currently asking
+    for, so that holding it does not read as a framing problem.
 
     Returns quality metrics, warnings, actionable suggestions, and a
     quality gate decision (pass/degraded/fail).
@@ -268,16 +280,31 @@ def _compute_camera_quality(frame: np.ndarray, detection: dict) -> dict:
             score -= 0.15
 
     # ── Head Pose Check (from landmarks) ─────────────────────────
+    # Measured as deviation from the pose being asked for, not from the camera
+    # axis. The guided calibration requests yaw ±22 and pitch ±18, so judging
+    # every frame against frontal marked the subject down — and told them to
+    # look at the camera — for doing exactly what the screen had just asked.
     yaw, pitch = _estimate_head_pose(detection["landmarks"], w, h)
-    if abs(yaw) > 20:
-        warnings.append("Rostro muy girado — mira hacia la camara")
-        suggestions.append("Gira tu cabeza hacia la camara")
+    target_yaw, target_pitch = POSE_ANCHORS.get(requested_pose or "center", (0.0, 0.0))
+    holding_turn = (target_yaw, target_pitch) != (0.0, 0.0)
+    yaw_off = abs(yaw - target_yaw)
+    pitch_off = abs(pitch - target_pitch)
+
+    if yaw_off > 20:
+        if holding_turn:
+            warnings.append("No se alcanza la postura pedida — sigue la guia en pantalla")
+            suggestions.append("Sostén la postura que indica la pantalla")
+        else:
+            warnings.append("Rostro muy girado — mira hacia la camara")
+            suggestions.append("Gira tu cabeza hacia la camara")
         score -= 0.20
-    elif abs(yaw) > 12:
-        suggestions.append("Mira un poco mas de frente a la camara")
+    elif yaw_off > 12:
+        if not holding_turn:
+            suggestions.append("Mira un poco mas de frente a la camara")
         score -= 0.08
-    if abs(pitch) > 20:
-        suggestions.append("Ajusta la altura de la camara para mirar de frente")
+    if pitch_off > 20:
+        if not holding_turn:
+            suggestions.append("Ajusta la altura de la camara para mirar de frente")
         score -= 0.15
 
     # ── Lighting Balance (left vs right) ─────────────────────────
@@ -584,8 +611,19 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
             # Step 1.5: Camera Quality + Quality Gate
             # Throttled: recompute every _quality_check_interval frames (~2 Hz).
             # Camera quality (brightness, sharpness, pose) changes slowly.
+            # Measured on the raw frame. The preprocessor box-filters for noise,
+            # which is exactly what the Laplacian sharpness check looks at, and
+            # CLAHE normalises the contrast that the contrast check measures —
+            # so reading the processed frame scored the preprocessor, not the
+            # camera, and pushed both toward "fail" on its own. Skin tone reads
+            # the raw frame for the same reason: it selects the CLAHE strength,
+            # so measuring it after CLAHE closed a feedback loop on itself.
             if _last_quality_result is None or frame_count % _quality_check_interval == 0:
-                _last_quality_result = _compute_camera_quality(preprocessed_frame, detection)
+                _last_quality_result = _compute_camera_quality(
+                    frame,
+                    detection,
+                    requested_pose=None if baseline_calibrated else pose_session.current_pose,
+                )
             camera_quality = _last_quality_result
             current_skin_tone = camera_quality.get("skin_tone", "medium")
 
