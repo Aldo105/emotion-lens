@@ -199,6 +199,10 @@ class WSFrameResult(BaseModel):
     congruence_score: float
     congruence_breakdown: Optional[dict[str, float]] = None
 
+    # Running performance index. The report's overall score is only available
+    # once the session closes, so the live panel had no equivalent number.
+    live_score: Optional[dict] = None
+
     # Micro-expression (if one was just detected)
     micro_expression: Optional[MicroExpressionEvent] = None
 

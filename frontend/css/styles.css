@@ -398,6 +398,46 @@ h1, h2, h3, h4 {
 .camera-picker select:focus { border-color: var(--primary); }
 .camera-picker select option { background: var(--bg-dark); color: var(--text-main); }
 
+/* Running performance index */
+.live-score-display {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.live-score-value {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--text-main);
+    transition: color 0.3s;
+}
+
+.live-score-value .unit {
+    font-size: 0.9rem;
+    font-weight: 400;
+    color: var(--text-muted);
+}
+
+.live-score-track {
+    height: 6px;
+    background: var(--glass-border);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.live-score-fill {
+    height: 100%;
+    width: 0;
+    border-radius: 3px;
+    transition: width 0.4s, background-color 0.3s;
+}
+
+.live-score-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
 .toggle-switch {
     display: flex;
     align-items: center;

@@ -41,6 +41,11 @@
     "showPulse": "Show Pulse (EVM)",
     "noFaceDetected": "No face detected",
     "cameraQuality": "Camera:",
+    "liveScore": "Overall Score",
+    "liveScoreWaiting": "Measuring...",
+    "liveScoreGood": "Going well",
+    "liveScoreMid": "Mixed",
+    "liveScoreLow": "Negative signals",
     "cameraSource": "Source:",
     "cameraDefault": "System default",
     "recalibrate": "🔄 Recalibrate"

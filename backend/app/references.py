@@ -692,6 +692,44 @@ CONSTANTS: tuple[ConstantEvidence, ...] = (
              "fijarse ajustándolos contra intensidades AU codificadas por humanos "
              "certificados en FACS (DISFA aporta intensidad 0–5 para 12 AUs).",
     ),
+
+    # ── Índice de desempeño en vivo ───────────────────────────────────
+    ConstantEvidence(
+        name="EMOTION_VALENCE (valencia por emoción)",
+        location="live_score.py:24-33",
+        current_value="happy +1.0, confidence +0.8, surprise +0.2, neutral 0.0, "
+                      "nervousness −0.5, disgust −0.7, sad −0.8, angry −1.0",
+        tier=Tier.HEURISTIC,
+        refs=("barrett2019reconsidered",),
+        note="El orden de los signos responde a un pedido de producto (tristeza e ira "
+             "restan, alegría suma); las magnitudes intermedias no salen de ninguna "
+             "escala publicada. Anclarlas exigiría normas de valencia medidas en la "
+             "propia población, no elegidas a ojo. A 'surprise' se la deja casi neutra "
+             "a propósito, porque el proyecto ya la trata como ambigua y la reporta "
+             "como nota de revisión en vez de como emoción dominante.",
+    ),
+    ConstantEvidence(
+        name="Pesos del índice en vivo (valencia / congruencia)",
+        location="live_score.py:36-37",
+        current_value="0.60 valencia, 0.40 congruencia",
+        tier=Tier.HEURISTIC,
+        refs=(),
+        note="Reparto elegido sin medición. No es la misma métrica que "
+             "interview_analyzer.overall_score, que pondera cinco dimensiones sobre la "
+             "sesión completa; este índice sólo usa lo que existe frame a frame y no "
+             "debe leerse como una predicción de aquél.",
+    ),
+    ConstantEvidence(
+        name="Ventana de promediado del índice en vivo",
+        location="live_score.py:43,47",
+        current_value="3.0 s de ventana; 2.0 s antes de mostrar número",
+        tier=Tier.HEURISTIC,
+        refs=(),
+        note="Se promedia por tiempo y no por número de muestras porque la entrega de "
+             "frames del navegador es irregular — el mismo problema que sesga la FFT "
+             "del rPPG. Ambos valores se fijaron para que el número no saltara por "
+             "ruido, no contra ningún criterio externo.",
+    ),
 )
 
 

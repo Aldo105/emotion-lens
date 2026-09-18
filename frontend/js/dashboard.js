@@ -23,6 +23,10 @@ class DashboardUI {
         this.elCongruenceValue = document.getElementById('congruence-value');
         this.elCongruenceLabel = document.getElementById('congruence-label');
 
+        this.elLiveScoreValue = document.getElementById('live-score-value');
+        this.elLiveScoreFill  = document.getElementById('live-score-fill');
+        this.elLiveScoreLabel = document.getElementById('live-score-label');
+
         this.elBreakdowns = {
             stability: document.getElementById('breakdown-stability'),
             alignment: document.getElementById('breakdown-alignment'),
@@ -98,6 +102,7 @@ class DashboardUI {
             }
             this.updateHeartRate(data.heart_rate);
             this.updateCongruence(data.congruence_score, data.congruence_breakdown);
+            this.updateLiveScore(data.live_score);
             this.updateEVMFrame(data.evm_frame);
             this.updateCameraQuality(data.camera_quality);
 
@@ -405,6 +410,38 @@ class DashboardUI {
                 this.elWebcamVideo.style.pointerEvents = 'auto';
             }
         }
+    }
+
+    updateLiveScore(liveScore) {
+        if (!this.elLiveScoreValue) return;
+
+        // Absent while calibrating, and null until the window holds enough
+        // samples — showing a number built on two frames would swing on noise.
+        if (!liveScore || liveScore.score === null || liveScore.score === undefined) {
+            this.elLiveScoreValue.textContent = '--';
+            this.elLiveScoreValue.style.color = 'var(--text-main)';
+            this.elLiveScoreFill.style.width = '0%';
+            this.elLiveScoreLabel.textContent = i18n.t('live.liveScoreWaiting', 'Midiendo...');
+            return;
+        }
+
+        const s = Math.round(liveScore.score);
+        let color = 'var(--success)';
+        let label = i18n.t('live.liveScoreGood', 'Va bien');
+
+        if (s < 40) {
+            color = 'var(--danger)';
+            label = i18n.t('live.liveScoreLow', 'Señales negativas');
+        } else if (s < 65) {
+            color = 'var(--warning)';
+            label = i18n.t('live.liveScoreMid', 'Mixto');
+        }
+
+        this.elLiveScoreValue.textContent = s;
+        this.elLiveScoreValue.style.color = color;
+        this.elLiveScoreFill.style.width = `${s}%`;
+        this.elLiveScoreFill.style.backgroundColor = color;
+        this.elLiveScoreLabel.textContent = label;
     }
 
     updateCongruence(score, breakdown) {
