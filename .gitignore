@@ -34,6 +34,11 @@ data/test_videos/*
 # Notas de trabajo propias, no parte del proyecto
 notas-locales/
 
+# Parches de traspaso entre máquinas: una vez aplicados con git am, los commits
+# ya son la fuente de verdad y el archivo sólo duplica el historial.
+*.patch
+*.bundle
+
 # Editor / OS
 .vscode/*
 !.vscode/settings.json
