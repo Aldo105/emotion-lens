@@ -138,12 +138,38 @@ class FaceDetector:
             min_face_presence_confidence=detection_confidence,
             min_tracking_confidence=tracking_confidence,
             output_face_blendshapes=True,
-            output_facial_transformation_matrixes=False,
+            # Gives the 4x4 head transform, which is where real yaw/pitch/roll
+            # come from. The landmark heuristic it replaces returned a number
+            # scaled by an arbitrary constant, so its "degrees" were not
+            # degrees — reaching the calibration's ±22 anchor took roughly a
+            # 60° turn, past where the far eye corner stays trackable.
+            output_facial_transformation_matrixes=True,
         )
 
         self.landmarker = mp_vision.FaceLandmarker.create_from_options(options)
         self.refine_landmarks = refine_landmarks
         self._frame_timestamp_ms = 0  # Monotonic timestamp for VIDEO mode
+
+    @staticmethod
+    def _head_pose_from_matrix(matrix) -> dict | None:
+        """
+        Real yaw/pitch/roll, in degrees, from MediaPipe's 4x4 head transform.
+
+        Decomposed with cv2.RQDecomp3x3 rather than a hand-written
+        asin/atan2 chain, which picks the wrong branch near ±90°.
+        """
+        import cv2
+
+        m = np.asarray(matrix, dtype=np.float64)
+        if m.shape != (4, 4):
+            return None
+
+        x_angle, y_angle, z_angle = cv2.RQDecomp3x3(m[:3, :3])[0]
+        return {
+            "yaw": float(y_angle),
+            "pitch": float(x_angle),
+            "roll": float(z_angle),
+        }
 
     def detect(self, frame: np.ndarray, timestamp_ms: int | None = None) -> dict | None:
         """
@@ -235,12 +261,18 @@ class FaceDetector:
             for bs in results.face_blendshapes[0]:
                 blendshapes[bs.category_name] = bs.score
 
+        head_pose = None
+        matrixes = getattr(results, "facial_transformation_matrixes", None)
+        if matrixes is not None and len(matrixes) > 0:
+            head_pose = self._head_pose_from_matrix(matrixes[0])
+
         return {
             "landmarks": landmarks,
             "landmarks_px": landmarks_px,
             "bbox": bbox,
             "key_points": key_points,
             "blendshapes": blendshapes,
+            "head_pose": head_pose,
             "frame_shape": (h, w),
         }
 

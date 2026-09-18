@@ -284,7 +284,7 @@ def _compute_camera_quality(
     # axis. The guided calibration requests yaw ±22 and pitch ±18, so judging
     # every frame against frontal marked the subject down — and told them to
     # look at the camera — for doing exactly what the screen had just asked.
-    yaw, pitch = _estimate_head_pose(detection["landmarks"], w, h)
+    yaw, pitch = _head_pose(detection)
     target_yaw, target_pitch = POSE_ANCHORS.get(requested_pose or "center", (0.0, 0.0))
     holding_turn = (target_yaw, target_pitch) != (0.0, 0.0)
     yaw_off = abs(yaw - target_yaw)
@@ -347,11 +347,34 @@ def _compute_camera_quality(
     }
 
 
+def _head_pose(detection: dict) -> tuple:
+    """
+    Yaw and pitch in degrees, preferring MediaPipe's head transform.
+
+    Every threshold built on this — the calibration anchors, the correction
+    ranges, the quality penalties — was written as if it were reading real
+    degrees. The landmark fallback below does not produce them: it scales a
+    displacement ratio by an arbitrary 60.0, which needs roughly a 60° turn to
+    report 22. The transform gives true angles, so those thresholds finally
+    mean what they say. The fallback stays for the case where MediaPipe
+    returns no matrix, and is the reason the sign convention below matches it.
+    """
+    pose = detection.get("head_pose")
+    if pose:
+        return pose["yaw"], pose["pitch"]
+
+    frame_h, frame_w = detection["frame_shape"]
+    return _estimate_head_pose(detection["landmarks"], frame_w, frame_h)
+
+
 def _estimate_head_pose(landmarks: list, frame_w: int, frame_h: int) -> tuple:
     """
     Estimate yaw and pitch from face landmarks.
     Uses nose tip, forehead, chin, and eye corners.
     Returns (yaw_degrees, pitch_degrees).
+
+    Fallback only — the scale factor is arbitrary, so the magnitudes are not
+    degrees. See _head_pose above.
     """
     try:
         # Nose tip = 1, left eye outer = 33, right eye outer = 263
@@ -650,7 +673,7 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
             # Step 2.5: Head pose, needed both to drive the guided calibration
             # and to undo the foreshortening it measures.
             frame_h, frame_w = detection["frame_shape"]
-            yaw, pitch = _estimate_head_pose(detection["landmarks"], frame_w, frame_h)
+            yaw, pitch = _head_pose(detection)
 
             blendshapes = detection.get("blendshapes")
 
