@@ -660,6 +660,13 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
             # sustained "fail" left the calibration waiting forever.
             low_quality = camera_quality["quality_gate"] == "fail"
 
+            # Below this much light the classifier stops measuring expression
+            # and collapses onto "sad": across six recorded sessions every one
+            # under ~0.40 face brightness came out 93-100% sad, and every one
+            # above it had none at all. Reporting "Triste" there describes the
+            # lighting, not the person, so the label is withheld instead.
+            low_light = camera_quality.get("brightness", 1.0) < settings.emotion_min_face_brightness
+
             # Quality penalty for degraded frames
             quality_penalty = 1.0 if camera_quality["quality_gate"] == "pass" else 0.75
 
@@ -780,12 +787,24 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                 quality_penalty=quality_penalty,
             )
 
+            # The reading is about the light, not the face, so it is not passed
+            # off as an emotion. The frontend gets the reason rather than a
+            # silent gap, and nothing downstream sees a label it would average.
+            if low_light:
+                emotion_result = {
+                    **emotion_result,
+                    "emotion": "unmeasurable",
+                    "confidence": 0.0,
+                    "probabilities": {k: 0.0 for k in emotion_result["probabilities"]},
+                    "peak": None,
+                }
+
             # Step 5: Micro-Expression Detection
             # Skipped on degraded frames: a deviation measured off a blurred or
             # badly framed face is the false positive the quality gate exists
             # to prevent.
             micro_event = None
-            if baseline_calibrated and not low_quality:
+            if baseline_calibrated and not low_quality and not low_light:
                 raw_event = micro_engine.analyze(
                     current_aus=action_units,
                     timestamp=timestamp,
@@ -868,7 +887,7 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
             # resting face it has not seen, and a degraded frame is exactly the
             # one whose emotion should not move the number.
             live_score_state = None
-            if baseline_calibrated and not low_quality:
+            if baseline_calibrated and not low_quality and not low_light:
                 live_score_state = live_score_tracker.update(
                     probabilities=emotion_result["probabilities"],
                     congruence=congruence_result["score"],
@@ -916,7 +935,7 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
             # ── Persist frame data to database (batched) ─────────────
             # Degraded frames stay out of the session record so the summary and
             # the report keep describing frames the classifier could trust.
-            if analysis_session_id and baseline_calibrated and not low_quality:
+            if analysis_session_id and baseline_calibrated and not low_quality and not low_light:
                 processed_frame_count += 1
                 aus_persistidos = {k: round(v, 3) for k, v in action_units.items()}
 

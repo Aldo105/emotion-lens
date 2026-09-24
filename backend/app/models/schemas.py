@@ -203,6 +203,10 @@ class WSFrameResult(BaseModel):
     # once the session closes, so the live panel had no equivalent number.
     live_score: Optional[dict] = None
 
+    # Why no emotion is being reported, when that is the case. A blank panel
+    # with no reason is what made the heart rate so slow to diagnose.
+    emotion_blocked_reason: Optional[str] = None
+
     # Micro-expression (if one was just detected)
     micro_expression: Optional[MicroExpressionEvent] = None
 

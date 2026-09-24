@@ -1,0 +1,26 @@
+app.js:187  confusion:    '❓ Confusión',
+app.js:188  key_question: '💬 Pregunta clave',
+app.js:204  timeSpan.textContent = `🕒 ${time}`;
+dashboard.js:154  this.elCameraQualityValue.textContent = `${Math.round(score * 100)}% ✓`;
+dashboard.js:157  this.elCameraQualityValue.textContent = `${Math.round(score * 100)}% ⚠`;
+dashboard.js:160  this.elCameraQualityValue.textContent = `${Math.round(score * 100)}% ✗`;
+dashboard.js:201  this.elQualityGateBanner.textContent = '⛔ Calidad insuficiente — sigue las sugerencia
+dashboard.js:233  <span>👀 Mira a la camara</span>
+dashboard.js:234  <span>🤫 No hables</span>
+post-session-survey.js:34  <h2>📋 Encuesta Post-Sesion</h2>
+post-session-survey.js:44  <span style="font-size: 0.75rem; color: var(--text-muted);">😞 Nada</span>
+post-session-survey.js:46  <span style="font-size: 0.75rem; color: var(--text-muted);">Muy 😊</span>
+post-session-survey.js:67  <span class="survey-emotion-pill" data-emotion="neutral">😐 Tranquilo</span>
+post-session-survey.js:68  <span class="survey-emotion-pill" data-emotion="nervousness">😰 Nervioso</span>
+post-session-survey.js:69  <span class="survey-emotion-pill" data-emotion="happy">😊 Contento</span>
+post-session-survey.js:70  <span class="survey-emotion-pill" data-emotion="angry">😠 Molesto</span>
+post-session-survey.js:71  <span class="survey-emotion-pill" data-emotion="fear">😨 Ansioso</span>
+post-session-survey.js:72  <span class="survey-emotion-pill" data-emotion="sad">😢 Triste</span>
+post-session-survey.js:73  <span class="survey-emotion-pill" data-emotion="confidence">😎 Seguro</span>
+post-session-survey.js:170  <button data-idx="${i}" data-verdict="correct">✅</button>
+post-session-survey.js:171  <button data-idx="${i}" data-verdict="incorrect">❌</button>
+post-session-survey.js:172  <button data-idx="${i}" data-verdict="unsure">🤷</button>
+sessions.js:175  <h2>📋 Reporte de Sesión</h2>
+sessions.js:176  <button class="icon-btn modal-close" onclick="sessionManager.closeModal()">✕</button>
+sessions.js:587  recsEl.innerHTML = '<h4 style="margin: 12px 0 8px;">📋 Recomendaciones</h4>' +
+video-upload.js:79  <button class="icon-btn file-remove" onclick="videoUploadManager.clearFile(event)">✕<

@@ -47,6 +47,11 @@ class Settings(BaseSettings):
 
     # ── Emotion Classification ───────────────────────────────────────
     emotion_confidence_threshold: float = 0.3  # Min confidence to report
+    # Por debajo de este brillo de rostro (0-1) el clasificador colapsa a
+    # "sad" y deja de medir expresión. Calibrado contra sesiones propias, no
+    # elegido a ojo — ver references.py. El aviso de "poca luz" del chequeo de
+    # cámara vive en 0.30 y quedaba muy por debajo de donde se rompe.
+    emotion_min_face_brightness: float = 0.40
     emotion_labels: list[str] = [
         # "fear" se retiró: nunca ganó un solo segmento en 220 clips
         # etiquetados de 20 personas (ver references.py).
