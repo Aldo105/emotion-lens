@@ -126,7 +126,8 @@ def test_con_la_matriz_el_giro_pedido_si_cuenta():
 
 def test_giro_comodo_de_25_grados_ya_cuenta_como_la_pose():
     # Con grados reales basta acercarse: 25° cae dentro de la tolerancia de 12.
-    d = _detection(head_pose={"yaw": 25.0, "pitch": 0.0, "roll": 0.0})
+    # Girar a la derecha de la persona es yaw negativo (imagen sin espejo).
+    d = _detection(head_pose={"yaw": -25.0, "pitch": 0.0, "roll": 0.0})
     yaw, pitch = ws._head_pose(d)
     assert pose_matches("right", yaw, pitch)
 
@@ -136,3 +137,26 @@ def test_seguir_de_frente_no_cuenta_como_giro():
     yaw, pitch = ws._head_pose(d)
     assert not pose_matches("right", yaw, pitch)
     assert pose_matches("center", yaw, pitch)
+
+
+# ── Convención física: lo que dice la pantalla vs. el signo del yaw ──
+
+def test_girar_a_tu_derecha_cuenta_como_la_pose_derecha():
+    """
+    La cámara no está en espejo: si la persona gira a SU derecha, la nariz se
+    mueve hacia la izquierda de la imagen (x disminuye). Eso debe alinear la
+    pose "right", que es la que la pantalla pide con "Gira la cabeza a tu
+    derecha". Antes el ancla tenía el signo opuesto y nunca se alineaba.
+    """
+    # theta negativo en _landmarks_para_giro = nariz hacia la izquierda del encuadre
+    yaw_heuristico, _ = ws._head_pose(_detection(theta_deg=-40.0, head_pose=None))
+    assert yaw_heuristico < 0
+    assert pose_matches("right", -22.0, 0.0)
+    assert not pose_matches("left", -22.0, 0.0)
+
+
+def test_girar_a_tu_izquierda_cuenta_como_la_pose_izquierda():
+    yaw_heuristico, _ = ws._head_pose(_detection(theta_deg=40.0, head_pose=None))
+    assert yaw_heuristico > 0
+    assert pose_matches("left", 22.0, 0.0)
+    assert not pose_matches("right", 22.0, 0.0)

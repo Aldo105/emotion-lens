@@ -16,9 +16,16 @@ referencia frontal antes de que el resto del pipeline lo vea. Los consumidores
 (micro_expressions, congruence, emotion_classifier) siguen trabajando contra la
 línea base del centro y no necesitan cambios.
 
-El ángulo de cabeza viene de _estimate_head_pose (websocket.py), en grados
-aproximados: yaw positivo = la nariz se desplaza hacia la derecha del encuadre,
-pitch positivo = la nariz baja respecto al eje frente-mentón.
+El ángulo de cabeza viene de _head_pose (websocket.py): yaw positivo = la
+nariz se desplaza hacia la derecha del encuadre, pitch positivo = la nariz baja
+respecto al eje frente-mentón.
+
+El navegador envía la imagen de la cámara tal cual, sin espejo
+(webcam.captureFrameBase64), así que la derecha del encuadre es la IZQUIERDA de
+la persona. Las anclas de abajo están expresadas en la convención del encuadre
+y las etiquetas en la de la persona: "gira a tu derecha" mueve la nariz hacia
+la izquierda de la imagen, es decir, yaw negativo. Si algún día se espeja el
+frame antes de enviarlo, hay que invertir el signo del yaw de "right"/"left".
 """
 
 from dataclasses import dataclass, field
@@ -32,8 +39,12 @@ import numpy as np
 # allá de ~35 grados y la línea base dejaría de ser fiable.
 POSE_ANCHORS: dict[str, tuple[float, float]] = {
     "center": (0.0, 0.0),
-    "right": (22.0, 0.0),
-    "left": (-22.0, 0.0),
+    # Girar a la derecha de la persona lleva la nariz a la izquierda del
+    # encuadre (imagen sin espejo): yaw negativo. Con el signo al revés, lo que
+    # pide la pantalla nunca coincidía con el ancla, la pose no se alineaba y
+    # se saltaba por tiempo.
+    "right": (-22.0, 0.0),
+    "left": (22.0, 0.0),
     "down": (0.0, 18.0),
     "up": (0.0, -18.0),
 }

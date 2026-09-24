@@ -52,13 +52,13 @@ def test_pose_pedida_puntua_igual_que_estar_de_frente(pose):
     f = _frame()
     pose(yaw=0.0)
     frontal = ws._compute_camera_quality(f, _detection(f), requested_pose="center")
-    pose(yaw=22.0)
+    pose(yaw=-22.0)
     girado = ws._compute_camera_quality(f, _detection(f), requested_pose="right")
     assert girado["score"] == pytest.approx(frontal["score"])
 
 
 def test_izquierda_tambien(pose):
-    pose(yaw=-22.0)
+    pose(yaw=22.0)
     f = _frame()
     q = ws._compute_camera_quality(f, _detection(f), requested_pose="left")
     assert not any("girado" in x for x in q["warnings"])
@@ -74,8 +74,8 @@ def test_pose_vertical_pedida_no_penaliza(pose):
 
 
 def test_no_alcanzar_la_pose_pedida_si_penaliza(pose):
-    # Le piden girar a la derecha (+22) y mira al lado contrario.
-    pose(yaw=-25.0)
+    # Le piden girar a la derecha (-22, imagen sin espejo) y mira al lado contrario.
+    pose(yaw=25.0)
     f = _frame()
     q = ws._compute_camera_quality(f, _detection(f), requested_pose="right")
     assert any("postura" in x for x in q["warnings"])
@@ -84,7 +84,7 @@ def test_no_alcanzar_la_pose_pedida_si_penaliza(pose):
 
 def test_mensaje_de_pose_no_contradice_la_instruccion(pose):
     # Mientras se pide una pose girada, nunca debe decirse "mira a la camara".
-    pose(yaw=-25.0)
+    pose(yaw=25.0)
     f = _frame()
     q = ws._compute_camera_quality(f, _detection(f), requested_pose="right")
     todo = " ".join(q["warnings"] + q["suggestions"])

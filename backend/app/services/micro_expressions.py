@@ -9,6 +9,13 @@ Detects micro-expressions using a 3-layer validation system:
 Micro-expressions are involuntary, brief facial expressions that reveal
 concealed emotions. They last 40-500ms and typically involve specific
 Action Unit combinations.
+
+Onset/apex/offset is measured on each AU's deviation from the person's resting
+baseline, as the full width at half maximum of the peak: the expression must
+rise from rest, peak above the per-AU threshold and fall back to rest. The AUs
+of one event must peak together (within COOCCURRENCE_WINDOW_S). The input AUs
+are already EMA-smoothed by ActionUnitAnalyzer; this engine does not smooth
+them again — see analyze().
 """
 
 from __future__ import annotations
@@ -46,6 +53,44 @@ class MicroExpressionEvent:
     description: str
     temporal_valid: bool = True
     context_valid: bool = True
+
+
+@dataclass
+class AUPeak:
+    """One completed onset→apex→offset of a single AU."""
+    au: str
+    peak_time: float
+    peak_value: float
+    amplitude: float      # peak minus the person's resting value
+    duration: float       # seconds, full width at half maximum
+    offset_time: float
+
+
+# The micro patterns and the emotion classifier name emotions differently
+# ("anger" vs "angry", "sadness" vs "sad"). Comparing the raw strings marked a
+# micro-expression as contradicting the displayed emotion even when both were
+# the same emotion, which added +30 relevance and fed the trust score, the red
+# flags and the report's "masking" text with false contradictions.
+MICRO_TO_CLASSIFIER_LABEL: dict[str, str] = {
+    "anger": "angry",
+    "sadness": "sad",
+    "fear": "fear",
+    "disgust": "disgust",
+    "surprise": "surprise",
+    # "contempt" and "stress" have no classifier label: any non-neutral
+    # displayed emotion differs from them.
+}
+
+# Displayed labels that carry no emotion to contradict.
+_NON_COMPARABLE_DISPLAYED = {"neutral", "unmeasurable", "", None}
+
+
+def micro_contradicts_displayed(detected_emotion: str, dominant_emotion: str | None) -> bool:
+    """Whether a micro-expression contradicts the emotion shown on the face."""
+    if dominant_emotion in _NON_COMPARABLE_DISPLAYED:
+        return False
+    equivalent = MICRO_TO_CLASSIFIER_LABEL.get(detected_emotion, detected_emotion)
+    return equivalent != dominant_emotion
 
 
 # ── AU-to-Emotion Mapping ────────────────────────────────────────────
@@ -134,9 +179,23 @@ class MicroExpressionEngine:
         self._calibration_frame_count = 0     # Total calibration frames (for percentage calc)
         self._calibration_frames: list[dict] = []  # Accumulated calibration AU frames
 
-        # Active onset tracking (potential micro-expressions in progress)
-        self._active_onsets: dict[str, float] = {}  # AU -> onset timestamp
-        self._active_peaks: dict[str, float] = {}   # AU -> peak value
+        # Last peak time already reported, per AU, so a peak that stays in the
+        # rolling buffer is not reported again on the following frames.
+        self._consumed_peaks: dict[str, float] = {}
+
+        # A peak only counts once it has returned to rest, and only while
+        # that return is recent. Keeps the event close to "now" and lets an AU
+        # whose offset lands a frame or two later still join the same event.
+        self.completion_window_s = 0.4
+        # AUs of one expression peak together; peaks further apart than this
+        # are separate movements and are not combined into one pattern.
+        self.cooccurrence_window_s = 0.2
+        # A buffer gap larger than this (frames skipped for yawns, scratching,
+        # forced blinks or a lost face) breaks the series: values on either
+        # side of the gap are not consecutive and must not form a peak.
+        self.max_frame_gap_s = 0.25
+        # Frames of a peak that must sit above the per-AU threshold.
+        self.min_frames_above_threshold = 2
 
         # Recent detections (prevent duplicates)
         self._recent_detections: deque[float] = deque(maxlen=50)  # timestamps
@@ -147,9 +206,6 @@ class MicroExpressionEngine:
         self.max_duration_ms = settings.micro_expr_max_duration_ms
         self.relevance_threshold = settings.micro_expr_relevance_threshold
         self.deviation_multiplier = settings.baseline_deviation_multiplier
-
-        # EMA smoothing state
-        self._prev_smoothed: dict[str, float] | None = None
 
         # Latest raw AU values (for contempt asymmetry check etc.)
         self._latest_aus: dict[str, float] = {}
@@ -169,6 +225,22 @@ class MicroExpressionEngine:
         for au in HABITUAL_AUS:
             if aus.get(au, 0.0) > 0.2:
                 self.habitual_counts[au] += 1
+
+    def reset_calibration(self) -> None:
+        """
+        Forget the previous calibration before a recalibration.
+
+        The calibration frames used to survive a recalibration, so the
+        habitual-movement counts mixed the old and the new calibration.
+        """
+        self.baseline_aus = {}
+        self.baseline_variability = {}
+        self.baseline_set = False
+        self._calibration_frames = []
+        self._calibration_frame_count = 0
+        self.habitual_counts = {au: 0 for au in HABITUAL_AUS}
+        self._consumed_peaks = {}
+        self.au_buffer.clear()
 
     def set_baseline(self, baseline_aus: dict[str, float], variability: dict[str, float] = None):
         """
@@ -195,27 +267,6 @@ class MicroExpressionEngine:
                     if frame.get(au, 0.0) > 0.2:
                         self.habitual_counts[au] += 1
 
-    def _smooth_aus(self, current_aus: dict) -> dict:
-        """
-        Apply Exponential Moving Average smoothing to reduce frame-to-frame jitter.
-
-        Args:
-            current_aus: Raw AU values for the current frame.
-
-        Returns:
-            Smoothed AU values.
-        """
-        alpha = 0.4
-        if self._prev_smoothed is None:
-            self._prev_smoothed = current_aus.copy()
-            return current_aus.copy()
-        smoothed = {}
-        for k, v in current_aus.items():
-            prev = self._prev_smoothed.get(k, v)
-            smoothed[k] = alpha * v + (1 - alpha) * prev
-        self._prev_smoothed = smoothed.copy()
-        return smoothed
-
     def analyze(
         self,
         current_aus: dict[str, float],
@@ -240,8 +291,12 @@ class MicroExpressionEngine:
         # Store latest raw AU values (used by contempt asymmetry check)
         self._latest_aus = current_aus.copy()
 
-        # Apply EMA smoothing before buffering
-        smoothed_aus = self._smooth_aus(current_aus)
+        # No second smoothing here. The AUs arrive already EMA-smoothed by
+        # ActionUnitAnalyzer (alpha 0.5); a second EMA (alpha 0.4) on top made
+        # the offset test impossible to pass: after any peak the next three
+        # frames averaged at least ~59% of it, and the test needs them to fall
+        # below half. Real expressions could never be detected.
+        smoothed_aus = dict(current_aus)
 
         # ── Noise filtering ──────────────────────────────────────────────
         if noise_state is not None:
@@ -249,7 +304,10 @@ class MicroExpressionEngine:
             if noise_state.is_yawning or noise_state.is_scratching or noise_state.is_forced_blink:
                 return None
             
-            # During speech, only analyze upper-face AUs
+            # During speech, only analyze upper-face AUs. The excluded AUs are
+            # left out of the reading (not stored as 0): _au_series stops at
+            # the first reading without them, so speech never creates the
+            # artificial 0 → value → 0 steps that used to pass as peaks.
             if noise_state.upper_face_only:
                 filtered = {k: v for k, v in smoothed_aus.items() 
                             if k in noise_state.filtered_aus_for_micro}
@@ -279,62 +337,49 @@ class MicroExpressionEngine:
         camera_quality_score: float = 1.0,
     ) -> MicroExpressionEvent | None:
         """
-        Core detection logic: look for rapid onset-apex-offset patterns.
+        Core detection logic: find AUs that just completed an onset→apex→offset
+        and that peaked together, then validate them as one event.
         """
-        # Analyze each trackable AU for onset/offset patterns
         aus_to_track = ["AU1", "AU2", "AU4", "AU5", "AU6", "AU7", "AU9",
                         "AU12", "AU14", "AU15", "AU17", "AU20",
                         "AU23", "AU24", "AU25", "AU26"]
 
-        # Collect all (au_name, duration, peak_value) from all peaks across all AUs
-        all_peak_candidates: list[tuple[str, float, float]] = []
-
+        candidates: list[AUPeak] = []
         for au_name in aus_to_track:
             peaks = self._check_au_pattern(au_name, timestamp)
             if peaks:
-                for duration, peak_value in peaks:
-                    all_peak_candidates.append((au_name, duration, peak_value))
+                candidates.extend(peaks)
 
-        if not all_peak_candidates:
+        if not candidates:
             return None
 
-        # Group peaks by proximity and build candidate events
-        # For simplicity, collect activated AUs and their best durations
-        activated_aus = []
-        activation_durations = []
-        seen_aus: dict[str, tuple[float, float]] = {}  # au -> (best_duration, best_peak)
-
-        for au_name, duration, peak_value in all_peak_candidates:
-            if au_name not in seen_aus or peak_value > seen_aus[au_name][1]:
-                seen_aus[au_name] = (duration, peak_value)
-
-        for au_name, (duration, _peak) in seen_aus.items():
-            activated_aus.append(au_name)
-            activation_durations.append(duration)
-
-        if not activated_aus:
-            return None
+        # ── Group by co-occurrence ───────────────────────────────────
+        # Anchor on the strongest fresh peak and keep only the AUs that peaked
+        # together with it. Previously every AU with a peak anywhere in the
+        # 3 s buffer was pooled into one "event".
+        anchor = max(candidates, key=lambda p: p.amplitude)
+        group: dict[str, AUPeak] = {}
+        for peak in candidates:
+            if abs(peak.peak_time - anchor.peak_time) <= self.cooccurrence_window_s:
+                best = group.get(peak.au)
+                if best is None or peak.amplitude > best.amplitude:
+                    group[peak.au] = peak
 
         # ── Layer 1: Temporal Filter ─────────────────────────────────
-        avg_duration_ms = np.mean(activation_durations) * 1000
+        avg_duration_ms = float(np.mean([p.duration for p in group.values()]) * 1000)
         if avg_duration_ms < self.min_duration_ms or avg_duration_ms > self.max_duration_ms:
             return None
 
-        # ── Gap check (moved before relevance computation) ───────────
+        # ── Gap check ────────────────────────────────────────────────
         if self._recent_detections and (timestamp - self._recent_detections[-1]) < self._min_detection_gap:
             return None
 
         # ── Layer 2: Context Filter ──────────────────────────────────
-        if self.baseline_set:
-            significant_aus = []
-            for au_name in activated_aus:
-                if self._exceeds_baseline(au_name):
-                    if not self._is_habitual(au_name):
-                        significant_aus.append(au_name)
-            
-            if not significant_aus:
-                return None
-            activated_aus = significant_aus
+        # Every peak already exceeds the person's baseline + 2.5 std (see
+        # _check_au_pattern); what is left is dropping habitual movements.
+        activated_aus = [au for au in group if not self._is_habitual(au)]
+        if not activated_aus:
+            return None
 
         # ── Match to emotion pattern ─────────────────────────────────
         detected_emotion, pattern_strength = self._match_emotion_pattern(activated_aus)
@@ -349,10 +394,10 @@ class MicroExpressionEngine:
             pattern_strength=pattern_strength,
             duration_ms=avg_duration_ms,
             camera_quality_score=camera_quality_score,
+            peak_values={au: group[au].peak_value for au in activated_aus},
         )
 
-        # Build the event
-        is_contradictory = detected_emotion != dominant_emotion and dominant_emotion != "neutral"
+        is_contradictory = micro_contradicts_displayed(detected_emotion, dominant_emotion)
 
         description = self._build_description(
             detected_emotion, dominant_emotion, activated_aus,
@@ -375,107 +420,110 @@ class MicroExpressionEngine:
         # Only surface if above threshold (but log all)
         if relevance >= self.relevance_threshold:
             self._recent_detections.append(timestamp)
+            for au, peak in group.items():
+                self._consumed_peaks[au] = max(self._consumed_peaks.get(au, -np.inf), peak.peak_time)
             return event
 
         return None  # Below threshold, not surfaced
 
-    def _check_au_pattern(self, au_name: str, current_time: float) -> list[tuple[float, float]] | None:
+    def _au_series(self, au_name: str) -> tuple[np.ndarray, np.ndarray]:
         """
-        Check if an AU shows onset-apex-offset patterns in the buffer using
-        local peak detection via scipy find_peaks.
-        
-        Returns a list of (duration, peak_value) tuples for each valid peak,
-        or None if no valid peaks found.
-        """
-        if len(self.au_buffer) < 5:
-            return None
+        The most recent uninterrupted run of readings for one AU.
 
-        # Get AU values over time from buffer
-        times = []
-        values = []
-        for reading in self.au_buffer:
+        Stops at the first reading that lacks the AU (it was excluded during
+        speech) or at a time gap (frames skipped for noise or a lost face).
+        """
+        times: list[float] = []
+        values: list[float] = []
+        prev_time = None
+        for reading in reversed(self.au_buffer):
+            value = reading.values.get(au_name)
+            if value is None:
+                break
+            if prev_time is not None and (prev_time - reading.timestamp) > self.max_frame_gap_s:
+                break
             times.append(reading.timestamp)
-            values.append(reading.values.get(au_name, 0.0))
+            values.append(float(value))
+            prev_time = reading.timestamp
+        return np.array(times[::-1]), np.array(values[::-1])
 
-        values = np.array(values)
-        times = np.array(times)
+    def _au_threshold(self, au_name: str, values: np.ndarray) -> tuple[float, float]:
+        """(resting value, peak threshold) for one AU."""
+        if self.baseline_set:
+            rest = self.baseline_aus.get(au_name, 0.0)
+            variability = self.baseline_variability.get(au_name, 0.05)
+            return rest, max(rest + variability * 2.5, 0.15)
+        return float(np.percentile(values, 20)), 0.3  # Fallback before calibration
 
-        if len(values) < 5:
+    def _check_au_pattern(self, au_name: str, current_time: float) -> list[AUPeak] | None:
+        """
+        Completed, not-yet-reported onset→apex→offset peaks of one AU.
+
+        Measured on the deviation from the person's resting value: the onset
+        is where the AU last sat at or below half of the peak's height above
+        rest, the offset where it first falls back there. The duration is the
+        time between both crossings (full width at half maximum), interpolated
+        between frames. The old test compared the peak with the absolute value
+        of the three frames right next to it, which are part of the rise and
+        the fall themselves, so it failed for any expression that did not start
+        from exactly zero.
+        """
+        times, values = self._au_series(au_name)
+        if len(values) < 4:
             return None
 
-        # ── Dynamic per-AU threshold ─────────────────────────────────
-        if self.baseline_set:
-            baseline_val = self.baseline_aus.get(au_name, 0.0)
-            baseline_var = self.baseline_variability.get(au_name, 0.05)
-            threshold = baseline_val + baseline_var * 2.5
-            threshold = max(threshold, 0.15)  # Absolute minimum
-        else:
-            threshold = 0.3  # Fallback before calibration
-
-        # ── Find ALL local peaks above threshold ─────────────────────
-        peak_indices, properties = find_peaks(values, height=threshold, distance=2)
-
+        rest, threshold = self._au_threshold(au_name, values)
+        peak_indices, _ = find_peaks(values, height=threshold)
         if len(peak_indices) == 0:
             return None
 
-        results: list[tuple[float, float]] = []
+        already_reported = self._consumed_peaks.get(au_name, -np.inf)
+        results: list[AUPeak] = []
 
         for peak_idx in peak_indices:
-            peak_val = values[peak_idx]
-
-            # Check onset (values before peak are low)
-            if peak_idx < 2:
+            if times[peak_idx] <= already_reported:
                 continue
-            pre_peak = values[:peak_idx]
-            pre_mean = np.mean(pre_peak[-3:]) if len(pre_peak) >= 3 else np.mean(pre_peak)
 
-            # Check offset (values after peak are low)  
-            post_peak = values[peak_idx + 1:]
-            if len(post_peak) < 2:
-                # Peak is at the end — offset hasn't happened yet
+            peak_val = float(values[peak_idx])
+            amplitude = peak_val - rest
+            if amplitude <= 0:
                 continue
-            post_mean = np.mean(post_peak[:3]) if len(post_peak) >= 3 else np.mean(post_peak)
+            half = rest + amplitude / 2.0
 
-            # Verify onset-apex-offset pattern
-            onset_ratio = peak_val / (pre_mean + 1e-6)
-            offset_ratio = peak_val / (post_mean + 1e-6)
+            onset_idx = next((i for i in range(peak_idx - 1, -1, -1) if values[i] <= half), None)
+            if onset_idx is None:
+                continue  # rise started before the series: no onset seen
+            offset_idx = next((i for i in range(peak_idx + 1, len(values)) if values[i] <= half), None)
+            if offset_idx is None:
+                continue  # has not returned to rest yet
 
-            if onset_ratio > 2.0 and offset_ratio > 2.0:
-                # Pattern detected — compute duration
-                # Find onset point (first crossing above threshold/2)
-                onset_time = times[peak_idx]
-                for i in range(peak_idx - 1, -1, -1):
-                    if values[i] < threshold / 2:
-                        onset_time = times[i]
-                        break
+            if current_time - times[offset_idx] > self.completion_window_s:
+                continue  # completed too long ago; it was already evaluated
 
-                # Find offset point
-                offset_time = times[peak_idx]
-                for i in range(peak_idx + 1, len(values)):
-                    if values[i] < threshold / 2:
-                        offset_time = times[i]
-                        break
+            # At least two frames above the threshold. A one-frame excursion is
+            # landmark jitter as often as expression, and at ~20 fps a real
+            # movement of 100 ms or more always spans two frames once smoothed.
+            # This sets the practical minimum near 100 ms, below the 40 ms the
+            # config nominally allows: one frame every 50 ms cannot tell a
+            # 40 ms expression apart from noise.
+            above = int(np.sum(values[onset_idx:offset_idx + 1] >= threshold))
+            if above < self.min_frames_above_threshold:
+                continue
 
-                duration = offset_time - onset_time
-                if duration > 0:
-                    results.append((duration, float(peak_val)))
+            onset_time = _crossing_time(times, values, onset_idx, onset_idx + 1, half)
+            offset_time = _crossing_time(times, values, offset_idx - 1, offset_idx, half)
+            duration = offset_time - onset_time
+            if duration > 0:
+                results.append(AUPeak(
+                    au=au_name,
+                    peak_time=float(times[peak_idx]),
+                    peak_value=peak_val,
+                    amplitude=float(amplitude),
+                    duration=float(duration),
+                    offset_time=float(times[offset_idx]),
+                ))
 
-        return results if results else None
-
-    def _exceeds_baseline(self, au_name: str) -> bool:
-        """Check if current AU activation exceeds baseline by the deviation multiplier."""
-        if not self.baseline_set:
-            return True
-
-        # Get recent peak value for this AU
-        recent_values = [r.values.get(au_name, 0.0) for r in list(self.au_buffer)[-5:]]
-        current_peak = max(recent_values) if recent_values else 0.0
-
-        baseline_val = self.baseline_aus.get(au_name, 0.0)
-        baseline_var = self.baseline_variability.get(au_name, 0.05)
-
-        threshold = baseline_val + (baseline_var * self.deviation_multiplier)
-        return current_peak > threshold
+        return results or None
 
     def _is_habitual(self, au_name: str) -> bool:
         """Check if an AU activation is a habitual movement for this person."""
@@ -528,6 +576,7 @@ class MicroExpressionEngine:
         pattern_strength: float,
         duration_ms: float,
         camera_quality_score: float = 1.0,
+        peak_values: dict[str, float] | None = None,
     ) -> int:
         """
         Compute relevance score (0-100) using multiple factors.
@@ -542,7 +591,7 @@ class MicroExpressionEngine:
         score += pattern_strength * 25
 
         # Factor 3: Contradiction with dominant emotion
-        if detected_emotion != dominant_emotion and dominant_emotion != "neutral":
+        if micro_contradicts_displayed(detected_emotion, dominant_emotion):
             score += 30  # Big boost for contradictory micro-expressions
 
         # Factor 4: Duration (modal range per Yan et al. 2013 is 80-200ms)
@@ -556,8 +605,11 @@ class MicroExpressionEngine:
             deviations = []
             for au in activated_aus:
                 baseline_val = self.baseline_aus.get(au, 0.0)
-                recent = [r.values.get(au, 0.0) for r in list(self.au_buffer)[-5:]]
-                peak = max(recent) if recent else 0.0
+                if peak_values and au in peak_values:
+                    peak = peak_values[au]
+                else:
+                    recent = [r.values.get(au, 0.0) for r in list(self.au_buffer)[-5:]]
+                    peak = max(recent) if recent else 0.0
                 if baseline_val > 0:
                     deviations.append(peak / baseline_val)
             if deviations:
@@ -591,3 +643,12 @@ class MicroExpressionEngine:
                 f"Micro-expression of {detected_emotion} ({au_str}) "
                 f"[{duration_ms:.0f}ms]"
             )
+
+
+def _crossing_time(times: np.ndarray, values: np.ndarray, i: int, j: int, level: float) -> float:
+    """Time at which the segment between samples i and j crosses `level`."""
+    v_i, v_j = float(values[i]), float(values[j])
+    if v_j == v_i:
+        return float(times[i])
+    fraction = float(np.clip((level - v_i) / (v_j - v_i), 0.0, 1.0))
+    return float(times[i] + fraction * (times[j] - times[i]))

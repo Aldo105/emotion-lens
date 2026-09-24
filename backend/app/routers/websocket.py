@@ -561,9 +561,9 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                 au_analyzer.baseline_aus = None
                 au_analyzer.baseline_variability = None
                 au_analyzer._baseline_buffer = []
-                micro_engine.baseline_set = False
-                micro_engine.baseline_aus = {}
-                micro_engine.baseline_variability = {}
+                # Also drops the previous calibration frames, which used to
+                # survive and mix into the new habitual-movement counts.
+                micro_engine.reset_calibration()
                 emotion_classifier.reset_baseline()
                 await manager.send_json(websocket, WSStatusMessage(
                     type="status",
