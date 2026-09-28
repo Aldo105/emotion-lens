@@ -20,6 +20,7 @@ Usage:
 import argparse
 import csv
 import json
+import os
 import random
 import sys
 import urllib.request
@@ -104,6 +105,23 @@ def _read_frames(path: Path) -> list:
     return frames
 
 
+def _download(url: str, dest: Path) -> None:
+    """Download a file atomically to avoid truncated files on interruption.
+
+    Downloads to dest.with_name(dest.name + ".part"), then atomically
+    replaces dest on success. If any exception occurs, the .part file is
+    removed and the exception is re-raised.
+    """
+    dest = Path(dest)
+    part = dest.with_name(dest.name + ".part")
+    try:
+        urllib.request.urlretrieve(url, part)
+        os.replace(part, dest)
+    except Exception:
+        part.unlink(missing_ok=True)
+        raise
+
+
 def build(max_actors=None, frames_per_clip=5, delete_videos=False):
     from backend.app.services.face_detector import FaceDetector
 
@@ -112,7 +130,7 @@ def build(max_actors=None, frames_per_clip=5, delete_videos=False):
     (OUT / "videos").mkdir(exist_ok=True)
     summary_path = OUT / "summaryTable.csv"
     if not summary_path.exists():
-        urllib.request.urlretrieve(SUMMARY_URL, summary_path)
+        _download(SUMMARY_URL, summary_path)
 
     clips = [c for c in read_summary(summary_path) if c["label"] is not None]
     excluded = eval_actors(EVAL_INDEX)
@@ -141,7 +159,7 @@ def build(max_actors=None, frames_per_clip=5, delete_videos=False):
             video = OUT / "videos" / f"{c['clip']}.flv"
             if not video.exists():
                 try:
-                    urllib.request.urlretrieve(f"{VIDEO_BASE}/{c['clip']}.flv", video)
+                    _download(f"{VIDEO_BASE}/{c['clip']}.flv", video)
                 except Exception as e:  # a missing clip must not kill a 6000-clip run
                     print(f"[WARN] {c['clip']}: {e}")
                     continue

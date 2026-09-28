@@ -1,9 +1,10 @@
 import json
+from unittest.mock import patch
 
 import pytest
 
 from backend.ml.cremad_faces import (
-    eval_actors, face_vote_label, pending_clips, pick_frames, read_summary,
+    _download, eval_actors, face_vote_label, pending_clips, pick_frames, read_summary,
     split_actors, verify_manifest,
 )
 
@@ -63,3 +64,35 @@ def test_verify_manifest_rejects_eval_actor():
     verify_manifest([{"actor": "1001"}], {"1073"})
     with pytest.raises(ValueError, match="1073"):
         verify_manifest([{"actor": "1001"}, {"actor": "1073"}], {"1073"})
+
+
+def test_download_cleans_up_part_file_on_failure(tmp_path):
+    """_download should remove .part file and re-raise on urlretrieve failure."""
+    dest = tmp_path / "data.bin"
+
+    def fake_retrieve(url, target):
+        raise RuntimeError("Network error")
+
+    with patch("backend.ml.cremad_faces.urllib.request.urlretrieve", fake_retrieve):
+        with pytest.raises(RuntimeError, match="Network error"):
+            _download("http://example.com/file", dest)
+
+    assert not dest.exists(), "dest should not exist after failed download"
+    assert not (dest.with_name(dest.name + ".part")).exists(), ".part file should be cleaned up"
+
+
+def test_download_succeeds_and_cleans_up_part_file(tmp_path):
+    """_download should atomically move .part to dest on success."""
+    dest = tmp_path / "data.bin"
+    content = b"test data"
+
+    def fake_retrieve(url, target):
+        with open(target, "wb") as f:
+            f.write(content)
+
+    with patch("backend.ml.cremad_faces.urllib.request.urlretrieve", fake_retrieve):
+        _download("http://example.com/file", dest)
+
+    assert dest.exists(), "dest should exist after successful download"
+    assert dest.read_bytes() == content, "dest should have the correct content"
+    assert not (dest.with_name(dest.name + ".part")).exists(), ".part file should not remain"
