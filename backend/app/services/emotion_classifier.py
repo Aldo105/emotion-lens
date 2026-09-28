@@ -186,18 +186,11 @@ class EmotionClassifier:
     _CNN_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(3, 1, 1)
 
     @staticmethod
-    def preprocess_face(frame_bgr: np.ndarray, bbox: dict) -> np.ndarray | None:
+    def crop_face_gray(frame_bgr: np.ndarray, bbox: dict) -> np.ndarray | None:
         """
-        Crop the detected face and prepare it for the CNN: grayscale replicated
-        to 3 channels, resized to 224x224, ImageNet-normalized, NCHW.
-
-        The grayscale step is what matches training. FER2013 is a grayscale
-        dataset and train_emotion_cnn.py applies Grayscale(num_output_channels=3),
-        so the model has never seen an image whose channels differ. Feeding it
-        colour put it out of distribution: measured against labelled footage,
-        colour scored 27% and collapsed to "sad" on 73 of 83 frames, while
-        grayscale scored 51% with predictions spread across the classes. The
-        model itself is fine — 67% on the FER2013 test split.
+        Crop the detected face exactly as inference does and return it as a
+        224x224 uint8 grayscale image. Shared with backend/ml/cremad_faces.py
+        so training crops and live crops can never drift apart.
         """
         x1 = max(0, bbox.get("x_min", 0))
         y1 = max(0, bbox.get("y_min", 0))
@@ -220,7 +213,25 @@ class EmotionClassifier:
 
         size = EmotionClassifier._CNN_IMG_SIZE
         resized = cv2.resize(crop, (size, size))
-        gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
+        return cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
+
+    @staticmethod
+    def preprocess_face(frame_bgr: np.ndarray, bbox: dict) -> np.ndarray | None:
+        """
+        Crop the detected face and prepare it for the CNN: grayscale replicated
+        to 3 channels, resized to 224x224, ImageNet-normalized, NCHW.
+
+        The grayscale step is what matches training. FER2013 is a grayscale
+        dataset and train_emotion_cnn.py applies Grayscale(num_output_channels=3),
+        so the model has never seen an image whose channels differ. Feeding it
+        colour put it out of distribution: measured against labelled footage,
+        colour scored 27% and collapsed to "sad" on 73 of 83 frames, while
+        grayscale scored 51% with predictions spread across the classes. The
+        model itself is fine — 67% on the FER2013 test split.
+        """
+        gray = EmotionClassifier.crop_face_gray(frame_bgr, bbox)
+        if gray is None:
+            return None
         three = np.stack([gray, gray, gray], axis=-1).astype(np.float32) / 255.0
         chw = three.transpose(2, 0, 1)
         chw = (chw - EmotionClassifier._CNN_MEAN) / EmotionClassifier._CNN_STD
