@@ -52,7 +52,8 @@
 
 ## Global Constraints
 
-- Hardware actual: **8 GB de RAM, GTX 1650 con 4 GB de VRAM, ~63 GB libres en C:**. Con 8 GB, `--num-workers 0` y sin el servidor de desarrollo abierto mientras se entrena. Con 16 GB o más, `--num-workers 2`.
+- Hardware actual: **16 GB de RAM (ampliada el 2026-09-28), GTX 1650 con 4 GB de VRAM, ~63 GB libres en C:**. Entrenar con `--num-workers 2` y sin el servidor de desarrollo abierto. El valor por defecto del script sigue siendo `NUM_WORKERS = 0`, que es el seguro.
+- Python: `C:\Users\aldok\miniconda3\envs\emotion-lens\python.exe`, con `envs\emotion-lens`, `Library\bin` y `Scripts` antepuestos al PATH. Smart App Control bloquea hoy el `_ssl.pyd` de ese entorno, así que todo lo que use HTTPS (descargas, `datasets`) falla. Por eso `datasets` se importa dentro de las funciones que lo usan, no a nivel de módulo, para que los tests corran sin red.
 - Los entrenamientos y la extracción de caras se lanzan **en primer plano**, no en background.
 - `--batch-size 32` por defecto. Solo se sube a 64 si una época completa corre sin OOM en la GPU.
 - **Nunca** se entrena con los actores de `data/test_videos/cremad/indice.json` (20 actores de CREMA-D) ni con RAVDESS `Actor_01`.
