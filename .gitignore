@@ -44,3 +44,6 @@ notas-locales/
 !.vscode/settings.json
 .DS_Store
 Thumbs.db
+
+# Espacio de trabajo de los agentes (ledger, briefs)
+.superpowers/
