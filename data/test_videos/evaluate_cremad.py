@@ -12,7 +12,9 @@ grises, recorte) actúa en esta etapa, que es justo la que interesa comprobar.
 
 Uso:
     python evaluate_cremad.py
+    python evaluate_cremad.py --modelo RUTA.pt --salida RUTA.json
 """
+import argparse
 import json
 import sys
 from collections import Counter, defaultdict
@@ -25,6 +27,7 @@ sys.path.insert(0, str(AQUI.parent.parent))
 
 from backend.app.services.emotion_classifier import EmotionClassifier, FER7_LABELS
 from backend.app.services.face_detector import FaceDetector
+from backend.ml.eval_summary import resumir
 
 CLIPS = AQUI / "cremad"
 
@@ -41,6 +44,11 @@ def tabla(titulo, datos, minimo=1):
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--modelo", default=None, help="checkpoint .pt (por defecto el de producción)")
+    ap.add_argument("--salida", default=None, help="escribe el resumen JSON aquí")
+    args = ap.parse_args()
+
     indice_path = CLIPS / "indice.json"
     if not indice_path.exists():
         sys.exit("Falta cremad/indice.json — corre download_cremad.py")
@@ -48,7 +56,7 @@ def main():
     clips = json.loads(indice_path.read_text(encoding="utf-8"))["clips"]
     print(f"{len(clips)} clips de {len(set(c['actor'] for c in clips))} actores\n")
 
-    clf = EmotionClassifier()
+    clf = EmotionClassifier(model_path=args.modelo)
     print(f"modo: {clf.mode}")
     if clf.mode != "cnn":
         print("AVISO: el CNN no cargó; se mide el camino de respaldo")
@@ -62,6 +70,7 @@ def main():
     por_actor = defaultdict(lambda: [0, 0])
     confusion = defaultdict(Counter)
     sin_cara = 0
+    registros = []
 
     for i, c in enumerate(clips, 1):
         ruta = CLIPS / c["archivo"]
@@ -98,6 +107,8 @@ def main():
         real = c["emocion"]
         acierto = int(pred == real)
         confusion[real][pred] += 1
+        registros.append({"actor": c["actor"], "real": real, "pred": pred,
+                          "sexo": c["sexo"], "etnia": c["etnia"]})
 
         franja = "20-29" if c["edad"] < 30 else ("30-49" if c["edad"] < 50 else "50+")
         for tabla_dst, clave in (
@@ -139,6 +150,14 @@ def main():
     for real in sorted(confusion):
         fila = ", ".join(f"{d}:{n}" for d, n in confusion[real].most_common(4))
         print(f"  {real:<10} -> {fila}")
+
+    if args.salida:
+        res = resumir(registros)
+        res["modelo"] = args.modelo or "produccion"
+        res["sin_cara"] = sin_cara
+        Path(args.salida).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.salida).write_text(json.dumps(res, indent=2, ensure_ascii=False), encoding="utf-8")
+        print(f"\nresumen -> {args.salida}")
 
 
 if __name__ == "__main__":

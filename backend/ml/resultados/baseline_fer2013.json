@@ -1,0 +1,120 @@
+{
+  "n": 220,
+  "global": 0.3591,
+  "por_emocion": {
+    "angry": {
+      "aciertos": 9,
+      "total": 40,
+      "tasa": 0.225
+    },
+    "disgust": {
+      "aciertos": 6,
+      "total": 40,
+      "tasa": 0.15
+    },
+    "fear": {
+      "aciertos": 4,
+      "total": 40,
+      "tasa": 0.1
+    },
+    "happy": {
+      "aciertos": 38,
+      "total": 40,
+      "tasa": 0.95
+    },
+    "sad": {
+      "aciertos": 12,
+      "total": 40,
+      "tasa": 0.3
+    },
+    "neutral": {
+      "aciertos": 10,
+      "total": 20,
+      "tasa": 0.5
+    }
+  },
+  "por_sexo": {
+    "Female": {
+      "aciertos": 49,
+      "total": 121,
+      "tasa": 0.405
+    },
+    "Male": {
+      "aciertos": 30,
+      "total": 99,
+      "tasa": 0.303
+    }
+  },
+  "por_etnia": {
+    "African American": {
+      "aciertos": 26,
+      "total": 77,
+      "tasa": 0.3377
+    },
+    "Asian": {
+      "aciertos": 20,
+      "total": 55,
+      "tasa": 0.3636
+    },
+    "Caucasian": {
+      "aciertos": 30,
+      "total": 77,
+      "tasa": 0.3896
+    },
+    "Unknown": {
+      "aciertos": 3,
+      "total": 11,
+      "tasa": 0.2727
+    }
+  },
+  "actores": {
+    "peor": 0.0909,
+    "mejor": 0.7273,
+    "media": 0.3591
+  },
+  "brecha_sexo": 0.102,
+  "confusion": {
+    "angry": {
+      "angry": 9,
+      "happy": 12,
+      "sad": 9,
+      "neutral": 6,
+      "surprise": 2,
+      "fear": 2
+    },
+    "disgust": {
+      "happy": 18,
+      "disgust": 6,
+      "sad": 11,
+      "angry": 4,
+      "neutral": 1
+    },
+    "fear": {
+      "neutral": 8,
+      "happy": 9,
+      "sad": 9,
+      "angry": 7,
+      "fear": 4,
+      "surprise": 3
+    },
+    "happy": {
+      "happy": 38,
+      "sad": 1,
+      "neutral": 1
+    },
+    "sad": {
+      "sad": 12,
+      "neutral": 14,
+      "happy": 4,
+      "angry": 8,
+      "fear": 2
+    },
+    "neutral": {
+      "neutral": 10,
+      "sad": 7,
+      "angry": 3
+    }
+  },
+  "modelo": "produccion",
+  "sin_cara": 0
+}
