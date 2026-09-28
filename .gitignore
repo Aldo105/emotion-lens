@@ -47,3 +47,7 @@ Thumbs.db
 
 # Espacio de trabajo de los agentes (ledger, briefs)
 .superpowers/
+
+# Datos de entrenamiento descargados (FER+, caras de CREMA-D) y candidatos
+data/training/
+backend/ml/saved_models/candidatos/
