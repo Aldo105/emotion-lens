@@ -208,8 +208,13 @@ def main(argv=None):
     raw = load_dataset("abhilash88/fer2013-enhanced")
     labels = {s: None for s in ("train", "validation", "test")}
     if args.labels == "ferplus":
-        from backend.ml.ferplus_labels import ensure_csv, labels_for_split, load_votes
+        from backend.ml.ferplus_labels import (
+            check_join, ensure_csv, join_ok, labels_for_split, load_votes)
         rows = load_votes(ensure_csv())
+        stats = check_join(dict(raw), rows)
+        print(f"[INFO] FER+ join: {stats}")
+        if not join_ok(stats):
+            raise SystemExit(f"[ERROR] FER+ join does not line up: {stats}")
         labels = {s: labels_for_split(raw[s], rows) for s in labels}
 
     train_parts = [FER2013Dataset(raw["train"], True, labels["train"])]
@@ -249,6 +254,8 @@ def main(argv=None):
     # Resume an interrupted run of this same candidate; otherwise start from
     # --init-from or ImageNet. Re-evaluate so a worse epoch never overwrites it.
     start = model_path if os.path.exists(model_path) else args.init_from
+    if args.init_from and start == model_path:
+        print(f"[WARN] --init-from ignored: resuming existing candidate {model_path}")
     if start:
         print(f"[INFO] Starting from {start}")
         model.load_state_dict(torch.load(start, map_location=device, weights_only=True))
