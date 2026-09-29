@@ -48,7 +48,7 @@ def majority_label(votes: dict[str, int]) -> int | None:
 
 def load_votes(csv_path) -> list[dict]:
     rows = []
-    with open(csv_path, newline="", encoding="utf-8") as f:
+    with open(csv_path, newline="", encoding="utf-8-sig") as f:  # tolerate a BOM
         for raw in csv.DictReader(f):
             norm = {k.strip().lower(): (v or "").strip() for k, v in raw.items()}
             rows.append({"usage": norm.get("usage", ""),

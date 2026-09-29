@@ -48,6 +48,15 @@ def test_load_votes_reads_header_names_not_positions(tmp_path):
     assert rows[1]["votes"]["nf"] == 10
 
 
+def test_load_votes_tolerates_bom(tmp_path):
+    p = tmp_path / "fer2013new.csv"
+    p.write_text("﻿Usage,Image name,neutral,happiness,surprise,sadness,anger,disgust,fear,contempt,unknown,NF\n"
+                 "Training,fer0000000.png,4,0,0,1,5,0,0,0,0,0\n", encoding="utf-8")
+    rows = load_votes(p)
+    assert rows[0]["usage"] == "Training"
+    assert rows[0]["votes"]["anger"] == 5
+
+
 def _rows():
     return [
         {"usage": "Training", "votes": _votes(happiness=10)},
