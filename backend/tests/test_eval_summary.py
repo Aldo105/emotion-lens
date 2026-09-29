@@ -1,5 +1,5 @@
 # backend/tests/test_eval_summary.py
-from backend.ml.eval_summary import cumple_criterios, resumir
+from backend.ml.eval_summary import comparables, cumple_criterios, resumir
 
 
 def _reg(actor, real, pred, sexo="Female", etnia="Caucasian"):
@@ -46,3 +46,15 @@ def test_cumple_criterios_lists_every_failure():
     ok, fallos = cumple_criterios(base, cand)
     assert not ok
     assert len(fallos) == 5
+
+
+def test_comparables_rejects_empty_candidate():
+    assert comparables({"n": 220}, {"n": 0})
+
+
+def test_comparables_rejects_different_clip_count():
+    assert comparables({"n": 220}, {"n": 200})
+
+
+def test_comparables_accepts_same_n():
+    assert comparables({"n": 220}, {"n": 220}) == []

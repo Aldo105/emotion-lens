@@ -76,8 +76,23 @@ def cumple_criterios(base: dict, cand: dict) -> tuple[bool, list[str]]:
     return (not fallos, fallos)
 
 
+def comparables(base: dict, cand: dict) -> list[str]:
+    """Problemas que impiden juzgar: un candidato que no midió nada, o que
+    midió otros clips que la línea base, no se puede comparar con ella."""
+    problemas = []
+    if cand["n"] == 0:
+        problemas.append("el candidato no evaluó ningún clip (n=0)")
+    elif cand["n"] != base["n"]:
+        problemas.append(f"n distinto: base {base['n']} vs candidato {cand['n']} (faltan clips)")
+    return problemas
+
+
 def main(argv):
     base, cand = (json.loads(open(p, encoding="utf-8").read()) for p in argv[:2])
+    problemas = comparables(base, cand)
+    if problemas:
+        print("NO COMPARABLES:\n  " + "\n  ".join(problemas))
+        return 2
     for clave in ("global", "brecha_sexo"):
         print(f"{clave:<12} {base[clave]:.2f} -> {cand[clave]:.2f}")
     print(f"{'peor actor':<12} {base['actores']['peor']:.2f} -> {cand['actores']['peor']:.2f}")

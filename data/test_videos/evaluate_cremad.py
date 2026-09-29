@@ -58,6 +58,8 @@ def main():
 
     clf = EmotionClassifier(model_path=args.modelo)
     print(f"modo: {clf.mode}")
+    if args.modelo and clf.mode != "cnn":
+        sys.exit(f"no se pudo cargar {args.modelo} (modo={clf.mode})")
     if clf.mode != "cnn":
         print("AVISO: el CNN no cargó; se mide el camino de respaldo")
     det = FaceDetector(max_faces=1, detection_confidence=0.5, tracking_confidence=0.5)
@@ -154,6 +156,7 @@ def main():
     if args.salida:
         res = resumir(registros)
         res["modelo"] = args.modelo or "produccion"
+        res["modo"] = clf.mode
         res["sin_cara"] = sin_cara
         Path(args.salida).parent.mkdir(parents=True, exist_ok=True)
         Path(args.salida).write_text(json.dumps(res, indent=2, ensure_ascii=False), encoding="utf-8")
