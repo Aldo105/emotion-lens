@@ -1,4 +1,4 @@
-﻿"""
+"""
 EmotionLens -- Emotion CNN Training Script
 
 Fine-tunes an ImageNet-pretrained MobileNetV2 on FER2013 (7 basic emotions:
@@ -37,7 +37,7 @@ from PIL import Image
 from torch.utils.data import ConcatDataset, Dataset, DataLoader
 from torchvision import models, transforms
 
-# â”€â”€ Config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Config ─────────────────────────────────────────────────────────────
 FER7_LABELS = ["angry", "disgust", "fear", "happy", "sad", "surprise", "neutral"]
 IMG_SIZE = 224
 BATCH_SIZE = 32
