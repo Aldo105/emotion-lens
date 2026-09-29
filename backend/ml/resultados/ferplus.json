@@ -1,0 +1,114 @@
+{
+  "n": 220,
+  "global": 0.3182,
+  "por_emocion": {
+    "angry": {
+      "aciertos": 8,
+      "total": 40,
+      "tasa": 0.2
+    },
+    "disgust": {
+      "aciertos": 3,
+      "total": 40,
+      "tasa": 0.075
+    },
+    "fear": {
+      "aciertos": 1,
+      "total": 40,
+      "tasa": 0.025
+    },
+    "happy": {
+      "aciertos": 37,
+      "total": 40,
+      "tasa": 0.925
+    },
+    "sad": {
+      "aciertos": 1,
+      "total": 40,
+      "tasa": 0.025
+    },
+    "neutral": {
+      "aciertos": 20,
+      "total": 20,
+      "tasa": 1.0
+    }
+  },
+  "por_sexo": {
+    "Female": {
+      "aciertos": 38,
+      "total": 121,
+      "tasa": 0.314
+    },
+    "Male": {
+      "aciertos": 32,
+      "total": 99,
+      "tasa": 0.3232
+    }
+  },
+  "por_etnia": {
+    "African American": {
+      "aciertos": 23,
+      "total": 77,
+      "tasa": 0.2987
+    },
+    "Asian": {
+      "aciertos": 17,
+      "total": 55,
+      "tasa": 0.3091
+    },
+    "Caucasian": {
+      "aciertos": 27,
+      "total": 77,
+      "tasa": 0.3506
+    },
+    "Unknown": {
+      "aciertos": 3,
+      "total": 11,
+      "tasa": 0.2727
+    }
+  },
+  "actores": {
+    "peor": 0.1818,
+    "mejor": 0.4545,
+    "media": 0.3182
+  },
+  "brecha_sexo": 0.0092,
+  "confusion": {
+    "angry": {
+      "neutral": 24,
+      "happy": 6,
+      "surprise": 2,
+      "angry": 8
+    },
+    "disgust": {
+      "sad": 11,
+      "disgust": 3,
+      "angry": 3,
+      "neutral": 9,
+      "happy": 14
+    },
+    "fear": {
+      "neutral": 25,
+      "happy": 7,
+      "sad": 3,
+      "surprise": 1,
+      "fear": 1,
+      "angry": 3
+    },
+    "happy": {
+      "happy": 37,
+      "neutral": 3
+    },
+    "sad": {
+      "neutral": 37,
+      "happy": 2,
+      "sad": 1
+    },
+    "neutral": {
+      "neutral": 20
+    }
+  },
+  "modelo": "backend/ml/saved_models/candidatos/ferplus.pt",
+  "modo": "cnn",
+  "sin_cara": 0
+}

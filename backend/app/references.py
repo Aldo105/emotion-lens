@@ -568,6 +568,39 @@ CONSTANTS: tuple[ConstantEvidence, ...] = (
     ),
 
     ConstantEvidence(
+        name="Reentrenamiento con FER+ y CREMA-D (no promovido)",
+        location="backend/ml/train_emotion_cnn.py, backend/ml/resultados/*.json",
+        current_value="mejor candidato 57% en CREMA-D (+21 pts) pero no promovido: 'sad' no mejora",
+        tier=Tier.HEURISTIC,
+        refs=("barrett2019reconsidered",),
+        note="Experimento del 2026-09-28 con criterios de promoción fijados antes "
+             "de entrenar (backend/ml/eval_summary.py): +5 puntos globales, +15 en "
+             "'sad', 'happy' >= 85%, peor actor no inferior y brecha por sexo no "
+             "mayor. Línea base (modelo en producción, FER2013): 79/220 = 36%. Tres "
+             "candidatos, los tres evaluados sobre los mismos 220 clips de 20 "
+             "actores de CREMA-D, que quedaron fuera del entrenamiento. "
+             "A) solo etiquetas FER+ (Microsoft, 10 anotadores por imagen): 32%, "
+             "colapsa hacia 'neutral' ('sad' 1/40), aunque la brecha por sexo cae "
+             "a 1 punto y el peor actor sube a 18%. B) FER+ más 27.281 caras de 71 "
+             "actores de CREMA-D (61 de entrenamiento, 10 de validación; etiqueta "
+             "FaceVote, la emoción percibida solo con la cara): 57%. 'angry' 23->50%, "
+             "'disgust' 15->53%, 'fear' 10->53%, 'neutral' 50->85%, peor actor "
+             "9->27%, mejor 82%, brecha por sexo 10->5 puntos; 'happy' 95->88% y "
+             "'sad' se queda en 30% (17 de 40 clips tristes salen 'neutral'). "
+             "C) B con el peso de 'sad' x1.5: 53%, 'sad' 40% pero 'happy' cae a 80%. "
+             "Ninguno cumple los criterios, así que ninguno sustituye al modelo en "
+             "producción y no se lanzaron tandas nuevas a la vista de los números. "
+             "Lectura: añadir caras de vídeo de muchas identidades sí ataca el sesgo "
+             "de identidad (el peor actor se triplica y la dispersión se reduce), y "
+             "etiquetas FER+ solas no bastan. 'sad' sigue confundiéndose con "
+             "'neutral' en todos los candidatos. Advertencia: CREMA-D mismo estudio "
+             "y guion en entrenamiento y evaluación (actores distintos), por lo que "
+             "B no se comprobó en otro estudio (RAVDESS) al no haberse promovido. "
+             "Reproducible con backend/ml/train_emotion_cnn.py, "
+             "backend/ml/cremad_faces.py y data/test_videos/evaluate_cremad.py.",
+    ),
+
+    ConstantEvidence(
         name="Retiro de 'fear' del conjunto reportable",
         location="emotion_classifier.py:DOMINANT_LABELS, config.py:emotion_labels",
         current_value="8 etiquetas expuestas; 'fear' calculada pero no reportable",

@@ -1,0 +1,124 @@
+{
+  "n": 220,
+  "global": 0.5727,
+  "por_emocion": {
+    "angry": {
+      "aciertos": 20,
+      "total": 40,
+      "tasa": 0.5
+    },
+    "disgust": {
+      "aciertos": 21,
+      "total": 40,
+      "tasa": 0.525
+    },
+    "fear": {
+      "aciertos": 21,
+      "total": 40,
+      "tasa": 0.525
+    },
+    "happy": {
+      "aciertos": 35,
+      "total": 40,
+      "tasa": 0.875
+    },
+    "sad": {
+      "aciertos": 12,
+      "total": 40,
+      "tasa": 0.3
+    },
+    "neutral": {
+      "aciertos": 17,
+      "total": 20,
+      "tasa": 0.85
+    }
+  },
+  "por_sexo": {
+    "Female": {
+      "aciertos": 72,
+      "total": 121,
+      "tasa": 0.595
+    },
+    "Male": {
+      "aciertos": 54,
+      "total": 99,
+      "tasa": 0.5455
+    }
+  },
+  "por_etnia": {
+    "African American": {
+      "aciertos": 51,
+      "total": 77,
+      "tasa": 0.6623
+    },
+    "Asian": {
+      "aciertos": 29,
+      "total": 55,
+      "tasa": 0.5273
+    },
+    "Caucasian": {
+      "aciertos": 40,
+      "total": 77,
+      "tasa": 0.5195
+    },
+    "Unknown": {
+      "aciertos": 6,
+      "total": 11,
+      "tasa": 0.5455
+    }
+  },
+  "actores": {
+    "peor": 0.2727,
+    "mejor": 0.8182,
+    "media": 0.5727
+  },
+  "brecha_sexo": 0.0495,
+  "confusion": {
+    "angry": {
+      "neutral": 14,
+      "angry": 20,
+      "disgust": 2,
+      "fear": 2,
+      "happy": 1,
+      "sad": 1
+    },
+    "disgust": {
+      "fear": 5,
+      "disgust": 21,
+      "sad": 5,
+      "neutral": 3,
+      "angry": 4,
+      "happy": 2
+    },
+    "fear": {
+      "sad": 2,
+      "fear": 21,
+      "neutral": 10,
+      "angry": 6,
+      "happy": 1
+    },
+    "happy": {
+      "happy": 35,
+      "neutral": 2,
+      "fear": 1,
+      "sad": 2
+    },
+    "sad": {
+      "sad": 12,
+      "angry": 3,
+      "happy": 1,
+      "fear": 6,
+      "neutral": 17,
+      "disgust": 1
+    },
+    "neutral": {
+      "neutral": 17,
+      "angry": 1,
+      "sad": 1,
+      "fear": 1
+    }
+  },
+  "modelo": "backend/ml/saved_models/candidatos/ferplus_cremad.pt",
+  "modo": "cnn",
+  "sin_cara": 0
+}
