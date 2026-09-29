@@ -142,12 +142,23 @@ class VideoProcessor:
                     timestamp=timestamp,
                 )
 
+                # Face crop for the CNN, needed by the calibration below (its
+                # resting-face profile) and by Step 4. Without face_image,
+                # predict() skips the CNN branch entirely and always falls
+                # back to blendshapes, so uploaded video was never analysed by
+                # the trained model even when it was loaded.
+                face_image = None
+                if emotion_classifier.mode == "cnn":
+                    face_image = EmotionClassifier.preprocess_face(
+                        frame, detection["bbox"]
+                    )
+
                 # ── Step 3: Baseline calibration ─────────────────────
                 is_calibrating = timestamp < settings.baseline_calibration_seconds
 
                 if not baseline_calibrated and is_calibrating:
                     emotion_classifier.record_calibration_frame(
-                        detection.get("blendshapes")
+                        detection.get("blendshapes"), face_image=face_image
                     )
 
                 if not baseline_calibrated and not is_calibrating:
@@ -165,15 +176,7 @@ class VideoProcessor:
                     baseline_calibrated = True
 
                 # ── Step 4: Emotion classification ───────────────────
-                # Without face_image, predict() skips the CNN branch entirely
-                # and always falls back to blendshapes, so uploaded video was
-                # never analysed by the trained model even when it was loaded.
-                face_image = None
-                if emotion_classifier.mode == "cnn":
-                    face_image = EmotionClassifier.preprocess_face(
-                        frame, detection["bbox"]
-                    )
-
+                # face_image was cropped before the calibration step above.
                 emotion_result = emotion_classifier.predict(
                     face_image=face_image,
                     action_units=action_units,

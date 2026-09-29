@@ -684,6 +684,15 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
 
             blendshapes = detection.get("blendshapes")
 
+            # Face crop for the CNN, needed by the calibration below (its
+            # resting-face profile) and by Step 4. Only paid for when a CNN is
+            # actually loaded -- blendshape/heuristic mode doesn't need it.
+            face_image = None
+            if emotion_classifier.mode == "cnn":
+                face_image = EmotionClassifier.preprocess_face(
+                    preprocessed_frame, detection["bbox"]
+                )
+
             # Step 3: Pose-Guided Baseline Calibration
             # The subject holds five poses (centre, right, left, down, up) so
             # each one gets its own resting baseline. Turning the head shortens
@@ -715,7 +724,9 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                 # habitual movement and bias every later prediction with it.
                 if requested_pose == "center" and progress.aligned:
                     micro_engine.record_calibration_frame(action_units)
-                    emotion_classifier.record_calibration_frame(blendshapes)
+                    emotion_classifier.record_calibration_frame(
+                        blendshapes, face_image=face_image
+                    )
 
             if not baseline_calibrated and pose_session.complete:
                 pose_baselines = pose_session.build_baselines()
@@ -772,14 +783,7 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
             )
 
             # Step 4: Emotion Classification (with quality penalty)
-            # Only pay for the face-crop + normalize when a CNN is actually
-            # loaded -- blendshape/heuristic mode doesn't need face_image.
-            face_image = None
-            if emotion_classifier.mode == "cnn":
-                face_image = EmotionClassifier.preprocess_face(
-                    preprocessed_frame, detection["bbox"]
-                )
-
+            # face_image was cropped before the calibration step above.
             emotion_result = emotion_classifier.predict(
                 face_image=face_image,
                 action_units=action_units,
