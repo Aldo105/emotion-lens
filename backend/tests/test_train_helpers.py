@@ -86,3 +86,13 @@ def test_select_val_acc_prefers_target_domain():
 def test_parse_args_defaults():
     a = T.parse_args(["--name", "x"])
     assert (a.labels, a.extra_manifest, a.sad_weight_mult, a.num_workers) == ("fer", None, 1.0, 0)
+
+
+def test_training_module_and_datasets_import_together():
+    """cv2 + torch + datasets in that order kills the process on this env
+    (native DLL clash). main() imports datasets after this module loads."""
+    import subprocess, sys
+    r = subprocess.run([sys.executable, "-c",
+                        "import backend.ml.train_emotion_cnn; import datasets"],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr

@@ -1,4 +1,4 @@
-"""
+﻿"""
 EmotionLens -- Emotion CNN Training Script
 
 Fine-tunes an ImageNet-pretrained MobileNetV2 on FER2013 (7 basic emotions:
@@ -30,14 +30,14 @@ import json
 import os
 import time
 
-import cv2
 import numpy as np
 import torch
 import torch.nn as nn
+from PIL import Image
 from torch.utils.data import ConcatDataset, Dataset, DataLoader
 from torchvision import models, transforms
 
-# ── Config ─────────────────────────────────────────────────────────────
+# â”€â”€ Config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 FER7_LABELS = ["angry", "disgust", "fear", "happy", "sad", "surprise", "neutral"]
 IMG_SIZE = 224
 BATCH_SIZE = 32
@@ -138,7 +138,8 @@ class ManifestDataset(Dataset):
         return len(self.paths)
 
     def __getitem__(self, idx):
-        img = cv2.imread(self.paths[idx], cv2.IMREAD_GRAYSCALE)
+        # cv2 + torch + datasets in that order crashes on this env (DLL clash).
+        img = np.array(Image.open(self.paths[idx]).convert("L"))
         return self.transform(img), self.labels[idx]
 
 
