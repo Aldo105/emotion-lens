@@ -55,7 +55,10 @@ def eval_actors(index_path) -> set[str]:
             f"{index_path} missing -- run data/test_videos/download_cremad.py --actores 20 "
             "first, otherwise evaluation actors cannot be excluded")
     clips = json.loads(index_path.read_text(encoding="utf-8"))["clips"]
-    return {c["actor"] for c in clips}
+    actors = {c["actor"] for c in clips}
+    if not actors:
+        raise ValueError(f"{index_path} lists no clips -- evaluation actors cannot be excluded")
+    return actors
 
 
 def split_actors(actors, excluded, n_val=10, seed=0):

@@ -27,6 +27,13 @@ def test_eval_actors_missing_index_is_an_error(tmp_path):
         eval_actors(tmp_path / "nope.json")
 
 
+def test_eval_actors_empty_index_is_an_error(tmp_path):
+    p = tmp_path / "indice.json"
+    p.write_text(json.dumps({"clips": []}))
+    with pytest.raises(ValueError, match="no clips"):
+        eval_actors(p)
+
+
 def test_split_actors_disjoint_deterministic_and_excludes():
     actors = [str(1001 + i) for i in range(91)]
     excluded = {"1002", "1019", "1020"}
