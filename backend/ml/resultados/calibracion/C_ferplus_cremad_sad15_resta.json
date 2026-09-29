@@ -1,0 +1,120 @@
+{
+  "n": 220,
+  "global": 0.6182,
+  "por_emocion": {
+    "angry": {
+      "aciertos": 22,
+      "total": 40,
+      "tasa": 0.55
+    },
+    "disgust": {
+      "aciertos": 19,
+      "total": 40,
+      "tasa": 0.475
+    },
+    "fear": {
+      "aciertos": 20,
+      "total": 40,
+      "tasa": 0.5
+    },
+    "happy": {
+      "aciertos": 34,
+      "total": 40,
+      "tasa": 0.85
+    },
+    "sad": {
+      "aciertos": 27,
+      "total": 40,
+      "tasa": 0.675
+    },
+    "neutral": {
+      "aciertos": 14,
+      "total": 20,
+      "tasa": 0.7
+    }
+  },
+  "por_sexo": {
+    "Female": {
+      "aciertos": 74,
+      "total": 121,
+      "tasa": 0.6116
+    },
+    "Male": {
+      "aciertos": 62,
+      "total": 99,
+      "tasa": 0.6263
+    }
+  },
+  "por_etnia": {
+    "African American": {
+      "aciertos": 57,
+      "total": 77,
+      "tasa": 0.7403
+    },
+    "Asian": {
+      "aciertos": 29,
+      "total": 55,
+      "tasa": 0.5273
+    },
+    "Caucasian": {
+      "aciertos": 44,
+      "total": 77,
+      "tasa": 0.5714
+    },
+    "Unknown": {
+      "aciertos": 6,
+      "total": 11,
+      "tasa": 0.5455
+    }
+  },
+  "actores": {
+    "peor": 0.1818,
+    "mejor": 0.8182,
+    "media": 0.6182
+  },
+  "brecha_sexo": 0.0147,
+  "confusion": {
+    "angry": {
+      "angry": 22,
+      "neutral": 7,
+      "disgust": 2,
+      "happy": 1,
+      "sad": 4,
+      "fear": 4
+    },
+    "disgust": {
+      "fear": 4,
+      "disgust": 19,
+      "sad": 13,
+      "angry": 4
+    },
+    "fear": {
+      "sad": 9,
+      "fear": 20,
+      "neutral": 7,
+      "angry": 3,
+      "happy": 1
+    },
+    "happy": {
+      "happy": 34,
+      "fear": 2,
+      "neutral": 2,
+      "sad": 1,
+      "angry": 1
+    },
+    "sad": {
+      "sad": 27,
+      "neutral": 8,
+      "happy": 1,
+      "fear": 3,
+      "angry": 1
+    },
+    "neutral": {
+      "sad": 4,
+      "fear": 2,
+      "neutral": 14
+    }
+  },
+  "modelo": "C_ferplus_cremad_sad15",
+  "metodo": "resta"
+}

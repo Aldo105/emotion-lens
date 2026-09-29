@@ -1,0 +1,124 @@
+{
+  "n": 220,
+  "global": 0.3727,
+  "por_emocion": {
+    "angry": {
+      "aciertos": 9,
+      "total": 40,
+      "tasa": 0.225
+    },
+    "disgust": {
+      "aciertos": 10,
+      "total": 40,
+      "tasa": 0.25
+    },
+    "fear": {
+      "aciertos": 6,
+      "total": 40,
+      "tasa": 0.15
+    },
+    "happy": {
+      "aciertos": 39,
+      "total": 40,
+      "tasa": 0.975
+    },
+    "sad": {
+      "aciertos": 6,
+      "total": 40,
+      "tasa": 0.15
+    },
+    "neutral": {
+      "aciertos": 12,
+      "total": 20,
+      "tasa": 0.6
+    }
+  },
+  "por_sexo": {
+    "Female": {
+      "aciertos": 44,
+      "total": 121,
+      "tasa": 0.3636
+    },
+    "Male": {
+      "aciertos": 38,
+      "total": 99,
+      "tasa": 0.3838
+    }
+  },
+  "por_etnia": {
+    "African American": {
+      "aciertos": 27,
+      "total": 77,
+      "tasa": 0.3506
+    },
+    "Asian": {
+      "aciertos": 24,
+      "total": 55,
+      "tasa": 0.4364
+    },
+    "Caucasian": {
+      "aciertos": 28,
+      "total": 77,
+      "tasa": 0.3636
+    },
+    "Unknown": {
+      "aciertos": 3,
+      "total": 11,
+      "tasa": 0.2727
+    }
+  },
+  "actores": {
+    "peor": 0.2727,
+    "mejor": 0.6364,
+    "media": 0.3727
+  },
+  "brecha_sexo": 0.0202,
+  "confusion": {
+    "angry": {
+      "surprise": 5,
+      "happy": 15,
+      "fear": 6,
+      "angry": 9,
+      "disgust": 1,
+      "sad": 4
+    },
+    "disgust": {
+      "happy": 20,
+      "disgust": 10,
+      "angry": 6,
+      "sad": 2,
+      "surprise": 1,
+      "fear": 1
+    },
+    "fear": {
+      "neutral": 3,
+      "happy": 10,
+      "fear": 6,
+      "angry": 10,
+      "surprise": 9,
+      "sad": 2
+    },
+    "happy": {
+      "happy": 39,
+      "neutral": 1
+    },
+    "sad": {
+      "disgust": 3,
+      "neutral": 9,
+      "sad": 6,
+      "angry": 7,
+      "happy": 7,
+      "fear": 7,
+      "surprise": 1
+    },
+    "neutral": {
+      "neutral": 12,
+      "sad": 4,
+      "angry": 2,
+      "surprise": 1,
+      "happy": 1
+    }
+  },
+  "modelo": "produccion",
+  "metodo": "cociente"
+}

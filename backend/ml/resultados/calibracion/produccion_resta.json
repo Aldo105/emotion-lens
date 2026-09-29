@@ -1,0 +1,121 @@
+{
+  "n": 220,
+  "global": 0.3545,
+  "por_emocion": {
+    "angry": {
+      "aciertos": 9,
+      "total": 40,
+      "tasa": 0.225
+    },
+    "disgust": {
+      "aciertos": 6,
+      "total": 40,
+      "tasa": 0.15
+    },
+    "fear": {
+      "aciertos": 2,
+      "total": 40,
+      "tasa": 0.05
+    },
+    "happy": {
+      "aciertos": 38,
+      "total": 40,
+      "tasa": 0.95
+    },
+    "sad": {
+      "aciertos": 13,
+      "total": 40,
+      "tasa": 0.325
+    },
+    "neutral": {
+      "aciertos": 10,
+      "total": 20,
+      "tasa": 0.5
+    }
+  },
+  "por_sexo": {
+    "Female": {
+      "aciertos": 45,
+      "total": 121,
+      "tasa": 0.3719
+    },
+    "Male": {
+      "aciertos": 33,
+      "total": 99,
+      "tasa": 0.3333
+    }
+  },
+  "por_etnia": {
+    "African American": {
+      "aciertos": 24,
+      "total": 77,
+      "tasa": 0.3117
+    },
+    "Asian": {
+      "aciertos": 22,
+      "total": 55,
+      "tasa": 0.4
+    },
+    "Caucasian": {
+      "aciertos": 29,
+      "total": 77,
+      "tasa": 0.3766
+    },
+    "Unknown": {
+      "aciertos": 3,
+      "total": 11,
+      "tasa": 0.2727
+    }
+  },
+  "actores": {
+    "peor": 0.0909,
+    "mejor": 0.5455,
+    "media": 0.3545
+  },
+  "brecha_sexo": 0.0386,
+  "confusion": {
+    "angry": {
+      "surprise": 3,
+      "happy": 13,
+      "sad": 12,
+      "neutral": 2,
+      "angry": 9,
+      "fear": 1
+    },
+    "disgust": {
+      "happy": 21,
+      "disgust": 6,
+      "sad": 8,
+      "angry": 5
+    },
+    "fear": {
+      "neutral": 6,
+      "happy": 10,
+      "sad": 9,
+      "angry": 8,
+      "fear": 2,
+      "surprise": 5
+    },
+    "happy": {
+      "happy": 38,
+      "sad": 1,
+      "neutral": 1
+    },
+    "sad": {
+      "sad": 13,
+      "neutral": 11,
+      "angry": 7,
+      "happy": 5,
+      "surprise": 1,
+      "fear": 3
+    },
+    "neutral": {
+      "neutral": 10,
+      "sad": 7,
+      "angry": 2,
+      "happy": 1
+    }
+  },
+  "modelo": "produccion",
+  "metodo": "resta"
+}

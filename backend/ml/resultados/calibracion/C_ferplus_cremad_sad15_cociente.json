@@ -1,0 +1,123 @@
+{
+  "n": 220,
+  "global": 0.65,
+  "por_emocion": {
+    "angry": {
+      "aciertos": 27,
+      "total": 40,
+      "tasa": 0.675
+    },
+    "disgust": {
+      "aciertos": 20,
+      "total": 40,
+      "tasa": 0.5
+    },
+    "fear": {
+      "aciertos": 24,
+      "total": 40,
+      "tasa": 0.6
+    },
+    "happy": {
+      "aciertos": 37,
+      "total": 40,
+      "tasa": 0.925
+    },
+    "sad": {
+      "aciertos": 26,
+      "total": 40,
+      "tasa": 0.65
+    },
+    "neutral": {
+      "aciertos": 9,
+      "total": 20,
+      "tasa": 0.45
+    }
+  },
+  "por_sexo": {
+    "Female": {
+      "aciertos": 78,
+      "total": 121,
+      "tasa": 0.6446
+    },
+    "Male": {
+      "aciertos": 65,
+      "total": 99,
+      "tasa": 0.6566
+    }
+  },
+  "por_etnia": {
+    "African American": {
+      "aciertos": 53,
+      "total": 77,
+      "tasa": 0.6883
+    },
+    "Asian": {
+      "aciertos": 34,
+      "total": 55,
+      "tasa": 0.6182
+    },
+    "Caucasian": {
+      "aciertos": 51,
+      "total": 77,
+      "tasa": 0.6623
+    },
+    "Unknown": {
+      "aciertos": 5,
+      "total": 11,
+      "tasa": 0.4545
+    }
+  },
+  "actores": {
+    "peor": 0.4545,
+    "mejor": 0.9091,
+    "media": 0.65
+  },
+  "brecha_sexo": 0.012,
+  "confusion": {
+    "angry": {
+      "angry": 27,
+      "neutral": 2,
+      "sad": 4,
+      "happy": 2,
+      "disgust": 3,
+      "fear": 2
+    },
+    "disgust": {
+      "fear": 6,
+      "sad": 6,
+      "disgust": 20,
+      "angry": 3,
+      "happy": 5
+    },
+    "fear": {
+      "fear": 24,
+      "sad": 7,
+      "neutral": 4,
+      "angry": 2,
+      "happy": 2,
+      "disgust": 1
+    },
+    "happy": {
+      "happy": 37,
+      "disgust": 1,
+      "sad": 1,
+      "neutral": 1
+    },
+    "sad": {
+      "sad": 26,
+      "fear": 6,
+      "happy": 2,
+      "angry": 2,
+      "neutral": 2,
+      "disgust": 2
+    },
+    "neutral": {
+      "sad": 5,
+      "fear": 4,
+      "neutral": 9,
+      "disgust": 2
+    }
+  },
+  "modelo": "C_ferplus_cremad_sad15",
+  "metodo": "cociente"
+}

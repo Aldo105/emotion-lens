@@ -1,0 +1,122 @@
+{
+  "n": 220,
+  "global": 0.5682,
+  "por_emocion": {
+    "angry": {
+      "aciertos": 19,
+      "total": 40,
+      "tasa": 0.475
+    },
+    "disgust": {
+      "aciertos": 21,
+      "total": 40,
+      "tasa": 0.525
+    },
+    "fear": {
+      "aciertos": 21,
+      "total": 40,
+      "tasa": 0.525
+    },
+    "happy": {
+      "aciertos": 35,
+      "total": 40,
+      "tasa": 0.875
+    },
+    "sad": {
+      "aciertos": 11,
+      "total": 40,
+      "tasa": 0.275
+    },
+    "neutral": {
+      "aciertos": 18,
+      "total": 20,
+      "tasa": 0.9
+    }
+  },
+  "por_sexo": {
+    "Female": {
+      "aciertos": 72,
+      "total": 121,
+      "tasa": 0.595
+    },
+    "Male": {
+      "aciertos": 53,
+      "total": 99,
+      "tasa": 0.5354
+    }
+  },
+  "por_etnia": {
+    "African American": {
+      "aciertos": 50,
+      "total": 77,
+      "tasa": 0.6494
+    },
+    "Asian": {
+      "aciertos": 29,
+      "total": 55,
+      "tasa": 0.5273
+    },
+    "Caucasian": {
+      "aciertos": 40,
+      "total": 77,
+      "tasa": 0.5195
+    },
+    "Unknown": {
+      "aciertos": 6,
+      "total": 11,
+      "tasa": 0.5455
+    }
+  },
+  "actores": {
+    "peor": 0.2727,
+    "mejor": 0.8182,
+    "media": 0.5682
+  },
+  "brecha_sexo": 0.0596,
+  "confusion": {
+    "angry": {
+      "neutral": 15,
+      "angry": 19,
+      "disgust": 2,
+      "fear": 2,
+      "happy": 1,
+      "sad": 1
+    },
+    "disgust": {
+      "fear": 5,
+      "disgust": 21,
+      "sad": 5,
+      "neutral": 3,
+      "angry": 4,
+      "happy": 2
+    },
+    "fear": {
+      "sad": 2,
+      "fear": 21,
+      "neutral": 10,
+      "angry": 6,
+      "happy": 1
+    },
+    "happy": {
+      "happy": 35,
+      "neutral": 2,
+      "fear": 1,
+      "sad": 2
+    },
+    "sad": {
+      "sad": 11,
+      "neutral": 20,
+      "angry": 2,
+      "happy": 1,
+      "fear": 5,
+      "disgust": 1
+    },
+    "neutral": {
+      "neutral": 18,
+      "sad": 1,
+      "fear": 1
+    }
+  },
+  "modelo": "B_ferplus_cremad",
+  "metodo": "sin"
+}

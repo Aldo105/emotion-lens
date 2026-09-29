@@ -1,0 +1,123 @@
+{
+  "n": 220,
+  "global": 0.6045,
+  "por_emocion": {
+    "angry": {
+      "aciertos": 25,
+      "total": 40,
+      "tasa": 0.625
+    },
+    "disgust": {
+      "aciertos": 23,
+      "total": 40,
+      "tasa": 0.575
+    },
+    "fear": {
+      "aciertos": 21,
+      "total": 40,
+      "tasa": 0.525
+    },
+    "happy": {
+      "aciertos": 37,
+      "total": 40,
+      "tasa": 0.925
+    },
+    "sad": {
+      "aciertos": 17,
+      "total": 40,
+      "tasa": 0.425
+    },
+    "neutral": {
+      "aciertos": 10,
+      "total": 20,
+      "tasa": 0.5
+    }
+  },
+  "por_sexo": {
+    "Female": {
+      "aciertos": 70,
+      "total": 121,
+      "tasa": 0.5785
+    },
+    "Male": {
+      "aciertos": 63,
+      "total": 99,
+      "tasa": 0.6364
+    }
+  },
+  "por_etnia": {
+    "African American": {
+      "aciertos": 48,
+      "total": 77,
+      "tasa": 0.6234
+    },
+    "Asian": {
+      "aciertos": 32,
+      "total": 55,
+      "tasa": 0.5818
+    },
+    "Caucasian": {
+      "aciertos": 48,
+      "total": 77,
+      "tasa": 0.6234
+    },
+    "Unknown": {
+      "aciertos": 5,
+      "total": 11,
+      "tasa": 0.4545
+    }
+  },
+  "actores": {
+    "peor": 0.2727,
+    "mejor": 0.9091,
+    "media": 0.6045
+  },
+  "brecha_sexo": 0.0579,
+  "confusion": {
+    "angry": {
+      "angry": 25,
+      "disgust": 4,
+      "surprise": 1,
+      "happy": 5,
+      "sad": 2,
+      "neutral": 2,
+      "fear": 1
+    },
+    "disgust": {
+      "fear": 3,
+      "disgust": 23,
+      "sad": 4,
+      "happy": 8,
+      "neutral": 1,
+      "angry": 1
+    },
+    "fear": {
+      "fear": 21,
+      "angry": 4,
+      "neutral": 4,
+      "sad": 3,
+      "happy": 7,
+      "disgust": 1
+    },
+    "happy": {
+      "happy": 37,
+      "disgust": 2,
+      "sad": 1
+    },
+    "sad": {
+      "sad": 17,
+      "fear": 8,
+      "angry": 3,
+      "disgust": 8,
+      "happy": 4
+    },
+    "neutral": {
+      "sad": 5,
+      "fear": 4,
+      "neutral": 10,
+      "disgust": 1
+    }
+  },
+  "modelo": "B_ferplus_cremad",
+  "metodo": "cociente"
+}

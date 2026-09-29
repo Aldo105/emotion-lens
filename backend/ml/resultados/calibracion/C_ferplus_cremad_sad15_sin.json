@@ -1,0 +1,119 @@
+{
+  "n": 220,
+  "global": 0.5455,
+  "por_emocion": {
+    "angry": {
+      "aciertos": 18,
+      "total": 40,
+      "tasa": 0.45
+    },
+    "disgust": {
+      "aciertos": 18,
+      "total": 40,
+      "tasa": 0.45
+    },
+    "fear": {
+      "aciertos": 16,
+      "total": 40,
+      "tasa": 0.4
+    },
+    "happy": {
+      "aciertos": 32,
+      "total": 40,
+      "tasa": 0.8
+    },
+    "sad": {
+      "aciertos": 17,
+      "total": 40,
+      "tasa": 0.425
+    },
+    "neutral": {
+      "aciertos": 19,
+      "total": 20,
+      "tasa": 0.95
+    }
+  },
+  "por_sexo": {
+    "Female": {
+      "aciertos": 65,
+      "total": 121,
+      "tasa": 0.5372
+    },
+    "Male": {
+      "aciertos": 55,
+      "total": 99,
+      "tasa": 0.5556
+    }
+  },
+  "por_etnia": {
+    "African American": {
+      "aciertos": 49,
+      "total": 77,
+      "tasa": 0.6364
+    },
+    "Asian": {
+      "aciertos": 26,
+      "total": 55,
+      "tasa": 0.4727
+    },
+    "Caucasian": {
+      "aciertos": 39,
+      "total": 77,
+      "tasa": 0.5065
+    },
+    "Unknown": {
+      "aciertos": 6,
+      "total": 11,
+      "tasa": 0.5455
+    }
+  },
+  "actores": {
+    "peor": 0.2727,
+    "mejor": 0.8182,
+    "media": 0.5455
+  },
+  "brecha_sexo": 0.0184,
+  "confusion": {
+    "angry": {
+      "neutral": 14,
+      "angry": 18,
+      "disgust": 2,
+      "happy": 1,
+      "sad": 2,
+      "fear": 3
+    },
+    "disgust": {
+      "fear": 4,
+      "disgust": 18,
+      "sad": 13,
+      "neutral": 2,
+      "angry": 3
+    },
+    "fear": {
+      "sad": 8,
+      "fear": 16,
+      "neutral": 13,
+      "angry": 2,
+      "happy": 1
+    },
+    "happy": {
+      "happy": 32,
+      "neutral": 4,
+      "fear": 2,
+      "sad": 1,
+      "angry": 1
+    },
+    "sad": {
+      "sad": 17,
+      "neutral": 21,
+      "happy": 1,
+      "fear": 1
+    },
+    "neutral": {
+      "neutral": 19,
+      "fear": 1
+    }
+  },
+  "modelo": "C_ferplus_cremad_sad15",
+  "metodo": "sin"
+}
