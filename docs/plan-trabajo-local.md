@@ -367,20 +367,21 @@ Se eliminó `get_magnified_frame` y el parámetro `amplification_factor` de
 
 ## 2. PRIORIDAD MEDIA — Despliegue permanente (VPS económico, CPU)
 
-Archivos ya preparados en `deploy/` (ver `docs/deployment.md`, sección
-"Budget CPU VPS"). Pasos pendientes, que requieren cuenta y tarjeta:
+**El plan detallado está en [`plan-despliegue-vps.md`](plan-despliegue-vps.md)**
+(actualizado el 2026-09-29: precios, elección de proveedor, arreglos pendientes
+en `deploy/` y secretos de GitHub). Resumen:
 
-1. Contratar VPS Ubuntu 22.04, 2 vCPU / 4 GB (Hetzner ~9 USD/mes,
-   DigitalOcean ~24 USD/mes) y anotar la IP.
-2. Registrar dominio y apuntar un registro A a esa IP. HTTPS es obligatorio: el
-   navegador bloquea `getUserMedia` (cámara) en orígenes sin TLS.
-3. En el VPS: `sudo bash deploy/setup_vps.sh tu-dominio.com <url-del-repo>`
-   (instala dependencias CPU, PostgreSQL, systemd con `Restart=always`, Nginx,
-   Certbot y firewall).
-4. Verificar `https://tu-dominio.com` y `/api/health`.
-5. Para actualizar después: `sudo -u emotionlens bash deploy/deploy.sh`.
-6. Opcional: configurar los secrets `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` en
-   GitHub para que `.github/workflows/deploy.yml` despliegue solo.
+1. Contratar VPS Ubuntu 22.04 con al menos 2 vCPU / 4 GB. Recomendado Hetzner
+   CX33 (~$10/mes, Europa); DigitalOcean ($24/mes, EE. UU.) si la latencia
+   desde México molesta.
+2. Dominio o subdominio gratuito (DuckDNS) con HTTPS: el navegador bloquea
+   `getUserMedia` (cámara) en orígenes sin TLS.
+3. Antes de instalar, arreglar `deploy/`: regla de sudoers para
+   `systemctl restart emotionlens` (sin ella el despliegue automático falla) y
+   email de Certbot.
+4. `setup_vps.sh`, luego copiar `emotion_cnn.pt` a mano (no está en git).
+5. Clave SSH de despliegue y secretos `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`.
+   Hasta entonces, `.github/workflows/deploy.yml` falla en cada push (esperado).
 
 Limitación aceptada: sin GPU, la inferencia CNN en vivo procesa menos frames por
 segundo que la máquina local. Es el camino barato para tener URL pública; migrar
