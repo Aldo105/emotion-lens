@@ -1,4 +1,14 @@
 {
+  "args": {
+    "name": "ferplus_cremad",
+    "labels": "ferplus",
+    "extra_manifest": "data/training/cremad/manifest.csv",
+    "init_from": "backend/ml/saved_models/candidatos/ferplus.pt",
+    "sad_weight_mult": 1.0,
+    "num_workers": 2,
+    "batch_size": 32,
+    "max_epochs": 15
+  },
   "labels": [
     "angry",
     "disgust",
@@ -8,81 +18,91 @@
     "surprise",
     "neutral"
   ],
-  "dataset": "abhilash88/fer2013-enhanced",
-  "test_acc": 0.6710575139146567,
-  "test_loss": 1.0046731840038123,
-  "per_class_accuracy": {
-    "angry": 0.6599462365591398,
-    "disgust": 0.6626506024096386,
-    "fear": 0.4538361508452536,
-    "happy": 0.8628613787991104,
-    "sad": 0.5388828039430449,
-    "surprise": 0.7820299500831946,
-    "neutral": 0.640171858216971
-  },
-  "confusion_matrix": [
-    [
-      491,
-      9,
-      44,
-      28,
-      90,
-      25,
-      57
-    ],
-    [
-      19,
-      55,
-      1,
-      1,
-      7,
-      0,
-      0
-    ],
-    [
-      122,
-      7,
-      349,
-      27,
-      131,
-      67,
-      66
-    ],
-    [
-      38,
-      2,
-      9,
-      1164,
-      30,
-      26,
-      80
-    ],
-    [
-      123,
-      6,
-      120,
-      32,
-      492,
-      9,
-      131
-    ],
-    [
-      23,
-      2,
-      40,
-      36,
-      4,
-      470,
-      26
-    ],
-    [
-      91,
-      2,
-      47,
-      47,
-      138,
-      10,
-      596
-    ]
+  "img_size": 224,
+  "best_val_acc": 0.6632070576024909,
+  "fer_test_acc": 0.84375,
+  "fer_test_loss": 0.4793815206558931,
+  "epochs_trained": 10,
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 0.7051020641910479,
+      "train_acc": 0.7403389381117568,
+      "fer_val_acc": 0.8303722504230119,
+      "extra_val_acc": 0.6053450960041515,
+      "epoch_seconds": 558.3381423950195
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.5674199457801672,
+      "train_acc": 0.7838220022536954,
+      "fer_val_acc": 0.8310067681895094,
+      "extra_val_acc": 0.6349247535028542,
+      "epoch_seconds": 550.088996887207
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.5033525040015937,
+      "train_acc": 0.8080381802514417,
+      "fer_val_acc": 0.8519458544839256,
+      "extra_val_acc": 0.620394395433316,
+      "epoch_seconds": 549.9549856185913
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.45919533489174996,
+      "train_acc": 0.8240349985638216,
+      "fer_val_acc": 0.8343908629441624,
+      "extra_val_acc": 0.6292163985469642,
+      "epoch_seconds": 553.4774580001831
+    },
+    {
+      "epoch": 5,
+      "train_loss": 0.40713871334702656,
+      "train_acc": 0.8404074327758015,
+      "fer_val_acc": 0.8468697123519459,
+      "extra_val_acc": 0.6549039958484691,
+      "epoch_seconds": 549.9690184593201
+    },
+    {
+      "epoch": 6,
+      "train_loss": 0.36281599888428295,
+      "train_acc": 0.8567135818290285,
+      "fer_val_acc": 0.8335448392554992,
+      "extra_val_acc": 0.6632070576024909,
+      "epoch_seconds": 549.8945355415344
+    },
+    {
+      "epoch": 7,
+      "train_loss": 0.3238801703453933,
+      "train_acc": 0.8723789743476436,
+      "fer_val_acc": 0.8379864636209814,
+      "extra_val_acc": 0.6621691748832382,
+      "epoch_seconds": 549.7668912410736
+    },
+    {
+      "epoch": 8,
+      "train_loss": 0.2820294497141971,
+      "train_acc": 0.886497713162023,
+      "fer_val_acc": 0.8521573604060914,
+      "extra_val_acc": 0.634665282823041,
+      "epoch_seconds": 549.7884023189545
+    },
+    {
+      "epoch": 9,
+      "train_loss": 0.24710648544067684,
+      "train_acc": 0.8999977904947082,
+      "fer_val_acc": 0.8481387478849408,
+      "extra_val_acc": 0.656201349247535,
+      "epoch_seconds": 550.5868260860443
+    },
+    {
+      "epoch": 10,
+      "train_loss": 0.20965662192127818,
+      "train_acc": 0.9122826399169226,
+      "fer_val_acc": 0.856175972927242,
+      "extra_val_acc": 0.6525687597301505,
+      "epoch_seconds": 550.5917406082153
+    }
   ]
 }

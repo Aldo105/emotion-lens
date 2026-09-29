@@ -538,7 +538,8 @@ CONSTANTS: tuple[ConstantEvidence, ...] = (
     ConstantEvidence(
         name="Alcance real del reconocimiento de emoción",
         location="emotion_classifier.py (todo el clasificador)",
-        current_value="36% sobre 20 actores; solo 'happy' se sostiene (95%)",
+        current_value="36% con el modelo FER2013 (2026-09-16); el modelo actual está en "
+                      "'Reentrenamiento con FER+ y CREMA-D y calibración neutra del CNN'",
         tier=Tier.HEURISTIC,
         refs=("barrett2019reconsidered",),
         note="Medición del 2026-09-16 sobre 220 clips de CREMA-D (20 actores, "
@@ -568,36 +569,32 @@ CONSTANTS: tuple[ConstantEvidence, ...] = (
     ),
 
     ConstantEvidence(
-        name="Reentrenamiento con FER+ y CREMA-D (no promovido)",
-        location="backend/ml/train_emotion_cnn.py, backend/ml/resultados/*.json",
-        current_value="mejor candidato 57% en CREMA-D (+21 pts) pero no promovido: 'sad' no mejora",
+        name="Reentrenamiento con FER+ y CREMA-D y calibración neutra del CNN",
+        location="emotion_classifier.py:_correct_cnn_probs, backend/ml/train_emotion_cnn.py, backend/ml/resultados/",
+        current_value="en producción desde 2026-09-29: modelo B + resta del perfil neutro; CREMA-D 63%, RAVDESS de extremo a extremo 50%",
         tier=Tier.HEURISTIC,
         refs=("barrett2019reconsidered",),
-        note="Experimento del 2026-09-28 con criterios de promoción fijados antes "
-             "de entrenar (backend/ml/eval_summary.py): +5 puntos globales, +15 en "
-             "'sad', 'happy' >= 85%, peor actor no inferior y brecha por sexo no "
-             "mayor. Línea base (modelo en producción, FER2013): 79/220 = 36%. Tres "
-             "candidatos, los tres evaluados sobre los mismos 220 clips de 20 "
-             "actores de CREMA-D, que quedaron fuera del entrenamiento. "
-             "A) solo etiquetas FER+ (Microsoft, 10 anotadores por imagen): 32%, "
-             "colapsa hacia 'neutral' ('sad' 1/40), aunque la brecha por sexo cae "
-             "a 1 punto y el peor actor sube a 18%. B) FER+ más 27.281 caras de 71 "
-             "actores de CREMA-D (61 de entrenamiento, 10 de validación; etiqueta "
-             "FaceVote, la emoción percibida solo con la cara): 57%. 'angry' 23->50%, "
-             "'disgust' 15->53%, 'fear' 10->53%, 'neutral' 50->85%, peor actor "
-             "9->27%, mejor 82%, brecha por sexo 10->5 puntos; 'happy' 95->88% y "
-             "'sad' se queda en 30% (17 de 40 clips tristes salen 'neutral'). "
-             "C) B con el peso de 'sad' x1.5: 53%, 'sad' 40% pero 'happy' cae a 80%. "
-             "Ninguno cumple los criterios, así que ninguno sustituye al modelo en "
-             "producción y no se lanzaron tandas nuevas a la vista de los números. "
-             "Lectura: añadir caras de vídeo de muchas identidades sí ataca el sesgo "
-             "de identidad (el peor actor se triplica y la dispersión se reduce), y "
-             "etiquetas FER+ solas no bastan. 'sad' sigue confundiéndose con "
-             "'neutral' en todos los candidatos. Advertencia: CREMA-D mismo estudio "
-             "y guion en entrenamiento y evaluación (actores distintos), por lo que "
-             "B no se comprobó en otro estudio (RAVDESS) al no haberse promovido. "
-             "Reproducible con backend/ml/train_emotion_cnn.py, "
-             "backend/ml/cremad_faces.py y data/test_videos/evaluate_cremad.py.",
+        note="Seguimiento del 2026-09-29: la calibración de 30 s de la página solo "
+             "llegaba a los blendshapes, no al CNN. Simulándola con las 11 frases "
+             "neutras de cada actor de evaluación que no están en el arnés (~27 s), "
+             "restar a cada frame el perfil que el CNN da a esa cara en reposo sube B "
+             "de 57% a 63%, 'sad' de 28% a 55%, 'angry' de 48% a 62% y el peor actor "
+             "de 27% a 45%, y cumple todos los criterios (data/test_videos/"
+             "evaluate_calibracion.py, backend/ml/resultados/calibracion/). Con el "
+             "modelo FER2013 la misma corrección no aporta (35-37%): la resta solo "
+             "sirve si el modelo responde a la emoción en la dirección correcta y lo "
+             "que la tapaba era el acento propio de la cara en reposo. Coste medido: "
+             "las caras neutras bajan de 90% a 65% en CREMA-D. De extremo a extremo "
+             "sobre RAVDESS actor 1 (otro estudio; 50 segmentos, línea temporal por "
+             "segundo del CSV), con la calibración integrada en el pipeline: modelo "
+             "FER2013 46% ('sad' 1/8), modelo B 50% ('sad' 5/8, 'angry' 5/8, "
+             "'disgust' 7/8); B pierde 'surprise' (2/8 a 0/8, CREMA-D no tiene esa "
+             "clase) y los 2 segmentos neutros finales. Promovido: "
+             "backend/ml/saved_models/emotion_cnn.pt es B; el anterior queda en "
+             "emotion_cnn_fer2013_baseline.pt para revertir. Reproducible con "
+             "backend/ml/train_emotion_cnn.py, backend/ml/cremad_faces.py, "
+             "data/test_videos/evaluate_cremad.py, evaluate_calibracion.py y "
+             "evaluate.py.",
     ),
 
     ConstantEvidence(

@@ -7,6 +7,7 @@ completo y no una version simplificada del pipeline.
 
 Uso (con el servidor levantado en :8000):
     python evaluate.py
+    python evaluate.py --sesion 39     # reevaluar una sesión ya procesada
 """
 import csv
 import io
@@ -65,6 +66,11 @@ def leer_timeline(session_id):
     for fila in filas:
         ts = fila.get("timestamp") or fila.get("Timestamp")
         emo = fila.get("emotion") or fila.get("Emotion")
+        # Desde 1840696 el CSV trae una fila por segundo (columnas "segundo" y
+        # "emocion"): esa fila cubre [s, s+1), así que cuenta en su punto medio.
+        if ts is None and fila.get("segundo") not in (None, ""):
+            ts = float(fila["segundo"]) + 0.5
+            emo = fila.get("emocion")
         if ts is None or emo is None:
             continue
         try:
@@ -83,16 +89,21 @@ def main():
     print(f"video: {meta['duracion_total']}s, {len(segmentos)} segmentos etiquetados")
     print(f"calibracion hasta: {meta['calibracion_hasta']}s\n")
 
-    print("subiendo...")
-    info = subir()
-    sid = info.get("session_id") or info.get("id")
-    print(f"session_id: {sid}\n")
+    if "--sesion" in sys.argv:
+        # Reevaluar un video ya procesado sin subirlo otra vez
+        sid = int(sys.argv[sys.argv.index("--sesion") + 1])
+        print(f"session_id: {sid} (ya procesada)\n")
+    else:
+        print("subiendo...")
+        info = subir()
+        sid = info.get("session_id") or info.get("id")
+        print(f"session_id: {sid}\n")
 
-    print("procesando:")
-    estado = esperar(sid)
-    print(f"\nestado final: {estado}")
-    if estado != "completed":
-        sys.exit("El analisis no termino correctamente")
+        print("procesando:")
+        estado = esperar(sid)
+        print(f"\nestado final: {estado}")
+        if estado != "completed":
+            sys.exit("El analisis no termino correctamente")
 
     registros = leer_timeline(sid)
     print(f"frames en la linea temporal: {len(registros)}\n")
