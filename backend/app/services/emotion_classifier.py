@@ -167,6 +167,12 @@ class EmotionClassifier:
         self._baseline_set = False
         self._calibration_buffer: list[dict[str, float]] = []
 
+        # The same idea for the CNN: this person's resting-face probability
+        # profile (7 values, FER7_LABELS order), built from the CNN's own
+        # output on the calibration frames. See _correct_cnn_probs.
+        self._cnn_calibration: list[np.ndarray] = []
+        self._cnn_baseline: np.ndarray | None = None
+
         # Try to load CNN model
         if model_path is None:
             model_path = os.path.join(settings.model_dir, settings.emotion_model_name)
@@ -237,10 +243,29 @@ class EmotionClassifier:
         chw = (chw - EmotionClassifier._CNN_MEAN) / EmotionClassifier._CNN_STD
         return chw[np.newaxis, ...].astype(np.float32)
 
-    def record_calibration_frame(self, blendshapes: dict[str, float] | None) -> None:
-        """Accumulate one frame of the calibration period for the baseline."""
+    # Fewer calibration frames than this and the averaged profile is a blink
+    # or a swallow, not a resting face: better to leave the CNN uncorrected.
+    _MIN_CNN_CALIBRATION_FRAMES = 10
+
+    def record_calibration_frame(
+        self,
+        blendshapes: dict[str, float] | None,
+        face_image: np.ndarray | None = None,
+    ) -> None:
+        """
+        Accumulate one frame of the calibration period for the baseline.
+
+        In CNN mode the preprocessed face crop is classified too, so the
+        resting-face probability profile can be averaged in finalize_baseline.
+        """
         if blendshapes:
             self._calibration_buffer.append(blendshapes)
+
+        if self.mode == "cnn" and face_image is not None:
+            probs = self._predict_cnn(face_image)["probabilities"]
+            self._cnn_calibration.append(
+                np.array([probs[k] for k in FER7_LABELS], dtype=np.float64)
+            )
 
     def finalize_baseline(self) -> bool:
         """
@@ -253,8 +278,14 @@ class EmotionClassifier:
         biased every later prediction. Averaging the whole period is what
         this class's baseline subtraction always assumed it was getting.
 
-        Returns whether a baseline could be established.
+        The CNN's resting-face profile is built here too, independently of the
+        blendshapes: it never depends on them, so it is computed before the
+        early return below and a missing blendshape baseline does not lose it.
+
+        Returns whether a (blendshape) baseline could be established.
         """
+        self._finalize_cnn_profile()
+
         if not self._calibration_buffer:
             print("[!!] Emotion baseline not set: no blendshape frames captured")
             return False
@@ -274,11 +305,52 @@ class EmotionClassifier:
               f"({len(self._baseline_blendshapes)} blendshapes)")
         return True
 
+    def _finalize_cnn_profile(self) -> None:
+        """Average the calibration frames' CNN output into the resting profile."""
+        n_frames = len(self._cnn_calibration)
+        if n_frames >= self._MIN_CNN_CALIBRATION_FRAMES:
+            self._cnn_baseline = np.mean(self._cnn_calibration, axis=0)
+            print(f"[OK] CNN neutral profile set from {n_frames} frames")
+        else:
+            self._cnn_baseline = None
+            # Silent outside CNN mode, where no frame is ever expected.
+            if n_frames > 0 or self.mode == "cnn":
+                print(f"[!!] CNN neutral profile not set: only {n_frames} frames "
+                      f"(need {self._MIN_CNN_CALIBRATION_FRAMES})")
+        self._cnn_calibration.clear()
+
     def reset_baseline(self) -> None:
         """Clear the baseline and buffer so recalibration starts clean."""
         self._baseline_blendshapes = None
         self._baseline_set = False
         self._calibration_buffer.clear()
+        self._cnn_calibration.clear()
+        self._cnn_baseline = None
+
+    def _correct_cnn_probs(self, probs: dict[str, float]) -> dict[str, float]:
+        """
+        Subtract this person's resting-face profile from the CNN's output.
+
+        The CNN reads some resting faces as sad or angry, which buries the real
+        expression under that bias. Subtracting the probabilities it gave the
+        person's neutral face (p' = max(0, p - basal), renormalised over the 7
+        classes) raised CREMA-D accuracy from 57% to 63% and `sad` from 28% to
+        55% (commit b4f69a2).
+
+        Without a profile, or when the face is exactly as at rest (nothing left
+        after the subtraction), the raw probabilities are returned untouched.
+        """
+        if self._cnn_baseline is None:
+            return probs
+
+        q = {
+            k: max(0.0, probs[k] - float(self._cnn_baseline[i]))
+            for i, k in enumerate(FER7_LABELS)
+        }
+        total = sum(q.values())
+        if total <= 1e-6:
+            return probs
+        return {k: v / total for k, v in q.items()}
 
     def _subtract_baseline(self, blendshapes: dict[str, float]) -> dict[str, float]:
         """
@@ -353,7 +425,16 @@ class EmotionClassifier:
             # and "confidence" have no equivalent in any public FER dataset,
             # so they're carved in from the AU/blendshape signal instead of
             # being learned. See _merge_cnn_with_derived.
+            # The resting-face profile is subtracted first, so the emotion that
+            # is reported and smoothed is relative to this person's neutral.
             merged_probs = self._merge_cnn_with_derived(
+                self._correct_cnn_probs(cnn_result["probabilities"]),
+                action_units,
+                blendshapes,
+            )
+            # Peaks keep the raw reading: the 0.60 threshold was tuned on the
+            # model's uncorrected output, and correcting shifts that scale.
+            peak_probs = self._merge_cnn_with_derived(
                 cnn_result["probabilities"], action_units, blendshapes
             )
             top_emotion = max(merged_probs, key=merged_probs.get)
@@ -361,6 +442,7 @@ class EmotionClassifier:
                 "emotion": top_emotion,
                 "confidence": merged_probs[top_emotion],
                 "probabilities": merged_probs,
+                "peak_probabilities": peak_probs,
                 "model_confidence": cnn_result["model_confidence"],
                 "mode": "cnn",
             }
@@ -388,7 +470,10 @@ class EmotionClassifier:
             "probabilities": smoothed,
             "model_confidence": raw_result["model_confidence"] * quality_penalty,
             "mode": raw_result["mode"],
-            "peak": self._detect_peak(raw_result["probabilities"], final_emotion),
+            "peak": self._detect_peak(
+                raw_result.get("peak_probabilities", raw_result["probabilities"]),
+                final_emotion,
+            ),
         }
 
     def _detect_peak(self, raw_probs: dict, dominant: str) -> dict | None:
