@@ -103,3 +103,19 @@ def test_download_succeeds_and_cleans_up_part_file(tmp_path):
     assert dest.exists(), "dest should exist after successful download"
     assert dest.read_bytes() == content, "dest should have the correct content"
     assert not (dest.with_name(dest.name + ".part")).exists(), ".part file should not remain"
+
+
+def test_download_rejects_file_smaller_than_min_bytes(tmp_path):
+    """A GitHub LFS failure returns a tiny pointer/error page, not the video."""
+    dest = tmp_path / "clip.flv"
+
+    def fake_retrieve(url, target):
+        with open(target, "wb") as f:
+            f.write(b"x" * 100)
+
+    with patch("backend.ml.cremad_faces.urllib.request.urlretrieve", fake_retrieve):
+        with pytest.raises(IOError, match="LFS pointer"):
+            _download("http://example.com/clip.flv", dest, min_bytes=10_000)
+
+    assert not dest.exists(), "dest should not exist after a too-small download"
+    assert not (dest.with_name(dest.name + ".part")).exists(), ".part file should be cleaned up"

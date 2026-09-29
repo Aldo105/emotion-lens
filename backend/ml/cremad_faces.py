@@ -22,6 +22,7 @@ import csv
 import json
 import os
 import random
+import socket
 import sys
 import urllib.request
 from pathlib import Path
@@ -108,17 +109,22 @@ def _read_frames(path: Path) -> list:
     return frames
 
 
-def _download(url: str, dest: Path) -> None:
+def _download(url: str, dest: Path, *, min_bytes: int = 0) -> None:
     """Download a file atomically to avoid truncated files on interruption.
 
     Downloads to dest.with_name(dest.name + ".part"), then atomically
     replaces dest on success. If any exception occurs, the .part file is
-    removed and the exception is re-raised.
+    removed and the exception is re-raised. A download smaller than
+    min_bytes is an error: a GitHub LFS failure returns a tiny pointer or
+    HTML page instead of the file.
     """
     dest = Path(dest)
     part = dest.with_name(dest.name + ".part")
     try:
         urllib.request.urlretrieve(url, part)
+        size = part.stat().st_size
+        if size < min_bytes:
+            raise IOError(f"{url}: {size} bytes, looks like an LFS pointer or error page")
         os.replace(part, dest)
     except Exception:
         part.unlink(missing_ok=True)
@@ -128,6 +134,7 @@ def _download(url: str, dest: Path) -> None:
 def build(max_actors=None, frames_per_clip=5, delete_videos=False):
     from backend.app.services.face_detector import FaceDetector
 
+    socket.setdefaulttimeout(60)  # a stalled connection must not hang a multi-hour run
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "caras").mkdir(exist_ok=True)
     (OUT / "videos").mkdir(exist_ok=True)
@@ -153,7 +160,9 @@ def build(max_actors=None, frames_per_clip=5, delete_videos=False):
           f"clips pending={len(todo)} done={len({r['clip'] for r in existing})}")
 
     det = FaceDetector(max_faces=1, detection_confidence=0.5, tracking_confidence=0.5)
-    new_file = not MANIFEST.exists()
+    # size 0 = header never made it out before a hard kill
+    new_file = not MANIFEST.exists() or MANIFEST.stat().st_size == 0
+    rows_written = failed_downloads = clips_without_faces = 0
     with open(MANIFEST, "a", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=FIELDS)
         if new_file:
@@ -162,11 +171,13 @@ def build(max_actors=None, frames_per_clip=5, delete_videos=False):
             video = OUT / "videos" / f"{c['clip']}.flv"
             if not video.exists():
                 try:
-                    _download(f"{VIDEO_BASE}/{c['clip']}.flv", video)
+                    _download(f"{VIDEO_BASE}/{c['clip']}.flv", video, min_bytes=10_000)
                 except Exception as e:  # a missing clip must not kill a 6000-clip run
                     print(f"[WARN] {c['clip']}: {e}")
+                    failed_downloads += 1
                     continue
             frames = _read_frames(video)
+            clip_rows = 0
             for idx in pick_frames(len(frames), k=frames_per_clip):
                 d = det.detect(frames[idx])
                 gray = EmotionClassifier.crop_face_gray(frames[idx], d["bbox"]) if d else None
@@ -176,13 +187,18 @@ def build(max_actors=None, frames_per_clip=5, delete_videos=False):
                 cv2.imwrite(str(OUT / rel), gray)
                 writer.writerow({"ruta": rel, "label": c["label"], "actor": c["actor"],
                                  "split": split_of[c["actor"]], "clip": c["clip"]})
+                clip_rows += 1
+            rows_written += clip_rows
+            if clip_rows == 0:
+                clips_without_faces += 1
             f.flush()
             if delete_videos:
                 video.unlink(missing_ok=True)
             if i % 100 == 0:
                 print(f"  {i}/{len(todo)}", flush=True)
     det.close()
-    print(f"[OK] manifest -> {MANIFEST}")
+    print(f"[OK] manifest -> {MANIFEST} (rows +{rows_written}, "
+          f"failed downloads {failed_downloads}, clips without faces {clips_without_faces})")
 
 
 def main(argv=None):
