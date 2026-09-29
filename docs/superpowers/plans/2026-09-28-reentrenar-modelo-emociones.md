@@ -992,7 +992,7 @@ Expected: `actors train=2 val=1 excluded=20`, y aparecen pngs en `data/training/
 python -c "import csv;from backend.ml.cremad_faces import *;verify_manifest(list(csv.DictReader(open(MANIFEST))), eval_actors(EVAL_INDEX));print('sin fuga')"
 ```
 
-Expected: `sin fuga`. Borrar `data/training/cremad/` antes de la extracción completa, porque `--max-actors` reparte distinto que la extracción completa.
+Expected: `sin fuga`. Borrar `data/training/cremad/` antes de la extracción completa es opcional: `--max-actors` usa un prefijo del mismo reparto, así que las filas del humo son válidas.
 
 - [ ] **Step 6: Commit**
 
@@ -1360,6 +1360,12 @@ git commit -m "Train into named candidates, with FER+ labels and an extra face m
 
 Protocolo fijado **antes** de ver resultados: tres tandas declaradas, las tres se evalúan y no se añaden tandas nuevas a la vista de los números. Si ninguna pasa, se registra el resultado negativo, como en `adf36ee`.
 
+**Antes de empezar (pasos diferidos).** Estas comprobaciones con datos reales se aplazaron porque Smart App Control bloqueó `_ssl.pyd` en el entorno cuando se escribió el código (sin HTTPS no había descargas). Hacerlas en este orden, antes del Step 1:
+
+1. `python -m backend.ml.ferplus_labels --verificar` (Task 3, Step 5): debe acabar en `[OK] FER+ join verified`.
+2. Humo de CREMA-D (Task 4, Step 5): `--max-actors 2`, inspeccionar los PNG (incluido el primer fotograma muestreado de varios clips) y ejecutar el comprobador de fugas de una línea.
+3. Humo de entrenamiento (Task 5, Step 5): 1 época con `--name humo`, y después borrar `humo.pt` y `humo.json`.
+
 **Files:**
 - Create: `backend/ml/resultados/{ferplus,ferplus_cremad,ferplus_cremad_sad15}.json`
 - Modify: `backend/app/references.py` (entrada "Alcance real del reconocimiento de emoción", ~línea 539)
@@ -1370,17 +1376,19 @@ Protocolo fijado **antes** de ver resultados: tres tandas declaradas, las tres s
 Run: `python -m backend.ml.cremad_faces --delete-videos`
 Expected: `actors train=61 val=10 excluded=20`, y al final un manifiesto con unas 25–29k filas. Si se corta, relanzar el mismo comando: continúa por donde iba.
 
+Comprobar también el reparto con `python -c "import csv,collections;r=list(csv.DictReader(open('data/training/cremad/manifest.csv')));print(len(r),collections.Counter(x['split'] for x in r))"` y que el `[OK]` final no reporte muchas descargas fallidas; si faltan muchas filas (cuota LFS de GitHub agotada), relanzar más tarde: continúa donde iba.
+
 - [ ] **Step 2: Tanda A — solo FER+**
 
-Run: `python -m backend.ml.train_emotion_cnn --name ferplus --labels ferplus`
+Run: `python -m backend.ml.train_emotion_cnn --name ferplus --labels ferplus --num-workers 2`
 
 - [ ] **Step 3: Tanda B — FER+ y CREMA-D, partiendo de A**
 
-Run: `python -m backend.ml.train_emotion_cnn --name ferplus_cremad --labels ferplus --extra-manifest data/training/cremad/manifest.csv --init-from backend/ml/saved_models/candidatos/ferplus.pt`
+Run: `python -m backend.ml.train_emotion_cnn --name ferplus_cremad --labels ferplus --extra-manifest data/training/cremad/manifest.csv --init-from backend/ml/saved_models/candidatos/ferplus.pt --num-workers 2`
 
 - [ ] **Step 4: Tanda C — B con `sad` sobreponderado**
 
-Run: `python -m backend.ml.train_emotion_cnn --name ferplus_cremad_sad15 --labels ferplus --extra-manifest data/training/cremad/manifest.csv --init-from backend/ml/saved_models/candidatos/ferplus.pt --sad-weight-mult 1.5`
+Run: `python -m backend.ml.train_emotion_cnn --name ferplus_cremad_sad15 --labels ferplus --extra-manifest data/training/cremad/manifest.csv --init-from backend/ml/saved_models/candidatos/ferplus.pt --sad-weight-mult 1.5 --num-workers 2`
 
 - [ ] **Step 5: Evaluar las tres en el arnés CREMA-D**
 
