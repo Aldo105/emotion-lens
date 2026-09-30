@@ -97,6 +97,22 @@ def test_non_ascii_credentials(configured, monkeypatch):
     assert _login(_client(), username="ñandú", password="contraseña-ñ").status_code == 204
 
 
+def test_unencodable_username_is_a_normal_failure(configured):
+    """Lone surrogate in username should trigger rate limiting, not crash."""
+    c = _client()
+    # Send a lone surrogate \ud800 as JSON escape, which can't be encoded to UTF-8.
+    for _ in range(5):
+        r = c.post("/api/auth/login", content='{"username":"\\ud800","password":"x"}',
+                   headers={"Content-Type": "application/json"})
+        assert r.status_code == 401
+        assert r.json() == {"detail": "invalid_credentials"}
+    # 6th attempt should be rate limited
+    r = c.post("/api/auth/login", content='{"username":"\\ud800","password":"x"}',
+               headers={"Content-Type": "application/json"})
+    assert r.status_code == 429
+    assert r.json()["detail"] == "too_many_attempts"
+
+
 def test_logout_clears_the_cookie(configured):
     r = _client().post("/api/auth/logout")
     assert r.status_code == 204

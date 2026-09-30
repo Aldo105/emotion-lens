@@ -23,6 +23,22 @@ class LoginRequest(BaseModel):
     password: str
 
 
+def _username_matches(username: str, expected_username: str) -> bool:
+    """Compare username in constant time, treating unencodable characters as mismatch."""
+    try:
+        username_bytes = username.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+
+    try:
+        expected_bytes = expected_username.encode("utf-8")
+    except UnicodeEncodeError:
+        # Should not happen in normal operation, but be safe
+        return False
+
+    return hmac.compare_digest(username_bytes, expected_bytes)
+
+
 @router.get("/status")
 async def status():
     return {"enabled": settings.auth_enabled}
@@ -39,8 +55,7 @@ async def login(body: LoginRequest, request: Request):
         return JSONResponse({"detail": "too_many_attempts", "retry_after": wait},
                             status_code=429, headers={"Retry-After": str(wait)})
 
-    user_ok = hmac.compare_digest(body.username.encode("utf-8"),
-                                  settings.auth_username.encode("utf-8"))
+    user_ok = _username_matches(body.username, settings.auth_username)
     password_ok = auth.verify_password(body.password, settings.auth_password_hash)
     if not (user_ok and password_ok):
         limiter.record_failure(ip)
