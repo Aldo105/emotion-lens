@@ -7,8 +7,9 @@ a WebSocket and BaseHTTPMiddleware never sees websocket scopes. Settings are
 read per request, so tests (and a restart with a new .env) take effect
 without rebuilding the app.
 """
-from http.cookies import CookieError, SimpleCookie
 from urllib.parse import quote
+
+from starlette.requests import cookie_parser
 
 from backend.app import auth
 from backend.app.config import settings
@@ -57,13 +58,10 @@ def _session_token(scope: dict) -> str | None:
     raw = auth.header(scope, b"cookie")
     if not raw:
         return None
-    jar = SimpleCookie()
-    try:
-        jar.load(raw)
-    except CookieError:
-        return None
-    morsel = jar.get(auth.COOKIE_NAME)
-    return morsel.value if morsel else None
+    # Starlette's own parser (what Request.cookies uses): it skips a malformed
+    # neighbouring cookie instead of discarding the whole header the way
+    # http.cookies.SimpleCookie does.
+    return cookie_parser(raw).get(auth.COOKIE_NAME) or None
 
 
 def has_valid_session(scope: dict) -> bool:

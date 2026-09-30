@@ -81,6 +81,20 @@ def test_expired_or_forged_cookies_are_rejected(configured):
     assert c.get("/api/private", headers={"cookie": "otra=cosa"}).status_code == 401
 
 
+def test_a_malformed_foreign_cookie_does_not_hide_the_session(configured):
+    # Other apps on localhost (cookies ignore ports) or a parent domain can
+    # leave cookies with spaces, quotes or no "=" next to ours.
+    token = _cookie()["cookie"]
+    c = _client()
+    for header in (f"x=a b; {token}", f"{token}; foo", f"foo; {token}",
+                   f'prefs={{"a":1}}; {token}'):
+        assert c.get("/api/private", headers={"cookie": header}).status_code == 200, header
+    with c.websocket_connect("/ws/emotion", headers={"cookie": f"x=a b; {token}"}) as ws:
+        assert ws.receive_text() == "hola"
+    # ...while a malformed neighbour alone still gets nobody in.
+    assert c.get("/api/private", headers={"cookie": "x=a b; foo"}).status_code == 401
+
+
 def test_websocket_without_cookie_is_closed_with_4401(configured):
     with _client().websocket_connect("/ws/emotion") as ws:
         with pytest.raises(WebSocketDisconnect) as exc:
