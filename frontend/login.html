@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <title>EmotionLens</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/styles.css">
+    <!-- Applied before first paint so the page never flashes the wrong theme
+         (same key and rule as index.html). -->
+    <script>
+        try {
+            if (localStorage.getItem('emotionlens-theme') === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            }
+        } catch (e) { /* private mode: light theme */ }
+    </script>
+</head>
+<body>
+    <main class="login-shell">
+        <section class="login-art" aria-hidden="true">
+            <svg class="login-wave" viewBox="0 0 200 60" preserveAspectRatio="none">
+                <path d="M0 30h40l12 22 16-48 12 26h30l10-14 10 14h70"/>
+            </svg>
+            <p class="login-art-title" data-i18n="login.tagline">Lectura de expresiones, con sus límites a la vista.</p>
+            <p class="login-art-note" data-i18n="login.note">Herramienta de investigación · no es un dispositivo médico</p>
+        </section>
+
+        <section class="login-panel">
+            <div class="login-toolbar">
+                <button type="button" class="icon-btn" id="btn-lang">ES</button>
+                <button type="button" class="icon-btn" id="btn-theme" data-i18n-title="login.theme" title="Cambiar tema claro / oscuro"></button>
+            </div>
+
+            <form class="login-form" id="login-form" novalidate>
+                <div class="login-brand">
+                    <span class="ico" data-icon="activity" data-icon-size="26"></span>
+                    <h1>EmotionLens</h1>
+                </div>
+                <p class="login-subtitle" data-i18n="login.subtitle">Acceso del entrevistador</p>
+
+                <label class="login-field" for="login-username">
+                    <span data-i18n="login.username">Usuario</span>
+                    <input id="login-username" name="username" type="text" autocomplete="username"
+                           autocapitalize="none" spellcheck="false" required>
+                </label>
+
+                <label class="login-field" for="login-password">
+                    <span data-i18n="login.password">Contraseña</span>
+                    <span class="login-password">
+                        <input id="login-password" name="password" type="password"
+                               autocomplete="current-password" required>
+                        <button type="button" class="login-reveal" id="login-reveal" aria-pressed="false">
+                            <span class="ico" data-icon="eye"></span>
+                        </button>
+                    </span>
+                </label>
+
+                <button type="submit" class="btn btn-primary login-submit" id="login-submit" data-i18n="login.submit">Entrar</button>
+                <p class="login-error" id="login-error" role="alert" aria-live="polite"></p>
+            </form>
+        </section>
+    </main>
+
+    <script src="/js/i18n.js"></script>
+    <script src="/js/icons.js"></script>
+    <script src="/js/login.js"></script>
+</body>
+</html>

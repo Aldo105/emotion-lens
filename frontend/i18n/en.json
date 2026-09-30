@@ -159,5 +159,21 @@
   "noise_speaking": "Speaking",
   "noise_yawning": "Yawning",
   "noise_tic": "Tic Detected",
-  "noise_filtered": "Noise Filtered"
+  "noise_filtered": "Noise Filtered",
+  "login": {
+    "title": "Sign in",
+    "subtitle": "Interviewer access",
+    "tagline": "Reading expressions, with their limits in plain sight.",
+    "note": "Research tool · not a medical device",
+    "username": "Username",
+    "password": "Password",
+    "submit": "Sign in",
+    "submitting": "Signing in…",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "invalid": "Incorrect username or password",
+    "locked": "Too many attempts. Try again in 15 minutes.",
+    "unavailable": "Couldn't reach the server. Please try again.",
+    "theme": "Toggle light / dark theme"
+  }
 }
