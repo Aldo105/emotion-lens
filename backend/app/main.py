@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from backend.app.config import settings, BASE_DIR, initialize_gpu
 from backend.app.models.database import init_db
 from backend.app.routers import sessions, notes, reports, websocket, videos, feedback, analysis
+from backend.app.auth import missing_auth_settings
 
 
 # ── Lifecycle ─────────────────────────────────────────────────────────
@@ -24,6 +25,16 @@ from backend.app.routers import sessions, notes, reports, websocket, videos, fee
 async def lifespan(app: FastAPI):
     """Application startup and shutdown events."""
     # ── Startup ──
+    # Refuse to serve anything with the login switched on but unconfigured:
+    # the failure has to be loud, never an open server.
+    missing = missing_auth_settings(settings)
+    if missing:
+        raise RuntimeError(
+            "Login activado pero faltan en .env: " + ", ".join(missing) + ". "
+            "Genera las credenciales con: python -m backend.app.auth crear-credenciales --env .env "
+            "(o pon AUTH_ENABLED=false solo en desarrollo local)."
+        )
+
     print(f"\n[*] Starting {settings.app_name} v{settings.app_version}")
     
     # Create data directories

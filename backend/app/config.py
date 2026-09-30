@@ -27,6 +27,17 @@ class Settings(BaseSettings):
     port: int = 8000
     cors_origins: list[str] = ["*"]  # Restrict in production
 
+    # ── Auth (single-user login) ─────────────────────────────────────
+    # On by default so a server can never come up open by accident. Local
+    # development turns it off with AUTH_ENABLED=false in its own .env.
+    # Generate the other three with:
+    #   python -m backend.app.auth crear-credenciales --env .env
+    auth_enabled: bool = True
+    auth_username: str = ""
+    auth_password_hash: str = ""
+    auth_secret_key: str = ""
+    auth_session_hours: int = 12
+
     # ── Database ─────────────────────────────────────────────────────
     database_url: str = f"sqlite+aiosqlite:///{BASE_DIR / 'data' / 'emotion_lens.db'}"
 
