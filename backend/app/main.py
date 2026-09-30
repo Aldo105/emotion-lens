@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.app.config import settings, BASE_DIR, initialize_gpu
 from backend.app.models.database import init_db
-from backend.app.routers import sessions, notes, reports, websocket, videos, feedback, analysis
+from backend.app.routers import sessions, notes, reports, websocket, videos, feedback, analysis, auth as auth_routes
 from backend.app.auth import missing_auth_settings
 
 
@@ -133,6 +133,11 @@ app.include_router(
     tags=["Analysis"],
 )
 
+app.include_router(
+    auth_routes.router,
+    prefix="/api/auth",
+    tags=["Auth"],
+)
 
 
 # ── Health Check ──────────────────────────────────────────────────────
