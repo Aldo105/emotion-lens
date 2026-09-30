@@ -36,12 +36,12 @@ Unidad sin dependencias de FastAPI, testeable por separado:
 
 - `hash_password(password) -> str` / `verify_password(password, stored) -> bool`:
   `hashlib.scrypt` de la biblioteca estándar (n=2**14, r=8, p=1, sal de 16 bytes).
-  Formato almacenado: `scrypt$<n>$<r>$<p>$<sal_b64>$<hash_b64>`. Comparación con
-  `hmac.compare_digest`.
-- `make_token(username, now) -> str` / `read_token(token, now) -> str | None`: el token
+  Formato almacenado: `scrypt:<n>:<r>:<p>:<sal_b64>:<hash_b64>` (con `:` y no `$`, para que
+  el lector del `.env` no interprete nada). Comparación con `hmac.compare_digest`.
+- `make_token(...) -> str` / `token_is_valid(token, ...) -> bool`: el token
   es `base64url(username|expira_epoch)` + `.` + firma HMAC-SHA256. La clave de firma es
   `AUTH_SECRET_KEY + AUTH_PASSWORD_HASH`, así que cambiar cualquiera de las dos invalida
-  todas las sesiones. `read_token` devuelve `None` si la firma no cuadra, el formato es
+  todas las sesiones. `token_is_valid` devuelve falso si la firma no cuadra, el formato es
   inválido, el usuario no coincide o el token caducó.
 - `LoginRateLimiter`: en memoria, por IP. **5 fallos en 15 minutos → bloqueo de 15
   minutos** para esa IP. Un login correcto borra el contador de esa IP. Reloj inyectable
@@ -49,7 +49,8 @@ Unidad sin dependencias de FastAPI, testeable por separado:
 - CLI: `python -m backend.app.auth crear-credenciales` pide el usuario, y la contraseña
   dos veces con `getpass`, e imprime las cuatro líneas para el `.env`:
   `AUTH_ENABLED=true`, `AUTH_USERNAME`, `AUTH_PASSWORD_HASH` y `AUTH_SECRET_KEY`
-  (esta última con `secrets.token_urlsafe(48)`). Opción `--env RUTA` para escribirlas
+  (esta última con `secrets.token_urlsafe(48)`). Rechaza contraseñas de menos de 8
+  caracteres y usuarios vacíos o con espacios. Opción `--env RUTA` para escribirlas
   directamente en ese archivo, sustituyendo las existentes. Esa opción la usa
   `setup_vps.sh`.
 
@@ -77,7 +78,7 @@ Middleware ASGI puro, porque debe cubrir también el ámbito `websocket`, que
 - **Rutas públicas**, las únicas accesibles sin sesión:
   - `GET /login.html`
   - `/css/styles.css`
-  - `/js/login.js` y `/js/i18n.js`
+  - `/js/login.js`, `/js/i18n.js` y `/js/icons.js`
   - `/i18n/*.json`
   - `POST /api/auth/login`
   - `GET /api/auth/status`
@@ -85,7 +86,9 @@ Middleware ASGI puro, porque debe cubrir también el ámbito `websocket`, que
 - **El resto** exige una cookie `el_session` válida:
   - página HTML sin sesión → `302` a `/login.html?next=<ruta original>`;
   - `/api/*` sin sesión → `401 {"detail": "not_authenticated"}`;
-  - WebSocket sin sesión → se cierra antes de aceptar, con código `4401`.
+  - WebSocket sin sesión → se acepta y se cierra en el acto con código `4401`, sin
+    procesar nada. (Cerrar antes de aceptar llega al navegador como un 1006 genérico y el
+    frontend no podría distinguirlo de una caída de red.)
 - `next` solo acepta rutas relativas que empiecen por `/` y no por `//`, para evitar que
   el login redirija a otros dominios.
 
