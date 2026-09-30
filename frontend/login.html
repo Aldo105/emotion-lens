@@ -35,7 +35,7 @@
                 <button type="button" class="icon-btn" id="btn-theme" data-i18n-title="login.theme" title="Cambiar tema claro / oscuro"></button>
             </div>
 
-            <form class="login-form" id="login-form" novalidate>
+            <form class="login-form" id="login-form" method="post" novalidate>
                 <div class="login-brand">
                     <span class="ico" data-icon="activity" data-icon-size="26"></span>
                     <h1>EmotionLens</h1>
@@ -59,7 +59,7 @@
                     </span>
                 </label>
 
-                <button type="submit" class="btn btn-primary login-submit" id="login-submit" data-i18n="login.submit">Entrar</button>
+                <button type="submit" class="btn btn-primary login-submit" id="login-submit" disabled data-i18n="login.submit">Entrar</button>
                 <p class="login-error" id="login-error" role="alert" aria-live="polite"></p>
             </form>
         </section>

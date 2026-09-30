@@ -2577,8 +2577,8 @@ h1, h2, h3, h4 {
         padding: var(--spacing-md);
     }
     .login-wave {
-        top: 22%;
-        height: 70px;
+        top: 12px;
+        height: 48px;
     }
     .login-art-title {
         font-size: 1.15rem;
