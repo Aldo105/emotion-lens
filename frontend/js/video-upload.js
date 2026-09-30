@@ -153,6 +153,11 @@ class VideoUploadManager {
             });
 
             xhr.addEventListener('load', () => {
+                // Session expired (see app.js goToLogin): same as every fetch call.
+                if (xhr.status === 401 && typeof goToLogin === 'function') {
+                    goToLogin();
+                    return;
+                }
                 if (xhr.status >= 200 && xhr.status < 300) {
                     try {
                         resolve(JSON.parse(xhr.responseText));
