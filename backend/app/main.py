@@ -17,6 +17,7 @@ from backend.app.config import settings, BASE_DIR, initialize_gpu
 from backend.app.models.database import init_db
 from backend.app.routers import sessions, notes, reports, websocket, videos, feedback, analysis, auth as auth_routes
 from backend.app.auth import missing_auth_settings
+from backend.app.auth_middleware import AuthMiddleware
 
 
 # ── Lifecycle ─────────────────────────────────────────────────────────
@@ -88,6 +89,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ── Auth Middleware ──────────────────────────────────────────────────
+# Added after CORS so it is the outermost layer: nothing (API, WebSocket,
+# static files, /docs) is reachable without the session cookie. It does
+# nothing when AUTH_ENABLED=false (local development).
+
+app.add_middleware(AuthMiddleware)
 
 
 # ── API Routes ────────────────────────────────────────────────────────
