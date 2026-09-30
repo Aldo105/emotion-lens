@@ -2,7 +2,7 @@
 # EmotionLens — one-time provisioning for a fresh Ubuntu 22.04 CPU VPS.
 #
 # Run as root (or with sudo) on the VPS itself:
-#   sudo bash deploy/setup_vps.sh your-domain.com https://github.com/your-org/emotion-lens.git
+#   sudo bash deploy/setup_vps.sh your-domain.com https://github.com/your-org/emotion-lens.git you@example.com
 #
 # What it does: installs system deps, creates the app user + venv, sets up
 # PostgreSQL, installs the systemd service, configures Nginx, and requests
@@ -10,8 +10,9 @@
 
 set -euo pipefail
 
-DOMAIN="${1:?Usage: setup_vps.sh <domain> <repo_url>}"
-REPO_URL="${2:?Usage: setup_vps.sh <domain> <repo_url>}"
+DOMAIN="${1:?Usage: setup_vps.sh <domain> <repo_url> <email>}"
+REPO_URL="${2:?Usage: setup_vps.sh <domain> <repo_url> <email>}"
+EMAIL="${3:?Usage: setup_vps.sh <domain> <repo_url> <email> (used by Certbot)}"
 APP_USER="emotionlens"
 APP_DIR="/home/${APP_USER}/emotion-lens"
 DB_PASSWORD="${DB_PASSWORD:-$(openssl rand -hex 16)}"
@@ -24,6 +25,16 @@ apt install -y python3.11 python3.11-venv python3-pip git nginx \
 
 echo ">> Creating app user..."
 id -u "$APP_USER" &>/dev/null || useradd -m -s /bin/bash "$APP_USER"
+
+echo ">> Allowing the app user to restart its own service..."
+# deploy/deploy.sh (run by GitHub Actions over SSH as $APP_USER) restarts
+# the service with sudo; without this rule it would stop at a password prompt.
+SUDOERS_FILE=/etc/sudoers.d/emotionlens
+cat > "$SUDOERS_FILE" <<EOF
+${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart emotionlens, /usr/bin/systemctl status emotionlens *
+EOF
+chmod 0440 "$SUDOERS_FILE"
+visudo -cf "$SUDOERS_FILE" || { rm -f "$SUDOERS_FILE"; echo "!! Invalid sudoers rule"; exit 1; }
 
 echo ">> Cloning repo and installing Python deps..."
 sudo -u "$APP_USER" bash -c "
@@ -55,6 +66,12 @@ if [ ! -f "$APP_DIR/.env" ]; then
     chmod 600 "$APP_DIR/.env"
 fi
 
+echo ">> Login credentials..."
+if ! grep -q '^AUTH_PASSWORD_HASH=.' "$APP_DIR/.env"; then
+    echo "   Choose the username and password for the web login."
+    sudo -u "$APP_USER" bash -c "cd '$APP_DIR' && ./venv/bin/python -m backend.app.auth crear-credenciales --env .env"
+fi
+
 echo ">> Installing systemd service..."
 mkdir -p /var/log/emotionlens
 chown "$APP_USER":"$APP_USER" /var/log/emotionlens
@@ -74,7 +91,7 @@ rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl reload nginx
 
 echo ">> Requesting HTTPS certificate..."
-certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "admin@${DOMAIN}" --redirect \
+certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "${EMAIL}" --redirect \
     || echo ">> Certbot failed automatically — run manually: certbot --nginx -d ${DOMAIN}"
 
 echo ">> Configuring firewall..."
@@ -86,6 +103,7 @@ echo ""
 echo "=================================================================="
 echo " Done. Visit: https://${DOMAIN}"
 echo " DB password (save this): ${DB_PASSWORD}"
+echo " Login: the username and password you chose above"
 echo " Service status: systemctl status emotionlens"
 echo " Logs: journalctl -u emotionlens -f"
 echo "=================================================================="

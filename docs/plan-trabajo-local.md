@@ -376,9 +376,7 @@ en `deploy/` y secretos de GitHub). Resumen:
    desde México molesta.
 2. Dominio o subdominio gratuito (DuckDNS) con HTTPS: el navegador bloquea
    `getUserMedia` (cámara) en orígenes sin TLS.
-3. Antes de instalar, arreglar `deploy/`: regla de sudoers para
-   `systemctl restart emotionlens` (sin ella el despliegue automático falla) y
-   email de Certbot.
+3. Los arreglos de `deploy/` (sudoers, email de Certbot) y el login de un solo usuario ya están hechos; `setup_vps.sh` pide usuario y contraseña al instalar.
 4. `setup_vps.sh`, luego copiar `emotion_cnn.pt` a mano (no está en git).
 5. Clave SSH de despliegue y secretos `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`.
    Hasta entonces, `.github/workflows/deploy.yml` falla en cada push (esperado).

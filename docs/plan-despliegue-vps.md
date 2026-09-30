@@ -52,7 +52,7 @@ orígenes sin TLS.
 
 Detectados al revisar los scripts. Hay que hacerlos **antes** del paso 4:
 
-- [ ] **Permiso para reiniciar el servicio.** `deploy.sh` ejecuta
+- [x] **Permiso para reiniciar el servicio.** `deploy.sh` ejecuta
   `sudo systemctl restart emotionlens` como el usuario `emotionlens`, pero
   `setup_vps.sh` no le da ese permiso. Desde GitHub Actions, sin contraseña,
   el despliegue fallaría en ese paso. Añadir a `setup_vps.sh` una regla de
@@ -61,8 +61,9 @@ Detectados al revisar los scripts. Hay que hacerlos **antes** del paso 4:
   emotionlens ALL=(root) NOPASSWD: /usr/bin/systemctl restart emotionlens, /usr/bin/systemctl status emotionlens *
   ```
   en `/etc/sudoers.d/emotionlens`, con permisos 0440 y validada con `visudo -cf`.
-- [ ] **Email de Certbot.** `setup_vps.sh` usa `admin@<dominio>`, que no existe
-  con DuckDNS ni con un dominio sin correo. Pasarlo como tercer argumento.
+  Hecho: `setup_vps.sh` crea la regla y la valida con `visudo`.
+- [x] **Email de Certbot.** Hecho: `setup_vps.sh` lo recibe como tercer argumento.
+- [x] **Login.** La app exige usuario y contraseña (`docs/superpowers/specs/2026-09-29-login-design.md`). `setup_vps.sh` los pide durante la instalación.
 - [ ] **El modelo no viaja con git.** `backend/ml/saved_models/emotion_cnn.pt`
   está en `.gitignore`, así que el VPS no lo tendría al clonar. Sin él, el
   clasificador cae en silencio al modo heurístico (mucho peor). `face_landmarker.task`
@@ -75,12 +76,12 @@ Detectados al revisar los scripts. Hay que hacerlos **antes** del paso 4:
 ```bash
 ssh root@<IP>
 git clone https://github.com/Aldo105/emotion-lens.git /tmp/emotion-lens
-sudo bash /tmp/emotion-lens/deploy/setup_vps.sh <dominio> https://github.com/Aldo105/emotion-lens.git
+sudo bash /tmp/emotion-lens/deploy/setup_vps.sh <dominio> https://github.com/Aldo105/emotion-lens.git <tu-email>
 ```
 
 Instala dependencias CPU, PostgreSQL, el servicio systemd con `Restart=always`,
 Nginx, Certbot y el firewall. **Guardar la contraseña de la base de datos** que
-imprime al final.
+imprime al final. Al final pide el **usuario y la contraseña del login**: la contraseña no se muestra en pantalla y se guarda solo como hash.
 
 ## 5. Copiar el modelo
 
@@ -96,6 +97,8 @@ Comprobar en `journalctl -u emotionlens -n 50` que aparece
 
 ## 6. Verificar
 
+- [ ] Sin sesión, `https://<dominio>/` lleva al login y `https://<dominio>/api/sessions/` responde 401.
+- [ ] Con el usuario y la contraseña, se entra y el botón de cerrar sesión aparece en la cabecera.
 - [ ] `https://<dominio>` carga el dashboard y pide permiso de cámara.
 - [ ] `https://<dominio>/api/health` responde.
 - [ ] Una sesión en vivo calibra y muestra emociones. Tras calibrar aparece
@@ -130,5 +133,6 @@ al repositorio.
 - Actualizar a mano: `sudo -u emotionlens bash deploy/deploy.sh`.
 - Logs: `journalctl -u emotionlens -f`. Estado: `systemctl status emotionlens`.
 - Nuevo modelo: repetir el paso 5. El despliegue automático no lo copia.
+- Cambiar la contraseña: `sudo -u emotionlens ./venv/bin/python -m backend.app.auth crear-credenciales --env .env` en `/home/emotionlens/emotion-lens` y `sudo systemctl restart emotionlens`. Cierra todas las sesiones abiertas.
 - Coste recurrente: servidor ~$10/mes (Hetzner CX33) o $24/mes (DigitalOcean),
   más el dominio si es de pago.

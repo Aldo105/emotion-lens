@@ -57,7 +57,7 @@ turnkey scripts in `deploy/`:
 ```bash
 # On a fresh Ubuntu 22.04 VPS, as root:
 git clone https://github.com/your-org/emotion-lens.git /tmp/emotion-lens
-sudo bash /tmp/emotion-lens/deploy/setup_vps.sh your-domain.com https://github.com/your-org/emotion-lens.git
+sudo bash /tmp/emotion-lens/deploy/setup_vps.sh your-domain.com https://github.com/your-org/emotion-lens.git you@example.com
 ```
 
 This installs system packages, creates a dedicated `emotionlens` system user,
@@ -67,7 +67,9 @@ PostgreSQL database, installs a `systemd` service
 (`deploy/emotionlens.service.template`, `Restart=always` so it comes back up
 after a crash or reboot), configures Nginx as a reverse proxy
 (`deploy/nginx.conf.template`, with WebSocket support for `/ws/`), and
-requests an HTTPS certificate via Certbot — required in production because
+requests an HTTPS certificate via Certbot, asks for the web login's username
+and password (stored only as a scrypt hash in `.env`) and lets the app user
+restart its own service for `deploy/deploy.sh` — required in production because
 browsers block camera access (`getUserMedia`) on non-HTTPS origins.
 
 To ship updates after the initial setup:
