@@ -112,13 +112,13 @@
         });
 
         // Now do the awaits. Set focus and init i18n.
-        updateReveal();
         user.focus();
 
         await i18n.init();
         i18n.updateLangButton();
         i18nReady = true;
         setTitle();
+        updateReveal();
 
         // With the login switched off (local development) there is nothing to do here.
         try {

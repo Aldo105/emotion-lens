@@ -1,4 +1,5 @@
 import json
+import re
 
 import pytest
 
@@ -30,10 +31,9 @@ def test_login_page_and_its_assets_are_reachable_without_a_session(client):
     # Security: form must have method="post" to prevent credential leakage in URL.
     assert 'method="post"' in r.text, "form must have method='post'"
     # Security: submit button must be disabled in HTML to block early submission.
-    submit_start = r.text.find('id="login-submit"')
-    assert submit_start > -1, "submit button not found"
-    submit_section = r.text[submit_start:submit_start + 200]
-    assert 'disabled' in submit_section, "submit button must have disabled attribute"
+    submit_button_match = re.search(r'<button[^>]*id="login-submit"[^>]*>', r.text)
+    assert submit_button_match, "submit button not found"
+    assert 'disabled' in submit_button_match.group(0), "submit button must have disabled attribute"
     for path in ("/css/styles.css", "/js/login.js", "/js/i18n.js", "/js/icons.js",
                  "/i18n/es.json", "/i18n/en.json"):
         assert client.get(path).status_code == 200, path
