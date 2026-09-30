@@ -34,7 +34,13 @@ class WebSocketManager {
             }
         };
 
-        this.ws.onclose = () => {
+        this.ws.onclose = (event) => {
+            // 4401: the server refused the socket because the session expired
+            // (backend/app/auth_middleware.py). goToLogin lives in app.js.
+            if (event.code === 4401 && typeof goToLogin === 'function') {
+                goToLogin();
+                return;
+            }
             console.log("WebSocket Disconnected");
             this.isConnected = false;
             this.onStatusChange('disconnected');

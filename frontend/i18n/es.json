@@ -175,5 +175,8 @@
     "locked": "Demasiados intentos. Vuelve a intentarlo en 15 minutos.",
     "unavailable": "No se pudo conectar con el servidor. Inténtalo de nuevo.",
     "theme": "Cambiar tema claro / oscuro"
+  },
+  "auth": {
+    "logout": "Cerrar sesión"
   }
 }

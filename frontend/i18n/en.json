@@ -175,5 +175,8 @@
     "locked": "Too many attempts. Try again in 15 minutes.",
     "unavailable": "Couldn't reach the server. Please try again.",
     "theme": "Toggle light / dark theme"
+  },
+  "auth": {
+    "logout": "Sign out"
   }
 }

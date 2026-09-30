@@ -1,3 +1,22 @@
+// ══════════════════════════════════════════
+//  SESSION EXPIRY (login enabled on the server)
+// ══════════════════════════════════════════
+// Any API call answering 401 means the session cookie is gone or expired.
+// Installed at load time, before any module makes a request.
+const LOGIN_PAGE = '/login.html';
+
+function goToLogin() {
+    const here = window.location.pathname + window.location.search + window.location.hash;
+    window.location.replace(`${LOGIN_PAGE}?next=${encodeURIComponent(here)}`);
+}
+
+const originalFetch = window.fetch.bind(window);
+window.fetch = async (...args) => {
+    const response = await originalFetch(...args);
+    if (response.status === 401) goToLogin();
+    return response;
+};
+
 // Global manager references (needed by onclick handlers in HTML)
 let sessionManager;
 let comparisonManager;
@@ -17,6 +36,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnLang = document.getElementById('btn-lang');
     if (btnLang) {
         btnLang.addEventListener('click', () => i18n.toggle());
+    }
+
+    // Logout — only shown when the server has the login switched on.
+    const btnLogout = document.getElementById('btn-logout');
+    if (btnLogout) {
+        fetch('/api/auth/status')
+            .then((r) => r.json())
+            .then(({ enabled }) => btnLogout.classList.toggle('hidden', !enabled))
+            .catch(() => { /* status unknown: keep it hidden */ });
+        btnLogout.addEventListener('click', async () => {
+            try {
+                await fetch('/api/auth/logout', { method: 'POST' });
+            } finally {
+                window.location.replace(LOGIN_PAGE);
+            }
+        });
     }
 
     // ══════════════════════════════════════════
