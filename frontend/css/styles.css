@@ -21,6 +21,9 @@
     --accent-soft: #6E7FA8;
     --danger: #C97D7D;
     --danger-hover: #B96A6A;
+    /* Danger as text: --danger is only 2.85:1 on the cream background, this
+       one reaches 4.89:1. */
+    --danger-text: #A94F4F;
     --success: #7FA88C;
     --warning: #D9A566;
 
@@ -72,6 +75,7 @@
     --accent-soft: #C0C4E8;
     --danger: #D89A9A;
     --danger-hover: #E3AEAE;
+    --danger-text: #D89A9A;
     --success: #8FB89C;
     --warning: #E0B478;
 
@@ -2564,7 +2568,7 @@ h1, h2, h3, h4 {
 .login-error {
     min-height: 1.2em;
     font-size: 0.85rem;
-    color: var(--danger);
+    color: var(--danger-text);
     text-align: center;
 }
 
