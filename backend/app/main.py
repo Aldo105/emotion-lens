@@ -164,6 +164,20 @@ async def health_check():
 
 # ── Static Files (Frontend) ──────────────────────────────────────────
 
+class RevalidatedStaticFiles(StaticFiles):
+    """Static files that browsers revalidate (ETag) on every load.
+
+    Without Cache-Control the browser caches .html/.js/.css heuristically from
+    Last-Modified, so after a deploy users could keep running stale scripts
+    against the new API for hours.
+    """
+
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 frontend_dir = BASE_DIR / "frontend"
 if frontend_dir.exists():
-    app.mount("/", StaticFiles(directory=str(frontend_dir), html=True), name="frontend")
+    app.mount("/", RevalidatedStaticFiles(directory=str(frontend_dir), html=True), name="frontend")
