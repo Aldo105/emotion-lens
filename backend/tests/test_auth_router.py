@@ -113,6 +113,18 @@ def test_unencodable_username_is_a_normal_failure(configured):
     assert r.json()["detail"] == "too_many_attempts"
 
 
+def test_over_long_credentials_are_a_422(configured):
+    c = _client()
+    assert _login(c, username="u" * 257).status_code == 422
+    assert _login(c, password="p" * 1025).status_code == 422
+    # Boundary values are still ordinary (failed) logins, not validation errors.
+    assert _login(c, username="u" * 256, password="p" * 1024).status_code == 401
+    # An over-long body with a lone surrogate must not crash the 422 either.
+    r = c.post("/api/auth/login", content='{"username":"\\ud800%s","password":"x"}' % ("u" * 300),
+               headers={"Content-Type": "application/json"})
+    assert r.status_code == 422
+
+
 def test_logout_clears_the_cookie(configured):
     r = _client().post("/api/auth/logout")
     assert r.status_code == 204

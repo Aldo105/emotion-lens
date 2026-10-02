@@ -19,8 +19,14 @@ limiter = auth.LoginRateLimiter()
 
 
 class LoginRequest(BaseModel):
+    # Length limits are checked in login(), not with Field(max_length=...):
+    # a pydantic length constraint also rejects lone surrogates as a
+    # validation error whose echoed input then crashes the 422 response.
     username: str
     password: str
+
+MAX_USERNAME_LENGTH = 256
+MAX_PASSWORD_LENGTH = 1024
 
 
 def _username_matches(username: str, expected_username: str) -> bool:
@@ -48,6 +54,9 @@ async def status():
 async def login(body: LoginRequest, request: Request):
     if not settings.auth_enabled:
         return Response(status_code=204)
+
+    if len(body.username) > MAX_USERNAME_LENGTH or len(body.password) > MAX_PASSWORD_LENGTH:
+        return JSONResponse({"detail": "credentials_too_long"}, status_code=422)
 
     ip = auth.client_ip(request.scope)
     wait = limiter.retry_after(ip)

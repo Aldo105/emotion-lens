@@ -17,6 +17,17 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
+    # Login takes a tiny JSON body: refuse anything bigger than the 500M
+    # upload allowance above. Exact match beats `location /`.
+    location = /api/auth/login {
+        client_max_body_size 8k;
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
     # WebSocket (live emotion analysis)
     location /ws/ {
         proxy_pass http://127.0.0.1:8000;
