@@ -47,7 +47,7 @@ def test_token_rejects_tampering_and_garbage():
     payload, sig = _tok().split(".")
     forged = auth._b64e(b"aldo|9999999999") + "." + sig
     assert not _valid(forged)
-    assert not _valid(payload + "." + sig[:-2] + "AA")
+    assert not _valid(payload + "." + sig[:-1] + ("B" if sig[-1] != "B" else "C"))
     assert not _valid("basura")
     assert not _valid("")
 
