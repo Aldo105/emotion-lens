@@ -65,6 +65,11 @@ def _session_token(scope: dict) -> str | None:
 
 
 def has_valid_session(scope: dict) -> bool:
+    # With empty credentials a token signed with an empty key for the empty
+    # user would verify. The lifespan check normally prevents that state, but
+    # `uvicorn --lifespan off` skips it, so fail closed here too.
+    if not (settings.auth_username and settings.auth_password_hash and settings.auth_secret_key):
+        return False
     token = _session_token(scope)
     return bool(token) and auth.token_is_valid(
         token, username=settings.auth_username, secret_key=settings.auth_secret_key,

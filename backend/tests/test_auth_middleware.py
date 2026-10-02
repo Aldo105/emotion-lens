@@ -81,6 +81,21 @@ def test_expired_or_forged_cookies_are_rejected(configured):
     assert c.get("/api/private", headers={"cookie": "otra=cosa"}).status_code == 401
 
 
+def test_token_forged_with_empty_settings_is_rejected(monkeypatch):
+    # `uvicorn --lifespan off` skips the startup check, so the middleware must
+    # not trust a token signed with an empty key for the empty user.
+    monkeypatch.setattr(settings, "auth_enabled", True)
+    monkeypatch.setattr(settings, "auth_username", "")
+    monkeypatch.setattr(settings, "auth_password_hash", "")
+    monkeypatch.setattr(settings, "auth_secret_key", "")
+    token = auth.make_token("", secret_key="", password_hash="", ttl_seconds=3600)
+    headers = {"cookie": f"{auth.COOKIE_NAME}={token}"}
+    c = _client()
+    assert c.get("/api/private", headers=headers).status_code == 401
+    r = c.get("/dashboard.html", headers=headers, follow_redirects=False)
+    assert r.status_code == 302
+
+
 def test_a_malformed_foreign_cookie_does_not_hide_the_session(configured):
     # Other apps on localhost (cookies ignore ports) or a parent domain can
     # leave cookies with spaces, quotes or no "=" next to ours.
