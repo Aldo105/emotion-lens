@@ -12,6 +12,7 @@ conda activate emotion-lens
 # Run the dev server (serves API + static frontend from one process)
 python -m uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
 # Dashboard: http://localhost:8000  |  API docs: http://localhost:8000/docs
+# Local runs need AUTH_ENABLED=false in .env (login is on by default; startup fails without credentials)
 
 # Run all tests
 pytest backend/tests/

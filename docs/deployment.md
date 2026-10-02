@@ -41,6 +41,9 @@ conda activate emotion-lens
 python -m uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
+> The web login is on by default and the app refuses to start without
+> credentials, so for local runs put `AUTH_ENABLED=false` in your `.env`.
+
 ### Access Points
 - **Dashboard**: http://localhost:8000
 - **API Docs**: http://localhost:8000/docs
@@ -67,10 +70,11 @@ PostgreSQL database, installs a `systemd` service
 (`deploy/emotionlens.service.template`, `Restart=always` so it comes back up
 after a crash or reboot), configures Nginx as a reverse proxy
 (`deploy/nginx.conf.template`, with WebSocket support for `/ws/`), and
-requests an HTTPS certificate via Certbot, asks for the web login's username
-and password (stored only as a scrypt hash in `.env`) and lets the app user
-restart its own service for `deploy/deploy.sh` — required in production because
-browsers block camera access (`getUserMedia`) on non-HTTPS origins.
+requests an HTTPS certificate via Certbot (required in production because
+browsers block camera access (`getUserMedia`) on non-HTTPS origins). It also
+asks for the web login's username and password (stored only as a scrypt hash
+in `.env`) and lets the app user restart its own service for
+`deploy/deploy.sh`.
 
 To ship updates after the initial setup:
 

@@ -246,6 +246,10 @@ DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/emotionlens
 
 # Uploads
 MAX_UPLOAD_SIZE_MB=500
+
+# Web login: on by default and the app won't start without credentials.
+# For local development turn it off:
+AUTH_ENABLED=false
 ```
 
 See [docs/deployment.md](docs/deployment.md) for full deployment instructions.
