@@ -1551,8 +1551,15 @@ h1, h2, h3, h4 {
     .nav-tab-label { display: none; }
     .nav-tab { padding: 8px 12px; }
 
-    .dashboard-grid { grid-template-columns: 1fr; }
+    .dashboard-grid { grid-template-columns: 1fr; grid-template-rows: none; }
     .col-bottom { grid-template-columns: 1fr; height: auto; }
+
+    /* En una sola columna, la emoción y el ritmo cardíaco van justo debajo de
+       la cámara. Sin esto la columna derecha entera bajaba detrás de la
+       izquierda y quedaban separados del rostro por la puntuación general. */
+    .col-left, .col-right { display: contents; }
+    .video-container { order: -2; }
+    .live-key-metrics { order: -1; }
 
     .sessions-grid { grid-template-columns: 1fr; }
 

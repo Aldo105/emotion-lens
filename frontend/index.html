@@ -182,6 +182,30 @@
 
                     <!-- Live Metrics Row -->
                     <div class="metrics-row">
+                        <!-- Running performance index -->
+                        <div class="metric-card glass-panel live-score">
+                            <h3 data-i18n="live.liveScore">Overall Score</h3>
+                            <div class="live-score-display">
+                                <div class="live-score-value">
+                                    <span id="live-score-value">--</span>
+                                    <span class="unit">/100</span>
+                                </div>
+                                <div class="live-score-track">
+                                    <div class="live-score-fill" id="live-score-fill" style="width: 0%"></div>
+                                </div>
+                                <span class="live-score-label" id="live-score-label" data-i18n="live.waiting">Waiting...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: Analysis & Logs -->
+                <div class="col-right">
+
+                    <!-- Emoción y ritmo cardíaco a la altura de la cámara: en una
+                         sesión grabada se ven a la vez que el rostro, en vez de
+                         quedar debajo de las barras de calidad. -->
+                    <div class="metrics-row live-key-metrics">
                         <!-- Current Emotion -->
                         <div class="metric-card glass-panel current-emotion">
                             <h3 data-i18n="live.dominantEmotion">Dominant Emotion</h3>
@@ -213,26 +237,7 @@
                                 <span class="stress-val" id="hr-stress-text" data-i18n="live.stressLow">Low</span>
                             </div>
                         </div>
-
-                        <!-- Running performance index -->
-                        <div class="metric-card glass-panel live-score">
-                            <h3 data-i18n="live.liveScore">Overall Score</h3>
-                            <div class="live-score-display">
-                                <div class="live-score-value">
-                                    <span id="live-score-value">--</span>
-                                    <span class="unit">/100</span>
-                                </div>
-                                <div class="live-score-track">
-                                    <div class="live-score-fill" id="live-score-fill" style="width: 0%"></div>
-                                </div>
-                                <span class="live-score-label" id="live-score-label" data-i18n="live.waiting">Waiting...</span>
-                            </div>
-                        </div>
                     </div>
-                </div>
-
-                <!-- Right Column: Analysis & Logs -->
-                <div class="col-right">
 
                     <!-- Trustworthiness / Congruence -->
                     <div class="glass-panel congruence-panel">
