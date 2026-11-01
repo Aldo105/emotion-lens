@@ -7,10 +7,6 @@ class DashboardUI {
         this.elStatusDot      = this.elStatusBadge.querySelector('.dot');
         this.elStatusText     = this.elStatusBadge.querySelector('.status-text');
 
-        this.elCalibration     = document.getElementById('calibration-bar');
-        this.elCalibrationFill = document.getElementById('calibration-fill');
-        this.elCalibInstr      = document.getElementById('calibration-instructions');
-
         this.elEmotionIcon      = document.getElementById('current-emotion-icon');
         this.elEmotionName      = document.getElementById('current-emotion-name');
         this.elConfidenceFill   = document.getElementById('emotion-confidence-fill');
@@ -83,7 +79,7 @@ class DashboardUI {
     }
 
     handleMessage(data) {
-        if (data.type === 'status' || data.type === 'calibration_complete') {
+        if (data.type === 'status') {
             return; // no-op for these status messages
         }
 
@@ -93,13 +89,8 @@ class DashboardUI {
         }
 
         if (data.type === 'frame_result') {
-            this.updateCalibration(
-                data.is_calibrating, data.calibration_progress, data.calibration_pose
-            );
-            this.updateEmotion(data.emotion, data.confidence, data.is_calibrating);
-            if (!data.is_calibrating) {
-                this.updatePeakEmotion(data.peak_emotion);
-            }
+            this.updateEmotion(data.emotion, data.confidence);
+            this.updatePeakEmotion(data.peak_emotion);
             this.updateHeartRate(data.heart_rate);
             this.updateCongruence(data.congruence_score, data.congruence_breakdown);
             this.updateLiveScore(data.live_score);
@@ -112,12 +103,8 @@ class DashboardUI {
 
             this.updateNoiseState(data.noise_state);
 
-            // Chart update throttled inside DashboardCharts. Skipped while
-            // calibrating for the same reason the reading above is hidden --
-            // otherwise the timeline opens with 30s of pre-baseline values.
-            if (!data.is_calibrating) {
-                this.charts.updateTimeline(data.timestamp, data.emotion_probabilities);
-            }
+            // Chart update throttled inside DashboardCharts.
+            this.charts.updateTimeline(data.timestamp, data.emotion_probabilities);
         }
     }
 
@@ -224,65 +211,6 @@ class DashboardUI {
         );
     }
 
-    updateCalibration(isCalibrating, progress, pose) {
-        if (isCalibrating) {
-            this.elCalibration.classList.remove('hidden');
-            this.elCalibrationFill.style.width = `${progress * 100}%`;
-
-            if (this.webcam) this.webcam.drawFaceGuide(
-                pose && pose.aligned ? 'rgba(127, 168, 140, 0.9)' : 'rgba(79, 70, 229, 0.6)'
-            );
-
-            if (this.elCalibInstr) {
-                this.elCalibInstr.innerHTML = pose
-                    ? this.renderPoseInstructions(pose)
-                    : `<div class="calib-title">${Icons.render('target')} Calibrando…</div>`;
-                this.elCalibInstr.classList.remove('hidden');
-            }
-        } else {
-            this.elCalibration.classList.add('hidden');
-            if (this.elCalibInstr) this.elCalibInstr.classList.add('hidden');
-            if (this.webcam) this.webcam.clearOverlay();
-        }
-    }
-
-    renderPoseInstructions(pose) {
-        const held = Math.round(pose.pose_progress * 100);
-        const steps = ['center', 'right', 'left', 'down', 'up'].map((name, i) => {
-            const state = i < pose.pose_index ? 'done'
-                        : i === pose.pose_index ? 'active' : 'pending';
-            return `<span class="calib-step calib-step-${state}">${i + 1}</span>`;
-        }).join('');
-
-        // The subject cannot see the yaw/pitch numbers, so the only feedback
-        // that matters is whether the pose currently counts. Without it they
-        // hold a position that is silently being rejected.
-        const status = pose.aligned
-            ? `<span class="calib-ok">Posición correcta — mantén así (${held}%)</span>`
-            : `<span class="calib-wait">Ajusta la posición para empezar a medir</span>`;
-
-        return `
-            <div class="calib-title">
-                ${Icons.render('target')} Calibración guiada — paso ${pose.pose_index + 1} de ${pose.pose_total}
-            </div>
-            <div class="calib-steps">${steps}</div>
-            <div class="calib-pose-label">${this.escapeHtml(pose.label)}</div>
-            <div class="calib-pose-status">${status}</div>
-            <div class="calib-note">
-                Se mide tu rostro en reposo desde varios ángulos. Girar la cabeza
-                acorta las distancias entre los puntos de la cara, así que sin
-                estas medidas cualquier giro se confundiría con un cambio de
-                expresión. Mantén el rostro <strong>neutral</strong> en cada paso.
-            </div>
-        `;
-    }
-
-    escapeHtml(str) {
-        const div = document.createElement('div');
-        div.textContent = str == null ? '' : String(str);
-        return div.innerHTML;
-    }
-
     updatePeakEmotion(peak) {
         if (!this.elPeakEmotion) {
             const host = this.elEmotionName && this.elEmotionName.parentElement;
@@ -319,20 +247,17 @@ class DashboardUI {
         }, peak.review ? 5000 : 2500);
     }
 
-    updateEmotion(emotionKey, confidence, isCalibrating) {
-        // Predictions made before the baseline exists have not had the subject's
-        // resting facial morphology subtracted, so they carry whatever bias that
-        // face has at rest. Showing them invites reading a real emotion into an
-        // artifact of the calibration period.
-        if (isCalibrating) {
-            this.elEmotionIcon.innerHTML = Icons.render('clock');
-            this.elEmotionName.textContent  = 'Calibrando...';
-            this.elEmotionName.style.color  = 'var(--text-muted)';
-            this.elConfidenceFill.style.width = '0%';
-            this.elConfidenceText.textContent = '--';
+    updateEmotion(emotionKey, confidence) {
+        // Sent when the face is too dark to classify (websocket.py): it is not
+        // in EMOTIONS, so it used to fall back to "Neutral 0%".
+        if (emotionKey === 'unmeasurable') {
+            this.elEmotionIcon.innerHTML       = Icons.render('alert');
+            this.elEmotionName.textContent     = 'Poca luz';
+            this.elEmotionName.style.color     = 'var(--text-muted)';
+            this.elConfidenceFill.style.width  = '0%';
+            this.elConfidenceText.textContent  = '--';
             return;
         }
-
         const config      = CONFIG.EMOTIONS[emotionKey] || CONFIG.EMOTIONS['neutral'];
         const confPercent = Math.round(confidence * 100);
 
@@ -415,7 +340,7 @@ class DashboardUI {
     updateLiveScore(liveScore) {
         if (!this.elLiveScoreValue) return;
 
-        // Absent while calibrating, and null until the window holds enough
+        // Null until the window holds enough
         // samples — showing a number built on two frames would swing on noise.
         if (!liveScore || liveScore.score === null || liveScore.score === undefined) {
             this.elLiveScoreValue.textContent = '--';
@@ -492,7 +417,9 @@ class DashboardUI {
         const mins = Math.floor(micro.timestamp / 60).toString().padStart(2, '0');
         const secs = Math.floor(micro.timestamp % 60).toString().padStart(2, '0');
 
-        const em = CONFIG.EMOTIONS[micro.detected_emotion] || CONFIG.EMOTIONS['neutral'];
+        const label = CONFIG.MICRO_LABELS[micro.detected_emotion]
+            || (CONFIG.EMOTIONS[micro.detected_emotion] || {}).label
+            || micro.detected_emotion;
 
         // Build item with DOM API (faster, XSS-safe, no innerHTML)
         const div = document.createElement('div');
@@ -505,7 +432,7 @@ class DashboardUI {
         const descSpan = document.createElement('span');
         descSpan.className = 'micro-desc';
         const b = document.createElement('b');
-        b.textContent = em.label;
+        b.textContent = label;
         descSpan.append(b, ' microexpresión');
 
         const scoreSpan = document.createElement('span');

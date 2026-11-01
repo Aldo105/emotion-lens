@@ -631,12 +631,18 @@ class EmotionClassifier:
         # The previous escape hatch required it to fall below 0.05, which with
         # nine competing labels almost never happened, so a stuck emotion had no
         # way back out.
+        # It bypasses the transition checks too: the anti-bounce window held the
+        # label on an emotion whose probability had already fallen to zero, so
+        # the live view read e.g. "Feliz 0%" for up to three seconds.
         ranked = sorted(eligible, key=eligible.get, reverse=True)
-        if self._current_emotion not in ranked[:2]:
+        lost_support = self._current_emotion not in ranked[:2]
+        if lost_support:
             should_switch = True
 
         if should_switch and top_emotion != self._current_emotion:
-            if not self._validate_transition(self._current_emotion, top_emotion, top_confidence):
+            if not lost_support and not self._validate_transition(
+                self._current_emotion, top_emotion, top_confidence
+            ):
                 should_switch = False
             else:
                 self._bounce_buffer.append((self._current_emotion, now))

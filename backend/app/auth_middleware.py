@@ -23,6 +23,7 @@ PUBLIC_PATHS = frozenset({
     "/js/login.js",
     "/js/i18n.js",
     "/js/icons.js",
+    "/favicon.svg",
     "/api/auth/login",
     "/api/auth/status",
     "/api/health",

@@ -17,7 +17,6 @@
     "disconnected": "Desconectado",
     "connecting": "Conectando...",
     "connected": "Conectado",
-    "calibrating": "Calibración guiada... Sigue las instrucciones de postura en pantalla.",
     "dominantEmotion": "Emoción Dominante",
     "heartRate": "Ritmo Cardíaco (rPPG)",
     "bpm": "LPM",
@@ -47,8 +46,7 @@
     "liveScoreMid": "Mixto",
     "liveScoreLow": "Señales negativas",
     "cameraSource": "Fuente:",
-    "cameraDefault": "Predeterminada del sistema",
-    "recalibrate": "🔄 Recalibrar"
+    "cameraDefault": "Predeterminada del sistema"
   },
 
   "sessions": {

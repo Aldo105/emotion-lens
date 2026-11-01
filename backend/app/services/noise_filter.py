@@ -8,6 +8,13 @@ yawning, scratching, tics, and forced blinks.
 from collections import deque
 from dataclasses import dataclass
 
+import numpy as np
+
+
+LOWER_FACE_AUS = frozenset({
+    "AU10", "AU12", "AU14", "AU15", "AU17", "AU20", "AU23", "AU24", "AU25", "AU26",
+})
+
 
 @dataclass
 class NoiseState:
@@ -48,6 +55,10 @@ class FacialNoiseFilter:
         # Tic tracking
         self.au_states: dict[str, bool] = {}
         self.au_spikes: dict[str, list[float]] = {}
+        # Recent values per AU (~10 s at 20 fps). Live sessions have no
+        # calibration, and judging spikes against 0 flagged a "tic" on most
+        # frames because several AUs sit near 1.0 at rest.
+        self._au_history: dict[str, deque[float]] = {}
         
         self.baseline_aus: dict[str, float] = {}
         
@@ -173,12 +184,35 @@ class FacialNoiseFilter:
     def _detect_tic(self, aus: dict[str, float], timestamp: float) -> bool:
         """Recurring nervous tics (same AU pattern repeating >3 times within 10s)."""
         is_tic = False
-        aus_to_check = [k for k in aus.keys() if k.startswith("AU")]
+        # Blinks repeat several times every 10 s on their own (AU5 rises with
+        # them); they are tracked as blink rate, not as tics.
+        aus_to_check = [k for k in aus.keys() if k.startswith("AU") and k not in ("AU45", "AU5")]
+        # A mouth that keeps opening and closing is talking; its lower-face
+        # AUs swing with every syllable. The speech detector above misses it
+        # (AU12 rests near 0.4 here, which it reads as a smile), so the swing
+        # of AU25 itself is used to keep those AUs out of the tic count.
+        lips = self._au_history.get("AU25")
+        if lips and len(lips) >= 20:
+            lo, hi = np.percentile(np.fromiter(lips, dtype=float), [10, 90])
+            if hi - lo > 0.5:
+                aus_to_check = [k for k in aus_to_check if k not in LOWER_FACE_AUS]
         
         for au in aus_to_check:
             val = aus.get(au, 0.0)
-            baseline = self.baseline_aus.get(au, 0.0)
-            threshold = baseline + 0.3
+            if au in self.baseline_aus:
+                threshold = self.baseline_aus[au] + 0.3
+            else:
+                # No calibration: the AU's own recent median, and a margin that
+                # grows with how much it normally moves (talking keeps the mouth
+                # AUs swinging, which is not a repeated involuntary movement).
+                history = self._au_history.get(au)
+                if history:
+                    values = np.fromiter(history, dtype=float)
+                    median = float(np.median(values))
+                    spread = 1.4826 * float(np.median(np.abs(values - median)))
+                    threshold = median + max(0.3, 3.0 * spread)
+                else:
+                    threshold = val + 0.3
             
             currently_active = val > threshold
             was_active = self.au_states.get(au, False)
@@ -201,6 +235,11 @@ class FacialNoiseFilter:
                 self.au_spikes[au] = [t for t in self.au_spikes[au] if timestamp - t <= 10.0]
                 if len(self.au_spikes[au]) > 3:
                     is_tic = True
+
+        # After the checks, so each frame is judged against the ones before it.
+        for au, val in aus.items():
+            if au.startswith("AU"):
+                self._au_history.setdefault(au, deque(maxlen=200)).append(val)
                     
         return is_tic
         

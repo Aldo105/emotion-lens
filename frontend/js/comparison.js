@@ -12,7 +12,9 @@ class ComparisonManager {
 
     async loadSessionOptions() {
         try {
-            const res = await fetch(`${CONFIG.API_URL}/sessions/`);
+            // The API pages at 50 by default and there is no pager here, so the
+            // oldest sessions silently disappeared; 200 is its maximum.
+            const res = await fetch(`${CONFIG.API_URL}/sessions/?limit=200`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
             const sessions = (data.sessions || data || [])
@@ -30,7 +32,7 @@ class ComparisonManager {
         selectEl.innerHTML = '<option value="" disabled selected>Selecciona una sesión...</option>';
 
         sessions.forEach(session => {
-            const date = new Date(session.created_at || session.start_time || Date.now());
+            const date = parseApiDate(session.created_at || session.start_time);
             const dateStr = date.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' });
             const name = session.candidate_name || session.name || 'Desconocido';
             const opt = document.createElement('option');

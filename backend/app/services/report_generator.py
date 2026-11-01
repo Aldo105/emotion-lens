@@ -22,7 +22,8 @@ CSV reports provide a flat emotion timeline suitable for external analysis.
 import csv
 import io
 import os
-from datetime import datetime
+import re
+from datetime import datetime, timezone
 from typing import Optional
 
 from reportlab.lib import colors
@@ -63,6 +64,15 @@ EMOTION_LABELS = {
     "happy": "Feliz", "sad": "Triste", "angry": "Enojado",
     "surprise": "Sorpresa", "disgust": "Disgusto", "fear": "Miedo",
     "neutral": "Neutral", "nervousness": "Nervioso", "confidence": "Confiado",
+    # Micro-expression patterns use their own names (see micro_expressions.py).
+    "anger": "Enojo", "sadness": "Tristeza", "contempt": "Desprecio", "stress": "Tensión",
+    "unmeasurable": "No medible",
+}
+# Key moments are stored with English slugs (session_manager.py).
+KEY_MOMENT_LABELS = {
+    "emotion_shift": "Cambio de emoción",
+    "micro_expression": "Microexpresión",
+    "interviewer_note": "Nota",
 }
 TYPE_LABELS = {
     "rapid_confusion": "Confusión Rápida",
@@ -101,6 +111,27 @@ def _emotion_label(slug: str) -> str:
     if not slug or slug == "—":
         return "—"
     return EMOTION_LABELS.get(slug.lower(), slug.capitalize())
+
+
+def _micro_description(m: dict) -> str:
+    """Spanish description built from the fields; older rows stored English text."""
+    detected = _emotion_label(m.get("detected_emotion") or "—").lower()
+    aus = "+".join(m.get("action_units_involved") or [])
+    aus = f" ({aus})" if aus else ""
+    if m.get("is_contradictory"):
+        shown = _emotion_label(m.get("dominant_emotion_at_time") or "neutral").lower()
+        return f"Destello breve de {detected}{aus} mientras mostraba {shown}"
+    return f"Microexpresión de {detected}{aus}"
+
+
+def _key_moment_detail(detail: str) -> str:
+    """Translate the emotion slugs and the 'relevance' tag inside a key moment."""
+    detail = re.sub(r"\brelevance\b", "relevancia", detail or "")
+    return re.sub(
+        r"\b[a-z]+\b",
+        lambda w: EMOTION_LABELS.get(w.group(0), w.group(0)),
+        detail,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -160,6 +191,22 @@ def generate_pdf_report(session_data: dict, output_path: str) -> str:
         parent=styles["BodyText"],
         fontSize=8,
         textColor=colors.gray,
+    )
+    # Table cells that need to wrap instead of being cut with "…".
+    cell_style = ParagraphStyle(
+        "CellText",
+        parent=styles["BodyText"],
+        fontSize=8,
+        leading=10,
+        textColor=BODY_TEXT,
+    )
+    header_cell_style = ParagraphStyle(
+        "HeaderCellText",
+        parent=cell_style,
+        fontName="Helvetica-Bold",
+        fontSize=7.5,
+        leading=9,
+        textColor=colors.white,
     )
     label_style = ParagraphStyle(
         "LabelStyle",
@@ -552,7 +599,7 @@ def generate_pdf_report(session_data: dict, output_path: str) -> str:
                 _emotion_label(m.get("detected_emotion", "—")),
                 f"{m.get('duration_ms', 0):.0f}",
                 "Sí" if m.get("is_contradictory") else "No",
-                _truncate(m.get("description", ""), 50),
+                Paragraph(_micro_description(m), cell_style),
             ])
 
         micro_table = Table(
@@ -595,8 +642,8 @@ def generate_pdf_report(session_data: dict, output_path: str) -> str:
         for km in key_moments[:30]:  # Cap at 30 rows
             km_rows.append([
                 f"{km.get('timestamp', 0):.1f}",
-                km.get("type", "—"),
-                _truncate(km.get("detail", ""), 65),
+                KEY_MOMENT_LABELS.get(km.get("type"), km.get("type", "—")),
+                _truncate(_key_moment_detail(km.get("detail", "")), 65),
             ])
 
         km_table = Table(km_rows, colWidths=[25 * mm, 35 * mm, 110 * mm])
@@ -618,9 +665,13 @@ def generate_pdf_report(session_data: dict, output_path: str) -> str:
         ))
         elements.append(Spacer(1, 3 * mm))
 
+        # Paragraphs so long headers wrap inside their column instead of
+        # spilling over the neighbouring ones.
         comp_header = [
-            "Tiempo", "Emoción\nMostrada", "Microexpresión\nDetectada",
-            "AUs Involucradas", "Duración", "Contradicción", "Interpretación",
+            Paragraph(h, header_cell_style) for h in (
+                "Tiempo", "Emoción mostrada", "Microexpresión detectada",
+                "AUs", "Duración", "Contradicción", "Interpretación",
+            )
         ]
         comp_rows = [comp_header]
 
@@ -650,13 +701,13 @@ def generate_pdf_report(session_data: dict, output_path: str) -> str:
 
             comp_rows.append([
                 time_str, dominant, detected,
-                _truncate(aus, 20), duration,
-                contradiction_str, _truncate(interpretation, 45),
+                aus, duration,
+                contradiction_str, Paragraph(interpretation, cell_style),
             ])
 
         comp_table = Table(
             comp_rows,
-            colWidths=[14 * mm, 22 * mm, 22 * mm, 22 * mm, 16 * mm, 20 * mm, 54 * mm],
+            colWidths=[15 * mm, 21 * mm, 26 * mm, 19 * mm, 18 * mm, 25 * mm, 46 * mm],
         )
 
         comp_style_cmds = _table_style(len(comp_rows)).getCommands()
@@ -856,11 +907,16 @@ def generate_pdf_report(session_data: dict, output_path: str) -> str:
             y = center_y + radius * math.sin(angle)
             bg_points.extend([x, y])
             d.add(Line(center_x, center_y, x, y, strokeColor=colors.lightgrey))
-            label = _dimension_label(dimensions[i])
+            # Anchored away from the chart on each side, with the score in the
+            # label: a fixed -30 offset and a separate number on the vertex
+            # made both overlap whenever a score sat near the edge.
+            cos_a, sin_a = math.cos(angle), math.sin(angle)
+            anchor = "middle" if abs(cos_a) < 0.2 else ("start" if cos_a > 0 else "end")
+            label = f"{_dimension_label(dimensions[i])} · {dim_scores.get(dimensions[i], 0):.0f}"
             d.add(String(
-                center_x + (radius + 20) * math.cos(angle) - 30,
-                center_y + (radius + 15) * math.sin(angle),
-                label, fontSize=8, fillColor=BODY_TEXT
+                center_x + (radius + 8) * cos_a,
+                center_y + (radius + 8) * sin_a - (10 if sin_a < -0.5 else 0),
+                label, fontSize=8, fillColor=BODY_TEXT, textAnchor=anchor,
             ))
 
         d.add(Polygon(bg_points, strokeColor=colors.lightgrey, fillColor=None, strokeWidth=1))
@@ -874,13 +930,6 @@ def generate_pdf_report(session_data: dict, output_path: str) -> str:
             x = center_x + r * math.cos(angle)
             y = center_y + r * math.sin(angle)
             score_points.extend([x, y])
-            # Score label on vertex
-            d.add(String(
-                center_x + (r + 5) * math.cos(angle) - 8,
-                center_y + (r + 5) * math.sin(angle),
-                f"{score:.0f}", fontSize=7,
-                fillColor=BRAND_HIGHLIGHT, fontName="Helvetica-Bold"
-            ))
 
         d.add(Polygon(score_points,
                       strokeColor=BRAND_HIGHLIGHT,
@@ -1061,9 +1110,9 @@ def generate_pdf_report(session_data: dict, output_path: str) -> str:
         if transitions:
             elements.append(Paragraph("Cambios Observados y Lecturas Posibles", heading_style))
             elements.append(Paragraph(
-                "Cada cambio se acompana de una lectura posible, no de una "
-                "conclusion. Son hipotesis para orientar la revision de la "
-                "grabacion: el sistema no determina que sintio la persona.",
+                "Cada cambio se acompaña de una lectura posible, no de una "
+                "conclusión. Son hipotesis para orientar la revisión de la "
+                "grabación: el sistema no determina que sintio la persona.",
                 small_style))
             elements.append(Spacer(1, 3 * mm))
 
@@ -1226,7 +1275,11 @@ def _format_datetime(iso_str: Optional[str]) -> str:
         return "—"
     try:
         dt = datetime.fromisoformat(iso_str)
-        return dt.strftime("%Y-%m-%d  %H:%M:%S")
+        # Stored as naive UTC; shown in the server's local time, the same
+        # clock the "Live Session — HH:MM" names use.
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone().strftime("%Y-%m-%d  %H:%M:%S")
     except (ValueError, TypeError):
         return str(iso_str)
 

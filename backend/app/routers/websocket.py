@@ -32,11 +32,7 @@ from backend.app.services.heart_rate import HeartRateEstimator
 from backend.app.services.live_evm import LiveEVMMagnifier
 from backend.app.services.live_score import LiveScoreTracker
 from backend.app.services.noise_filter import FacialNoiseFilter
-from backend.app.services.pose_calibration import (
-    POSE_ANCHORS,
-    PoseBaselines,
-    PoseCalibrationSession,
-)
+from backend.app.services.pose_calibration import POSE_ANCHORS
 from backend.app.services.video_recorder import SessionVideoRecorder
 from backend.app.services.evm_renderer import EVMRenderer
 from backend.app.services.micro_expression_highlight_renderer import MicroExpressionHighlightRenderer
@@ -64,20 +60,6 @@ def _lower_thread_priority() -> None:
             os.nice(10)
     except Exception as e:
         print(f"[WARN] Could not lower render thread priority: {e}")
-
-
-def _new_pose_session() -> PoseCalibrationSession:
-    """A guided pose calibration configured from settings."""
-    return PoseCalibrationSession(
-        samples_per_pose={
-            "center": settings.pose_calibration_center_samples,
-            "right": settings.pose_calibration_turned_samples,
-            "left": settings.pose_calibration_turned_samples,
-            "down": settings.pose_calibration_turned_samples,
-            "up": settings.pose_calibration_turned_samples,
-        },
-        seconds_per_pose_limit=settings.pose_calibration_pose_timeout_seconds,
-    )
 
 
 def _render_session_videos(
@@ -216,12 +198,12 @@ def _compute_camera_quality(
     # ── Face Size Check ──────────────────────────────────────────
     face_size_ratio = face_area / max(frame_area, 1)
     if face_size_ratio < 0.03:
-        warnings.append("Rostro muy pequeño — acercate a la camara")
-        suggestions.append("Acercate a la camara para mejor precision")
+        warnings.append("Rostro muy pequeño — acércate a la cámara")
+        suggestions.append("Acércate a la cámara para mejor precisión")
         score -= 0.4
     elif face_size_ratio < 0.08:
-        warnings.append("Rostro pequeño — acercate un poco")
-        suggestions.append("Acercate un poco mas a la camara")
+        warnings.append("Rostro pequeño — acércate un poco")
+        suggestions.append("Acércate un poco más a la cámara")
         score -= 0.15
 
     # ── Brightness Check ─────────────────────────────────────────
@@ -233,16 +215,16 @@ def _compute_camera_quality(
         brightness = 0.5
 
     if brightness < 0.20:
-        warnings.append("Muy oscuro — mejora la iluminacion")
-        suggestions.append("Enciende una luz frente a ti o acercate a una ventana")
+        warnings.append("Muy oscuro — mejora la iluminación")
+        suggestions.append("Enciende una luz frente a ti o acércate a una ventana")
         score -= 0.35
     elif brightness < 0.30:
         warnings.append("Poca luz — mejorala si es posible")
-        suggestions.append("Mejora la iluminacion si es posible")
+        suggestions.append("Mejora la iluminación si es posible")
         score -= 0.10
     elif brightness > 0.85:
         warnings.append("Demasiado brillo — reduce la luz o el reflejo")
-        suggestions.append("Reduce el brillo o alejate de la fuente de luz")
+        suggestions.append("Reduce el brillo o aléjate de la fuente de luz")
         score -= 0.20
 
     # ── Face Position Check ──────────────────────────────────────
@@ -252,7 +234,7 @@ def _compute_camera_quality(
     off_center = abs(face_center_x - 0.5) + abs(face_center_y - 0.5)
     if off_center > 0.5:
         warnings.append("Rostro descentrado — centrate en el cuadro")
-        suggestions.append("Centra tu rostro en la camara")
+        suggestions.append("Centra tu rostro en la cámara")
         score -= 0.15
 
     # ── Sharpness Check (Laplacian variance) ─────────────────────
@@ -261,11 +243,11 @@ def _compute_camera_quality(
         laplacian = cv2.Laplacian(face_roi, cv2.CV_64F)
         sharpness = float(laplacian.var())
         if sharpness < 50:
-            warnings.append("Imagen borrosa — limpia la camara o quedate quieto")
-            suggestions.append("Limpia el lente de tu camara o quedate quieto")
+            warnings.append("Imagen borrosa — limpia la cámara o quédate quieto")
+            suggestions.append("Limpia el lente de tu cámara o quédate quieto")
             score -= 0.30
         elif sharpness < 100:
-            suggestions.append("Intenta mantenerte mas quieto")
+            suggestions.append("Intenta mantenerte más quieto")
             score -= 0.10
 
     # ── Contrast Check (std of luminance) ────────────────────────
@@ -295,16 +277,16 @@ def _compute_camera_quality(
             warnings.append("No se alcanza la postura pedida — sigue la guia en pantalla")
             suggestions.append("Sostén la postura que indica la pantalla")
         else:
-            warnings.append("Rostro muy girado — mira hacia la camara")
-            suggestions.append("Gira tu cabeza hacia la camara")
+            warnings.append("Rostro muy girado — mira hacia la cámara")
+            suggestions.append("Gira tu cabeza hacia la cámara")
         score -= 0.20
     elif yaw_off > 12:
         if not holding_turn:
-            suggestions.append("Mira un poco mas de frente a la camara")
+            suggestions.append("Mira un poco más de frente a la cámara")
         score -= 0.08
     if pitch_off > 20:
         if not holding_turn:
-            suggestions.append("Ajusta la altura de la camara para mirar de frente")
+            suggestions.append("Ajusta la altura de la cámara para mirar de frente")
         score -= 0.15
 
     # ── Lighting Balance (left vs right) ─────────────────────────
@@ -456,7 +438,9 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
         detection_confidence=settings.face_detection_confidence,
         tracking_confidence=settings.face_tracking_confidence,
     )
-    au_analyzer = ActionUnitAnalyzer()
+    # Live sessions start analysing on the first frame, with no calibration,
+    # so no baseline is ever set and the buffer would grow for the whole session.
+    au_analyzer = ActionUnitAnalyzer(collect_baseline=False)
     emotion_classifier = EmotionClassifier(device=device)
     micro_engine = MicroExpressionEngine()
     congruence_scorer = CongruenceScorer()
@@ -477,9 +461,6 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
     frame_count = 0
     processed_frame_count = 0
     session_start = time.time()
-    baseline_calibrated = False
-    pose_session = _new_pose_session()
-    pose_baselines: PoseBaselines | None = None
     current_skin_tone = "medium"  # Updated per-frame from quality check
 
     # ── Throttle counters ─────────────────────────────────────────────
@@ -536,41 +517,14 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
 
             # Parse JSON payload or raw base64 frame data
             request_evm = False
-            request_recalibrate = False
             frame_data = raw_data
             if raw_data.startswith("{"):
                 try:
                     payload = json.loads(raw_data)
                     frame_data = payload.get("frame", "")
                     request_evm = payload.get("evm", False)
-                    request_recalibrate = payload.get("recalibrate", False)
                 except Exception as e:
                     print(f"[WARN] Failed to parse JSON from WebSocket message: {e}")
-
-            # Handle recalibration request. Deliberately not gated on an
-            # already-finished calibration: the button did nothing whenever the
-            # first pass had not completed, which is exactly when a session goes
-            # wrong and the subject reaches for it.
-            if request_recalibrate:
-                print("[INFO] Recalibration requested by client")
-                baseline_calibrated = False
-                pose_session = _new_pose_session()
-                pose_baselines = None
-                live_score_tracker.reset()
-                au_analyzer.baseline_set = False
-                au_analyzer.baseline_aus = None
-                au_analyzer.baseline_variability = None
-                au_analyzer._baseline_buffer = []
-                # Also drops the previous calibration frames, which used to
-                # survive and mix into the new habitual-movement counts.
-                micro_engine.reset_calibration()
-                emotion_classifier.reset_baseline()
-                await manager.send_json(websocket, WSStatusMessage(
-                    type="status",
-                    message="Recalibración iniciada. Sigue las instrucciones en pantalla.",
-                    data={"calibration": pose_session.progress().as_dict()},
-                ).model_dump())
-                continue
 
             # Decode the frame
             frame = decode_frame(frame_data)
@@ -604,13 +558,13 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                 frame_brightness = float(np.mean(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))) / 255.0
                 if frame_brightness < 0.15:
                     warnings = ["No se detecta tu rostro — el ambiente esta muy oscuro"]
-                    suggestions = ["Enciende una luz frente a ti o acercate a una ventana"]
+                    suggestions = ["Enciende una luz frente a ti o acércate a una ventana"]
                 elif frame_brightness > 0.90:
                     warnings = ["No se detecta tu rostro — hay demasiada luz o reflejo"]
-                    suggestions = ["Reduce el brillo o alejate de la fuente de luz"]
+                    suggestions = ["Reduce el brillo o aléjate de la fuente de luz"]
                 else:
                     warnings = ["No se detecta tu rostro"]
-                    suggestions = ["Centra tu rostro frente a la camara, a un brazo de distancia"]
+                    suggestions = ["Centra tu rostro frente a la cámara, a un brazo de distancia"]
 
                 await manager.send_json(websocket, {
                     "type": "quality_warning",
@@ -642,22 +596,16 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
             # the raw frame for the same reason: it selects the CLAHE strength,
             # so measuring it after CLAHE closed a feedback loop on itself.
             if _last_quality_result is None or frame_count % _quality_check_interval == 0:
-                _last_quality_result = _compute_camera_quality(
-                    frame,
-                    detection,
-                    requested_pose=None if baseline_calibrated else pose_session.current_pose,
-                )
+                _last_quality_result = _compute_camera_quality(frame, detection)
             camera_quality = _last_quality_result
             current_skin_tone = camera_quality.get("skin_tone", "medium")
 
             # Quality gate — a frame too poor for emotion analysis is still
-            # usable for photoplethysmography, for the guided calibration and
-            # for the magnification preview: sharpness, framing and head angle
-            # penalise the classifier, not the forehead ROI. Discarding the
-            # frame outright starved all three, and because no frame_result was
-            # sent the panels kept their last value with nothing explaining it
-            # — the pose timer only advances on frames that reach it, so a
-            # sustained "fail" left the calibration waiting forever.
+            # usable for photoplethysmography and for the magnification
+            # preview: sharpness, framing and head angle penalise the
+            # classifier, not the forehead ROI. Discarding the frame outright
+            # starved both, and because no frame_result was sent the panels
+            # kept their last value with nothing explaining it.
             low_quality = camera_quality["quality_gate"] == "fail"
 
             # Below this much light the classifier stops measuring expression
@@ -677,15 +625,9 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                 timestamp=timestamp,
             )
 
-            # Step 2.5: Head pose, needed both to drive the guided calibration
-            # and to undo the foreshortening it measures.
-            frame_h, frame_w = detection["frame_shape"]
-            yaw, pitch = _head_pose(detection)
-
             blendshapes = detection.get("blendshapes")
 
-            # Face crop for the CNN, needed by the calibration below (its
-            # resting-face profile) and by Step 4. Only paid for when a CNN is
+            # Face crop for the CNN in Step 4. Only paid for when a CNN is
             # actually loaded -- blendshape/heuristic mode doesn't need it.
             face_image = None
             if emotion_classifier.mode == "cnn":
@@ -693,97 +635,13 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                     preprocessed_frame, detection["bbox"]
                 )
 
-            # Step 3: Pose-Guided Baseline Calibration
-            # The subject holds five poses (centre, right, left, down, up) so
-            # each one gets its own resting baseline. Turning the head shortens
-            # the 2D landmark distances the AUs are built from, so a single
-            # frontal baseline reads every turned frame as a deviation from
-            # rest even when the face has not moved.
-            is_calibrating = not baseline_calibrated
-            calibration_progress = 1.0
-            calibration_state = None
-
-            if is_calibrating:
-                requested_pose = pose_session.current_pose
-                progress = pose_session.record(
-                    action_units, blendshapes, yaw, pitch, timestamp
-                )
-                # A pose the subject cannot reach would otherwise stall the
-                # session forever; move on and calibrate with what was caught.
-                if not pose_session.complete and pose_session.timed_out(timestamp):
-                    print(f"[WARN] Pose {requested_pose} timed out - skipping")
-                    pose_session.skip_current_pose()
-                    progress = pose_session.progress()
-
-                calibration_progress = progress.total_progress
-                calibration_state = progress.as_dict()
-
-                # Frontal frames only. The habitual-movement tracker and the
-                # emotion baseline both describe the resting face; feeding them
-                # the turned poses would file the foreshortening itself as a
-                # habitual movement and bias every later prediction with it.
-                if requested_pose == "center" and progress.aligned:
-                    micro_engine.record_calibration_frame(action_units)
-                    emotion_classifier.record_calibration_frame(
-                        blendshapes, face_image=face_image
-                    )
-
-            if not baseline_calibrated and pose_session.complete:
-                pose_baselines = pose_session.build_baselines()
-                if pose_baselines.usable:
-                    print(f"[OK] Pose baselines: {', '.join(pose_baselines.calibrated_poses)}")
-                else:
-                    print("[WARN] Not enough poses captured — running without pose correction")
-
-                # Explicitly from the frontal samples: compute() buffers every
-                # frame while no baseline exists, and during this sequence that
-                # includes the turned poses.
-                au_analyzer.set_baseline(pose_session.center_samples() or None)
-                if au_analyzer.baseline_aus:
-                    micro_engine.set_baseline(
-                        baseline_aus=au_analyzer.baseline_aus,
-                        variability=au_analyzer.baseline_variability,
-                    )
-                    congruence_scorer.set_baseline(au_analyzer.baseline_aus)
-                    noise_filter.set_baseline(au_analyzer.baseline_aus)
-
-                # Averaged over the whole calibration period, and deliberately
-                # outside the branch above: nesting it under the AU baseline
-                # meant a failure to compute AU baselines silently left the
-                # emotion classifier with no baseline at all, while the session
-                # still reported itself as calibrated.
-                emotion_classifier.finalize_baseline()
-
-                baseline_calibrated = True
-                is_calibrating = False
-                calibration_progress = 1.0
-                calibration_state = None
-
-                await manager.send_json(websocket, WSStatusMessage(
-                    type="calibration_complete",
-                    message="Calibración completa. Análisis activo.",
-                    data={"poses": pose_baselines.calibrated_poses},
-                ).model_dump())
-
-            # Step 3.2: Bring the frame into the frontal frame of reference.
-            # Everything downstream was written against a single resting
-            # baseline, so the pose component is removed here rather than
-            # teaching each consumer about head angle.
-            if pose_baselines is not None and pose_baselines.usable:
-                action_units = pose_baselines.to_frontal(action_units, yaw, pitch)
-                if blendshapes:
-                    blendshapes = pose_baselines.blendshapes_to_frontal(
-                        blendshapes, yaw, pitch
-                    )
-
-            # Step 3.5: Noise Filtering (speech, yawns, tics, scratching)
+            # Step 3: Noise Filtering (speech, yawns, tics, scratching)
             noise_state = noise_filter.analyze(
                 current_aus=action_units,
                 timestamp=timestamp,
             )
 
             # Step 4: Emotion Classification (with quality penalty)
-            # face_image was cropped before the calibration step above.
             emotion_result = emotion_classifier.predict(
                 face_image=face_image,
                 action_units=action_units,
@@ -808,7 +666,7 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
             # badly framed face is the false positive the quality gate exists
             # to prevent.
             micro_event = None
-            if baseline_calibrated and not low_quality and not low_light:
+            if not low_quality and not low_light:
                 raw_event = micro_engine.analyze(
                     current_aus=action_units,
                     timestamp=timestamp,
@@ -886,12 +744,10 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                 timestamp=timestamp,
             )
 
-            # Step 6.5: Running performance index. Held back until the baseline
-            # exists — before that the classifier is still measuring against a
-            # resting face it has not seen, and a degraded frame is exactly the
-            # one whose emotion should not move the number.
+            # Step 6.5: Running performance index. A degraded frame is exactly
+            # the one whose emotion should not move the number.
             live_score_state = None
-            if baseline_calibrated and not low_quality and not low_light:
+            if not low_quality and not low_light:
                 live_score_state = live_score_tracker.update(
                     probabilities=emotion_result["probabilities"],
                     congruence=congruence_result["score"],
@@ -923,9 +779,6 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                 heart_rate=hr_result,
                 evm_frame=evm_frame_b64,
                 camera_quality=camera_quality,
-                is_calibrating=is_calibrating,
-                calibration_progress=round(calibration_progress, 2),
-                calibration_pose=calibration_state,
                 noise_state={
                     "is_speaking": noise_state.is_speaking,
                     "is_yawning": noise_state.is_yawning,
@@ -939,7 +792,7 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
             # ── Persist frame data to database (batched) ─────────────
             # Degraded frames stay out of the session record so the summary and
             # the report keep describing frames the classifier could trust.
-            if analysis_session_id and baseline_calibrated and not low_quality and not low_light:
+            if analysis_session_id and not low_quality and not low_light:
                 processed_frame_count += 1
                 aus_persistidos = {k: round(v, 3) for k, v in action_units.items()}
 

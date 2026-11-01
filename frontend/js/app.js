@@ -21,7 +21,6 @@ window.fetch = async (...args) => {
 let sessionManager;
 let comparisonManager;
 let videoUploadManager;
-let postSessionSurvey;
 let i18n;
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -132,12 +131,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     sessionManager = new SessionManager();
     comparisonManager = new ComparisonManager();
     videoUploadManager = new VideoUploadManager();
-    postSessionSurvey = new PostSessionSurvey();
 
     // ── DOM Elements ──
     const btnStart = document.getElementById('btn-start-session');
     const btnEnd = document.getElementById('btn-end-session');
-    const btnRecalibrate = document.getElementById('btn-recalibrate');
     const timerDisplay = document.getElementById('session-timer');
     const noteInput = document.getElementById('note-input');
     const btnAddNote = document.getElementById('btn-add-note');
@@ -226,23 +223,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         btnStart.classList.remove('hidden');
         btnEnd.classList.add('hidden');
-
-        // Show optional post-session survey for the subject
-        postSessionSurvey.show({
-            session_id: ws.lastSessionId || null,
-            micro_expressions: ui.collectedMicroExpressions || [],
-            dominant_emotion: null,
-        });
+        // The last frame's "Hablando"/"Tic" badge otherwise stays over the
+        // stopped camera.
+        ui.updateNoiseState(null);
     });
-
-    // ── Recalibrate ──
-    if (btnRecalibrate) {
-        btnRecalibrate.addEventListener('click', () => {
-            if (ws.isConnected) {
-                ws.requestRecalibrate();
-            }
-        });
-    }
 
     // ── Window resize ──
     window.addEventListener('resize', () => {

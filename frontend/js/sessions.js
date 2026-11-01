@@ -14,7 +14,9 @@ class SessionManager {
         `;
 
         try {
-            const res = await fetch(`${CONFIG.API_URL}/sessions/`);
+            // The API pages at 50 by default and there is no pager here, so the
+            // oldest sessions silently disappeared; 200 is its maximum.
+            const res = await fetch(`${CONFIG.API_URL}/sessions/?limit=200`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
             this.sessions = data.sessions || data || [];
@@ -49,7 +51,7 @@ class SessionManager {
     }
 
     renderCard(session) {
-        const date = new Date(session.created_at || session.start_time || Date.now());
+        const date = parseApiDate(session.created_at || session.start_time);
         const dateStr = date.toLocaleDateString('es-ES', {
             month: 'short', day: 'numeric', year: 'numeric'
         });
@@ -65,14 +67,18 @@ class SessionManager {
         };
         const status = statusMap[session.status] || statusMap['completed'];
 
-        const dominantEmotion = session.dominant_emotion || session.summary?.dominant_emotion || 'neutral';
-        const emotionConfig = CONFIG.EMOTIONS[dominantEmotion] || CONFIG.EMOTIONS['neutral'];
+        const dominantEmotion = session.dominant_emotion || session.summary?.dominant_emotion;
+        const emotionConfig = CONFIG.EMOTIONS[dominantEmotion];
+        // A session with no usable frames has no dominant emotion; showing
+        // "Neutral" there reported a result that was never measured.
+        const emotionDisplay = emotionConfig ? `${emotionConfig.icon} ${emotionConfig.label}` : '--';
 
         // The API names these average_congruence and duration_seconds; the
         // older names below never existed on the response, so both stats
         // always rendered as placeholders.
         const congruence = session.average_congruence ?? session.summary?.average_congruence ?? '--';
-        const congruenceDisplay = typeof congruence === 'number' ? Math.round(congruence) : congruence;
+        // Sessions with no usable frames have no summary: show "--", not "--%".
+        const congruenceDisplay = typeof congruence === 'number' ? `${Math.round(congruence)}%` : congruence;
 
         const candidateName = session.candidate_name || session.name || 'Candidato desconocido';
         const duration = session.duration_seconds ?? session.summary?.duration_seconds ?? null;
@@ -91,11 +97,11 @@ class SessionManager {
                 <div class="session-card-stats">
                     <div class="session-stat">
                         <span class="session-stat-label">Emoción dominante</span>
-                        <span class="session-stat-value">${emotionConfig.icon} ${emotionConfig.label}</span>
+                        <span class="session-stat-value">${emotionDisplay}</span>
                     </div>
                     <div class="session-stat">
                         <span class="session-stat-label">Congruencia</span>
-                        <span class="session-stat-value session-congruence">${congruenceDisplay}%</span>
+                        <span class="session-stat-value session-congruence">${congruenceDisplay}</span>
                     </div>
                     <div class="session-stat">
                         <span class="session-stat-label">Duración</span>
@@ -147,7 +153,12 @@ class SessionManager {
         const existing = document.getElementById('session-detail-modal');
         if (existing) existing.remove();
 
-        const emotionBars = Object.entries(report.emotion_distribution || {})
+        // /reports/{id}/data nests these under `session` and `summary`; reading
+        // them from the root left the modal on "Desconocido", "--%" and "Sin datos".
+        const session = report.session || {};
+        const summary = report.summary || {};
+
+        const emotionBars = Object.entries(summary.emotion_distribution || {})
             .sort(([, a], [, b]) => b - a)
             .map(([emotion, value]) => {
                 const cfg = CONFIG.EMOTIONS[emotion] || CONFIG.EMOTIONS['neutral'];
@@ -163,8 +174,9 @@ class SessionManager {
                 `;
             }).join('');
 
-        const congruence = report.congruence_score != null ? Math.round(report.congruence_score) : '--';
-        const microCount = report.micro_expression_count ?? report.micro_expressions?.length ?? 0;
+        const congruence = summary.average_congruence != null ? `${Math.round(summary.average_congruence)}%` : '--';
+        const microCount = summary.total_micro_expressions ?? report.micro_expressions?.length ?? 0;
+        const duration = session.duration_seconds;
 
         const modal = document.createElement('div');
         modal.id = 'session-detail-modal';
@@ -179,12 +191,12 @@ class SessionManager {
                 <div class="modal-body">
                     <div class="modal-section">
                         <h3>Candidato</h3>
-                        <p class="modal-candidate-name">${this.escapeHtml(report.candidate_name || 'Desconocido')}</p>
+                        <p class="modal-candidate-name">${this.escapeHtml(session.candidate_name || session.name || 'Desconocido')}</p>
                     </div>
 
                     <div class="modal-stats-row">
                         <div class="modal-stat-card">
-                            <span class="modal-stat-value">${congruence}%</span>
+                            <span class="modal-stat-value">${congruence}</span>
                             <span class="modal-stat-label">Congruencia</span>
                         </div>
                         <div class="modal-stat-card">
@@ -192,7 +204,7 @@ class SessionManager {
                             <span class="modal-stat-label">Microexpresiones</span>
                         </div>
                         <div class="modal-stat-card">
-                            <span class="modal-stat-value">${report.duration ? this.formatDuration(report.duration) : '--'}</span>
+                            <span class="modal-stat-value">${duration ? this.formatDuration(duration) : '--'}</span>
                             <span class="modal-stat-label">Duración</span>
                         </div>
                     </div>
@@ -543,6 +555,14 @@ class SessionManager {
         const dims = document.getElementById('detail-dimensions');
         const scores = analysis.dimension_scores;
         const dimConfig = CONFIG.ANALYSIS_DIMENSIONS || {};
+        // config.js loads before icons.js, so the icons are picked here.
+        const dimIcons = {
+            technical_mastery: 'chart',
+            emotional_stability: 'activity',
+            authenticity: 'eye',
+            self_confidence: 'spark',
+            communication: 'note',
+        };
         
         dims.innerHTML = Object.entries(scores)
             .filter(([key]) => key !== 'overall_score')
@@ -551,7 +571,7 @@ class SessionManager {
                 const color = score >= 70 ? '#10b981' : score >= 40 ? '#f59e0b' : '#ef4444';
                 return `
                     <div class="dimension-card">
-                        <div style="font-size: 1.2rem">${cfg.icon}</div>
+                        <div style="font-size: 1.2rem">${cfg.icon || Icons.render(dimIcons[key] || 'chart')}</div>
                         <div class="dimension-score" style="color: ${color}">${Math.round(score)}</div>
                         <div class="dimension-label">${cfg.label}</div>
                         <div class="dimension-bar">

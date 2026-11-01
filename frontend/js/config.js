@@ -17,6 +17,12 @@ const CONFIG = {
     // "emotions" section, which is what overwrites these on a language toggle
     // (see I18nManager.updateEmotionLabels) — keeping them in sync here avoids
     // the label changing on first toggle away and back to Spanish.
+    // Micro-expression patterns name emotions their own way ("anger",
+    // "contempt"...); looking them up in EMOTIONS fell back to "Neutral".
+    MICRO_LABELS: {
+        fear: 'Miedo', anger: 'Enojo', disgust: 'Desagrado', sadness: 'Tristeza',
+        surprise: 'Sorpresa', contempt: 'Desprecio', stress: 'Tensión',
+    },
     EMOTIONS: {
         'happy': { color: 'var(--color-happy)', label: 'Feliz', icon: '😊' },
         'sad': { color: 'var(--color-sad)', label: 'Triste', icon: '😢' },
@@ -44,3 +50,11 @@ const CONFIG = {
         low: '#9B9892',
     }
 };
+
+// The API stores UTC without a zone suffix ("2026-11-01T20:39:00"), which
+// Date() reads as local time, so every session showed up hours off.
+function parseApiDate(value) {
+    if (!value) return new Date();
+    if (typeof value === 'string' && !/(?:[zZ]|[+-]\d\d:?\d\d)$/.test(value)) value += 'Z';
+    return new Date(value);
+}

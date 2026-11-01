@@ -187,8 +187,10 @@ class VideoUploadManager {
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
 
-                const progress = data.progress ?? data.percentage ?? 0;
-                const pct = Math.round(progress);
+                // /videos/{id}/progress reports a 0-1 fraction; rounding it as a
+                // percentage left the bar on 0-1% for the whole processing.
+                const progress = data.progress ?? 0;
+                const pct = Math.round(progress * 100);
 
                 this.processingFill.style.width = `${pct}%`;
                 this.processingText.textContent = `${pct}%`;

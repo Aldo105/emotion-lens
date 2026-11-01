@@ -49,7 +49,7 @@ def test_event_timeline_flags_nervousness_spike_as_friction():
     assert event["is_friction_point"] is True
     assert event["nervousness_change"] > 0.5
     assert event["video_time"] == "00:30"
-    assert "friccion" in event["interpretation"]
+    assert "fricción" in event["interpretation"]
 
 
 def test_event_timeline_reports_no_change_when_state_is_stable():

@@ -22,7 +22,7 @@ def _emotion_label(slug: str) -> str:
     return EMOTION_LABELS.get(slug.lower(), slug)
 
 
-# Lecturas posibles de un cambio de estado. Son hipotesis para orientar a
+# Lecturas posibles de un cambio de estado. Son hipótesis para orientar a
 # quien revisa, nunca conclusiones sobre lo que la persona sintio.
 #
 # El encuadre sigue a Barrett et al. (2019): una configuracion facial no es
@@ -42,97 +42,97 @@ def _emotion_label(slug: str) -> str:
 #   basis      - de donde sale la lectura
 TRANSITION_INTERPRETATIONS: dict[tuple[str, str], dict] = {
     ("happy", "angry"): {
-        "text": "Paso de expresion positiva a una compatible con enojo.",
-        "suggestion": "Podria tratarse de un obstaculo inesperado justo despues de un momento que iba bien. Conviene revisar que ocurrio en pantalla o que se pregunto en los segundos previos.",
-        "basis": "Secuencia de desconcierto no resuelto que deriva en frustracion (DMello y Graesser, 2012).",
+        "text": "Pasó de expresión positiva a una compatible con enojo.",
+        "suggestion": "Podría tratarse de un obstáculo inesperado justo después de un momento que iba bien. Conviene revisar qué ocurrió en pantalla o qué se preguntó en los segundos previos.",
+        "basis": "Secuencia de desconcierto no resuelto que deriva en frustración (DMello y Graesser, 2012).",
         "severity": "high", "positive": False,
     },
     ("happy", "sad"): {
-        "text": "Paso de expresion positiva a una compatible con desanimo.",
+        "text": "Pasó de expresión positiva a una compatible con desánimo.",
         "suggestion": "Puede reflejar un tema sensible o una tarea que dejo de avanzar. Vale contrastarlo con lo que la persona dijo en ese tramo.",
         "basis": "La correspondencia entre gesto y estado interno es variable; el contexto verbal es lo que desambigua (Barrett et al., 2019).",
         "severity": "medium", "positive": False,
     },
     ("happy", "nervousness"): {
-        "text": "Paso de expresion positiva a senales de tension facial.",
-        "suggestion": "Podria indicar que el siguiente paso resulto menos claro que el anterior. Revisar si cambio la dificultad de la tarea en ese punto.",
-        "basis": "La tension peribucal (presion y aprieto de labios) acompana episodios de frustracion en tareas (Ihme et al., 2018).",
+        "text": "Pasó de expresión positiva a señales de tensión facial.",
+        "suggestion": "Podría indicar que el siguiente paso resultó menos claro que el anterior. Revisar si cambió la dificultad de la tarea en ese punto.",
+        "basis": "La tensión peribucal (presión y aprieto de labios) acompaña episodios de frustración en tareas (Ihme et al., 2018).",
         "severity": "medium", "positive": False,
     },
     ("neutral", "nervousness"): {
-        "text": "Aparecieron senales de tension sobre un estado neutro.",
-        "suggestion": "Suele coincidir con el momento en que una tarea deja de ser evidente. Si se sostiene, conviene mirar si hubo un obstaculo sin resolver.",
-        "basis": "El desconcierto surge ante impasses y, si no se resuelve, escala a frustracion (DMello y Graesser, 2012).",
+        "text": "Aparecieron señales de tensión sobre un estado neutro.",
+        "suggestion": "Suele coincidir con el momento en que una tarea deja de ser evidente. Si se sostiene, conviene mirar si hubo un obstáculo sin resolver.",
+        "basis": "El desconcierto surge ante impasses y, si no se resuelve, escala a frustración (DMello y Graesser, 2012).",
         "severity": "medium", "positive": False,
     },
     ("neutral", "angry"): {
-        "text": "Paso de neutro a una expresion compatible con enojo.",
-        "suggestion": "Podria ser un punto de friccion concreto. Revisar la accion inmediatamente anterior: un error, un paso que fallo o una respuesta inesperada del sistema.",
-        "basis": "Los picos de frustracion se asocian a obstaculos que bloquean una meta (DMello y Graesser, 2012).",
+        "text": "Pasó de neutro a una expresión compatible con enojo.",
+        "suggestion": "Podría ser un punto de fricción concreto. Revisar la acción inmediatamente anterior: un error, un paso que falló o una respuesta inesperada del sistema.",
+        "basis": "Los picos de frustración se asocian a obstáculos que bloquean una meta (DMello y Graesser, 2012).",
         "severity": "medium", "positive": False,
     },
     ("neutral", "disgust"): {
         "text": "Aparecieron movimientos compatibles con desagrado.",
-        "suggestion": "Conviene revisar que habia en pantalla. Este patron facial tambien se produce por causas ajenas a la emocion, como concentracion o esfuerzo visual.",
-        "basis": "La misma configuracion facial admite causas distintas segun el contexto (Barrett et al., 2019).",
+        "suggestion": "Conviene revisar qué había en pantalla. Este patrón facial también se produce por causas ajenas a la emoción, como concentración o esfuerzo visual.",
+        "basis": "La misma configuración facial admite causas distintas según el contexto (Barrett et al., 2019).",
         "severity": "medium", "positive": False,
     },
     ("confidence", "nervousness"): {
-        "text": "Las senales de soltura dieron paso a senales de tension.",
-        "suggestion": "Podria marcar el punto donde la tarea supero lo que la persona esperaba. Util para localizar donde empieza la dificultad real.",
-        "basis": "Transicion tipica de flujo a desconcierto ante un impasse (DMello y Graesser, 2012).",
+        "text": "Las señales de soltura dieron paso a señales de tensión.",
+        "suggestion": "Podría marcar el punto donde la tarea superó lo que la persona esperaba. Útil para localizar donde empieza la dificultad real.",
+        "basis": "Transición típica de flujo a desconcierto ante un impasse (DMello y Graesser, 2012).",
         "severity": "medium", "positive": False,
     },
     ("confidence", "sad"): {
-        "text": "Las senales de soltura dieron paso a expresion de desanimo.",
+        "text": "Las señales de soltura dieron paso a expresión de desánimo.",
         "suggestion": "Puede indicar que la persona dejo de creer que podia completar la tarea. Revisar si hubo intentos repetidos sin exito antes de este punto.",
-        "basis": "La frustracion sostenida precede a la desconexion de la tarea (DMello y Graesser, 2012).",
+        "basis": "La frustración sostenida precede a la desconexión de la tarea (DMello y Graesser, 2012).",
         "severity": "medium", "positive": False,
     },
     ("nervousness", "confidence"): {
-        "text": "Las senales de tension dieron paso a otras de soltura.",
-        "suggestion": "Compatible con haber superado el obstaculo. Si se identifica que lo resolvio, suele ser informacion util para el diseno.",
+        "text": "Las señales de tensión dieron paso a otras de soltura.",
+        "suggestion": "Compatible con haber superado el obstáculo. Si se identifica que lo resolvió, suele ser información útil para el diseño.",
         "basis": "Retorno al estado de flujo tras resolver el desconcierto (DMello y Graesser, 2012).",
         "severity": "low", "positive": True,
     },
     ("sad", "angry"): {
-        "text": "El desanimo dio paso a una expresion compatible con enojo.",
-        "suggestion": "Podria ser frustracion acumulada mas que una reaccion a un hecho puntual. Conviene mirar el tramo completo, no solo este instante.",
+        "text": "El desánimo dio paso a una expresión compatible con enojo.",
+        "suggestion": "Podría ser frustración acumulada más que una reacción a un hecho puntual. Conviene mirar el tramo completo, no solo este instante.",
         "basis": "Oscilacion documentada entre estados negativos cuando el impasse persiste (DMello y Graesser, 2012).",
         "severity": "medium", "positive": False,
     },
     ("angry", "neutral"): {
-        "text": "La expresion compatible con enojo volvio a neutro.",
-        "suggestion": "Puede ser que el problema se resolviera, o que la persona dejara de intentarlo. Son cosas distintas y solo la grabacion lo aclara.",
-        "basis": "El retorno a neutro no distingue resolucion de desconexion (DMello y Graesser, 2012).",
+        "text": "La expresión compatible con enojo volvió a neutro.",
+        "suggestion": "Puede ser que el problema se resolviera, o que la persona dejara de intentarlo. Son cosas distintas y solo la grabación lo aclara.",
+        "basis": "El retorno a neutro no distingue resolución de desconexión (DMello y Graesser, 2012).",
         "severity": "low", "positive": True,
     },
     ("angry", "sad"): {
-        "text": "La expresion compatible con enojo dio paso a desanimo.",
+        "text": "La expresión compatible con enojo dio paso a desánimo.",
         "suggestion": "Secuencia asociada a abandono del intento. Si ocurre al final de una tarea, conviene comprobar si llego a completarla.",
-        "basis": "Frustracion no resuelta que deriva en desconexion (DMello y Graesser, 2012).",
+        "basis": "Frustración no resuelta que deriva en desconexión (DMello y Graesser, 2012).",
         "severity": "medium", "positive": False,
     },
     ("surprise", "happy"): {
-        "text": "Un gesto breve compatible con sorpresa dio paso a expresion positiva.",
+        "text": "Un gesto breve compatible con sorpresa dio paso a expresión positiva.",
         "suggestion": "Compatible con un hallazgo bien recibido. Vale identificar que lo produjo: suele senalar algo que funciona.",
         "basis": "Lectura provisional; el gesto por si solo no fija la valencia (Barrett et al., 2019).",
         "severity": "low", "positive": True,
     },
     ("surprise", "angry"): {
-        "text": "Un gesto breve compatible con sorpresa dio paso a expresion de enojo.",
-        "suggestion": "Podria tratarse de algo inesperado que ademas estorbo. Revisar si el sistema hizo algo no anticipado en ese momento.",
-        "basis": "Obstaculo inesperado como disparador de frustracion (DMello y Graesser, 2012).",
+        "text": "Un gesto breve compatible con sorpresa dio paso a expresión de enojo.",
+        "suggestion": "Podría tratarse de algo inesperado que además estorbó. Revisar si el sistema hizo algo no anticipado en ese momento.",
+        "basis": "Obstáculo inesperado como disparador de frustración (DMello y Graesser, 2012).",
         "severity": "medium", "positive": False,
     },
     ("disgust", "angry"): {
-        "text": "El desagrado dio paso a una expresion compatible con enojo.",
-        "suggestion": "Intensificacion de una reaccion negativa ya presente. Suele merecer revision del tramo completo.",
+        "text": "El desagrado dio paso a una expresión compatible con enojo.",
+        "suggestion": "Intensificación de una reacción negativa ya presente. Suele merecer revisión del tramo completo.",
         "basis": "Escalada dentro de estados negativos (DMello y Graesser, 2012).",
         "severity": "medium", "positive": False,
     },
     ("sad", "neutral"): {
-        "text": "El desanimo volvio a un estado neutro.",
+        "text": "El desánimo volvió a un estado neutro.",
         "suggestion": "Puede ser recuperacion o simplemente el fin de la tarea. Conviene contrastarlo con lo que ocurria en pantalla.",
         "basis": "El retorno a neutro es ambiguo sin contexto (Barrett et al., 2019).",
         "severity": "low", "positive": True,
@@ -166,7 +166,7 @@ EVENT_TAG_LABELS = {
     TAG_TASK_START: "Inicio de tarea",
     TAG_TASK_END: "Fin de tarea",
     TAG_ERROR: "Error del usuario",
-    TAG_CONFUSION: "Confusion observada",
+    TAG_CONFUSION: "Confusión observada",
     TAG_KEY_QUESTION: "Pregunta clave",
 }
 
@@ -505,7 +505,7 @@ class InterviewBehaviorAnalyzer:
                     "category": "usability",
                     "priority": "high" if worst["friction_score"] >= 60 else "medium",
                     "text": (
-                        f"La tarea con mayor friccion fue \"{worst['task_name']}\" "
+                        f"La tarea con mayor fricción fue \"{worst['task_name']}\" "
                         f"({worst['friction_score']:.0f}/100), entre "
                         f"{worst['start_video_time']} y {worst['end_video_time']}. "
                         f"Revisar ese tramo del video."
@@ -590,17 +590,17 @@ class InterviewBehaviorAnalyzer:
 
             if nerv_change >= FRICTION_NERVOUSNESS_DELTA:
                 interpretation = (
-                    f"El nerviosismo subio {nerv_change:+.2f} despues de este momento — "
-                    f"posible punto de friccion, revisar el video."
+                    f"El nerviosismo subió {nerv_change:+.2f} después de este momento — "
+                    f"posible punto de fricción, revisar el video."
                 )
             elif cong_change <= FRICTION_CONGRUENCE_DELTA:
                 interpretation = (
-                    f"La congruencia cayo {cong_change:+.1f} puntos despues de este momento — "
+                    f"La congruencia cayó {cong_change:+.1f} puntos después de este momento — "
                     f"revisar que lo provoco."
                 )
             elif tag in (TAG_ERROR, TAG_CONFUSION):
                 interpretation = (
-                    "Marcado manualmente por el moderador; la reaccion emocional "
+                    "Marcado manualmente por el moderador; la reacción emocional "
                     "medida no fue pronunciada."
                 )
             else:
@@ -689,11 +689,11 @@ class InterviewBehaviorAnalyzer:
             friction = float(np.clip(friction, 0, 100))
 
             if friction >= 60:
-                interpretation = "Friccion alta — candidata principal a rediseño/reformulacion."
+                interpretation = "Fricción alta — candidata principal a rediseño/reformulación."
             elif friction >= 35:
-                interpretation = "Friccion moderada — vale la pena revisar el video."
+                interpretation = "Fricción moderada — vale la pena revisar el video."
             else:
-                interpretation = "Sin señales de friccion relevantes."
+                interpretation = "Sin señales de fricción relevantes."
             if not completed:
                 interpretation = "Tarea sin marcar como completada. " + interpretation
 
@@ -769,7 +769,7 @@ class InterviewBehaviorAnalyzer:
                 )
                 suggestion = (
                     "Sin lectura documentada para esta secuencia. Conviene revisar "
-                    "la grabacion en este punto antes de interpretarla."
+                    "la grabación en este punto antes de interpretarla."
                 )
                 basis = "Combinacion no cubierta por la literatura consultada."
                 severity, is_positive = "medium", False

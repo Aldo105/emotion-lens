@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EmotionLens Dashboard</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 
     <!-- Google Fonts: async — does not block first paint -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -79,7 +80,6 @@
             <div class="settings-group">
                 <button class="icon-btn" id="btn-theme" title="Cambiar tema claro / oscuro"></button>
                 <button class="icon-btn" id="btn-lang">EN</button>
-                <button class="icon-btn" id="btn-settings"><span class="ico" data-icon="settings"></span></button>
                 <button class="icon-btn hidden" id="btn-logout" data-i18n-title="auth.logout" title="Cerrar sesión"><span class="ico" data-icon="logout"></span></button>
             </div>
         </header>
@@ -100,15 +100,6 @@
                     <button class="btn btn-primary" id="btn-start-session" data-i18n="live.startSession">Start Session</button>
                     <button class="btn btn-danger hidden" id="btn-end-session" data-i18n="live.endSession">End Session</button>
                 </div>
-            </div>
-
-            <!-- Calibration Bar -->
-            <div class="calibration-container hidden" id="calibration-bar">
-                <div class="calibration-text" data-i18n="live.calibrating">Calibrating Baseline... Please maintain a neutral expression.</div>
-                <div class="progress-track">
-                    <div class="progress-fill" id="calibration-fill"></div>
-                </div>
-                <div id="calibration-instructions" class="calibration-instructions hidden"></div>
             </div>
 
             <!-- Main Dashboard Grid -->
@@ -148,7 +139,6 @@
                                     <select id="camera-select"></select>
                                 </div>
                             </div>
-                            <button class="btn btn-secondary" id="btn-recalibrate" style="padding: 6px 12px; font-size: 0.8rem;" data-i18n="live.recalibrate"><span class="ico" data-icon="compare"></span> Recalibrate</button>
                         </div>
                         <div class="camera-warnings hidden" id="camera-warnings" style="margin-top: 8px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: var(--radius-sm); padding: 8px 12px; font-size: 0.8rem; color: #f87171; display: flex; flex-direction: column; gap: 4px;">
                             <!-- Warnings listed here -->
@@ -440,13 +430,6 @@
         </div>
     </div>
 
-    <!-- Post-Session Survey Modal -->
-    <div class="survey-overlay hidden" id="survey-modal">
-        <div class="survey-card">
-            <!-- Content built dynamically by PostSessionSurvey JS -->
-        </div>
-    </div>
-
     <!-- Scripts -->
     <script src="/js/config.js"></script>
     <script src="/js/i18n.js"></script>
@@ -458,7 +441,6 @@
     <script src="/js/icons.js"></script>
     <script src="/js/comparison.js"></script>
     <script src="/js/video-upload.js"></script>
-    <script src="/js/post-session-survey.js"></script>
     <script src="/js/app.js"></script>
 </body>
 </html>

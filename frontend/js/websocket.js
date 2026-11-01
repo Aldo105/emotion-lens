@@ -7,7 +7,6 @@ class WebSocketManager {
         
         this.frameInterval = null;
         this.webcam = null;
-        this.recalibrateRequested = false;
     }
 
     connect(webcamManager) {
@@ -60,12 +59,6 @@ class WebSocketManager {
         this.stopFrameLoop();
     }
 
-    requestRecalibrate() {
-        if (this.isConnected) {
-            this.recalibrateRequested = true;
-        }
-    }
-
     startFrameLoop() {
         if (this.frameInterval) return;
         
@@ -81,11 +74,6 @@ class WebSocketManager {
                         frame: b64Frame,
                         evm: evmChecked
                     };
-                    
-                    if (this.recalibrateRequested) {
-                        payload.recalibrate = true;
-                        this.recalibrateRequested = false;
-                    }
                     
                     this.ws.send(JSON.stringify(payload));
                 }

@@ -40,7 +40,7 @@ Each webcam/video frame flows through this chain, tied together by `websocket.py
 6. `congruence.py` — combines stability + micro-expression alignment + baseline deviation + physiological signal into a 0-100 trustworthiness score, weighted per `config.py` (`congruence_weight_*`)
 
 Downstream of the pipeline:
-- `session_manager.py` — session lifecycle, calibration (baseline capture, `config.baseline_calibration_seconds`), auto-summary generation
+- `session_manager.py` — session lifecycle and auto-summary generation. Live sessions have no calibration step (analysis starts on the first frame); only `video_processor.py` still captures a baseline from the first `config.baseline_calibration_seconds` of an upload
 - `interview_analyzer.py` (`InterviewBehaviorAnalyzer`) — builds the moderator event timeline / per-task friction analysis from a session's emotion/congruence/notes series; backs the `/api/analysis` router
 - `validation_metrics.py` — human-vs-model agreement metrics for post-session subject feedback; backs `/api/feedback`
 - `noise_filter.py`, `ux_metrics.py` — additional signal cleanup / UX telemetry used by the above
@@ -50,7 +50,7 @@ Downstream of the pipeline:
 
 ### API surface (`backend/app/routers/`)
 
-`websocket.py` (`/ws/emotion`, live analysis + batched DB persistence), `sessions.py`, `notes.py`, `reports.py`, `videos.py` (upload + offline processing), `feedback.py` (post-session subject survey), `analysis.py` (interview behavior analysis). All registered in `main.py`.
+`websocket.py` (`/ws/emotion`, live analysis + batched DB persistence), `sessions.py`, `notes.py`, `reports.py`, `videos.py` (upload + offline processing), `feedback.py` (subject feedback API; the post-session survey UI was removed), `analysis.py` (interview behavior analysis). All registered in `main.py`.
 
 ### Data layer
 
@@ -58,7 +58,7 @@ Downstream of the pipeline:
 
 ### Frontend (`frontend/`, vanilla JS, no framework/bundler)
 
-`app.js` (nav, i18n, ethical disclaimer gate) orchestrates feature modules: `webcam.js` (capture + canvas overlay) → `websocket.js` (client for `/ws/emotion`) → `dashboard.js` (live UI updates), plus `sessions.js` (history), `comparison.js` (side-by-side + radar chart), `video-upload.js`, `post-session-survey.js`, `charts.js` (Chart.js wrappers), `icons.js`. `i18n.js` + `i18n/en.json`/`es.json` drive full EN/ES bilingual UI — new user-facing strings must be added to both locale files.
+`app.js` (nav, i18n, ethical disclaimer gate) orchestrates feature modules: `webcam.js` (capture + canvas overlay) → `websocket.js` (client for `/ws/emotion`) → `dashboard.js` (live UI updates), plus `sessions.js` (history), `comparison.js` (side-by-side + radar chart), `video-upload.js`, `charts.js` (Chart.js wrappers), `icons.js`. `i18n.js` + `i18n/en.json`/`es.json` drive full EN/ES bilingual UI — new user-facing strings must be added to both locale files.
 
 ### Tooling outside the app
 

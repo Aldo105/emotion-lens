@@ -9,10 +9,10 @@ Abrir: http://localhost:8000
 
 ## Uso básico
 1. **Iniciar Sesión** → acepta el aviso ético.
-2. Calibración: ~30s con expresión neutral, mirando a cámara.
+2. El análisis empieza de inmediato, sin calibración.
 3. Dashboard en vivo: emoción, ritmo cardíaco, congruencia, microexpresiones.
 4. Marca eventos con los botones (▶️ Inicio tarea, ⚠️ Error, 💬 Pregunta clave) o escribe notas.
-5. **Finalizar Sesión** → encuesta opcional de validación.
+5. **Finalizar Sesión** → la sesión queda guardada en **Sesiones**.
 
 ## Consejos de cámara
 Sigue las sugerencias 💡 en pantalla (luz, distancia, postura) — mejoran el accuracy.

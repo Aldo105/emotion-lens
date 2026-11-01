@@ -81,6 +81,17 @@ MICRO_TO_CLASSIFIER_LABEL: dict[str, str] = {
     # displayed emotion differs from them.
 }
 
+# Spanish names for the descriptions shown to the user.
+MICRO_LABELS_ES: dict[str, str] = {
+    "fear": "miedo", "anger": "enojo", "disgust": "desagrado", "sadness": "tristeza",
+    "surprise": "sorpresa", "contempt": "desprecio", "stress": "tensión",
+}
+DISPLAYED_LABELS_ES: dict[str, str] = {
+    "happy": "alegría", "sad": "tristeza", "angry": "enojo", "surprise": "sorpresa",
+    "disgust": "desagrado", "fear": "miedo", "neutral": "neutral",
+    "nervousness": "nerviosismo", "confidence": "confianza",
+}
+
 # Displayed labels that carry no emotion to contradict.
 _NON_COMPARABLE_DISPLAYED = {"neutral", "unmeasurable", "", None}
 
@@ -632,16 +643,18 @@ class MicroExpressionEngine:
         """Build a human-readable description of the micro-expression."""
         au_str = "+".join(activated_aus)
 
+        detected = MICRO_LABELS_ES.get(detected_emotion, detected_emotion)
         if is_contradictory:
+            shown = DISPLAYED_LABELS_ES.get(dominant_emotion, dominant_emotion)
             return (
-                f"Brief flash of {detected_emotion} ({au_str}) "
-                f"while displaying {dominant_emotion} "
-                f"[{duration_ms:.0f}ms]"
+                f"Destello breve de {detected} ({au_str}) "
+                f"mientras mostraba {shown} "
+                f"[{duration_ms:.0f} ms]"
             )
         else:
             return (
-                f"Micro-expression of {detected_emotion} ({au_str}) "
-                f"[{duration_ms:.0f}ms]"
+                f"Microexpresión de {detected} ({au_str}) "
+                f"[{duration_ms:.0f} ms]"
             )
 
 

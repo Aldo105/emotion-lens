@@ -60,7 +60,7 @@ python -m uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
 
 1. The **ethical disclaimer** will appear on first load — read and acknowledge it
 2. Click **Start Session** to begin live webcam analysis
-3. The system calibrates a neutral baseline for ~10 seconds (builds personalized AU thresholds and habitual movement tracking)
+3. Analysis starts on the first frame — live sessions have no calibration step (uploaded videos still use their first 30 s as a neutral baseline)
 4. Explore the dashboard: emotion timeline, congruence gauge, micro-expression log, heart rate monitor
 
 ---
@@ -183,7 +183,7 @@ The full pipeline processes each video frame through 6 stages:
 The engine uses a **3-layer validation system** to minimize false positives:
 
 1. **Temporal Filter** — Requires onset→apex→offset pattern within 40-500ms, detected via `scipy.signal.find_peaks`
-2. **Context Filter** — AU activation must exceed personalized baseline + (variability × 2.5), and not be a habitual movement (tracked during calibration)
+2. **Context Filter** — AU activation must exceed the baseline + (variability × 2.5), and not be a habitual movement. Uploaded videos take the baseline from their first 30 s; live sessions, which skip calibration, fall back to the AU's recent distribution
 3. **Relevance Scoring** — Multi-factor score (0-100): AU count, FACS pattern match, contradiction with displayed emotion, optimal duration, baseline deviation — weighted by camera quality. Minimum threshold: 60/100
 
 ---

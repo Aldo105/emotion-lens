@@ -219,13 +219,6 @@ class WSFrameResult(BaseModel):
     camera_quality: Optional[dict] = None
     # {"score": float, "face_size_ratio": float, "brightness": float, "warnings": list[str]}
 
-    # Calibration status
-    is_calibrating: bool = False
-    calibration_progress: float = 0.0  # 0.0 - 1.0
-    # Which head pose the guided calibration is asking for, and whether the
-    # subject is currently holding it. None once calibration is done.
-    calibration_pose: Optional[dict] = None
-
     # Noise filter state
     noise_state: Optional[dict] = None
     # {"is_speaking": bool, "is_yawning": bool, "noise_type": str|null}
@@ -233,7 +226,7 @@ class WSFrameResult(BaseModel):
 
 class WSStatusMessage(BaseModel):
     """Status/control message sent via WebSocket."""
-    type: str  # "status", "error", "calibration_complete", "session_ended"
+    type: str  # "status", "error", "session_ended"
     message: str
     data: Optional[dict] = None
 

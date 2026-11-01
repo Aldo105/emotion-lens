@@ -24,12 +24,15 @@ class ActionUnitAnalyzer:
     Distances are normalized by inter-ocular distance to be scale-invariant.
     """
 
-    def __init__(self):
+    def __init__(self, collect_baseline: bool = True):
         # Calibration baselines (set during baseline period)
         self.baseline_aus = None
         self.baseline_variability = None  # Per-AU standard deviation
         self.baseline_set = False
         self._baseline_buffer = []  # Collects AU readings during calibration
+        # False when no baseline will ever be set (live sessions), so the
+        # buffer above does not grow for the whole session.
+        self._collect_baseline = collect_baseline
 
         # Blink tracking
         self._blink_timestamps = []
@@ -129,7 +132,7 @@ class ActionUnitAnalyzer:
             aus = smoothed.copy()
 
         # Store for baseline calibration
-        if not self.baseline_set:
+        if self._collect_baseline and not self.baseline_set:
             self._baseline_buffer.append(aus.copy())
 
         return aus
