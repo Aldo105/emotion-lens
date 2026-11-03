@@ -120,6 +120,40 @@ def _render_session_videos(
 router = APIRouter()
 
 
+class LightingLog:
+    """
+    Logs when a live session starts or stops being analysable because of the
+    light, so it can be watched from the server log. Frames under the
+    brightness cut are dropped without a trace otherwise: the session just
+    shows no emotions. A state is logged once it has held for `hold_s`, so
+    light hovering around the cut does not flood the log.
+    """
+
+    MESSAGES = {
+        "ok": "luz suficiente",
+        "poca_luz": "poca luz, no se muestran emociones",
+        "sin_rostro_oscuro": "no se detecta el rostro, ambiente muy oscuro",
+    }
+
+    def __init__(self, session_id: int | None, hold_s: float = 2.0):
+        self.session_id = session_id
+        self.hold_s = hold_s
+        self._reported: str | None = None
+        self._candidate: str | None = None
+        self._since = 0.0
+
+    def update(self, state: str, timestamp: float, brightness: float) -> None:
+        if state != self._candidate:
+            self._candidate, self._since = state, timestamp
+            return
+        if state != self._reported and timestamp - self._since >= self.hold_s:
+            # The first "ok" of a session is not news; only recoveries are.
+            if not (self._reported is None and state == "ok"):
+                print(f"[LUZ] Sesión {self.session_id} ({timestamp:.0f}s): "
+                      f"{self.MESSAGES[state]} (brillo {brightness:.2f})")
+            self._reported = state
+
+
 class ConnectionManager:
     """Manages active WebSocket connections."""
 
@@ -477,6 +511,7 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
 
     # ── Video recorder (for EVM post-processing) ──────────────────────
     video_recorder: SessionVideoRecorder | None = None
+    lighting_log = LightingLog(session_id=None)
 
     try:
         # Create a database session and analysis session for persistence
@@ -488,6 +523,7 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
             input_type="webcam",
         )
         analysis_session_id = analysis_session.id
+        lighting_log.session_id = analysis_session_id
         await db_session.commit()
 
         # Initialize video recorder if enabled
@@ -557,6 +593,7 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
                 # "no face" the frontend otherwise ignores.
                 frame_brightness = float(np.mean(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))) / 255.0
                 if frame_brightness < 0.15:
+                    lighting_log.update("sin_rostro_oscuro", timestamp, frame_brightness)
                     warnings = ["No se detecta tu rostro — el ambiente esta muy oscuro"]
                     suggestions = ["Enciende una luz frente a ti o acércate a una ventana"]
                 elif frame_brightness > 0.90:
@@ -614,6 +651,8 @@ async def websocket_emotion_endpoint(websocket: WebSocket):
             # above it had none at all. Reporting "Triste" there describes the
             # lighting, not the person, so the label is withheld instead.
             low_light = camera_quality.get("brightness", 1.0) < settings.emotion_min_face_brightness
+            lighting_log.update("poca_luz" if low_light else "ok", timestamp,
+                                camera_quality.get("brightness", 1.0))
 
             # Quality penalty for degraded frames
             quality_penalty = 1.0 if camera_quality["quality_gate"] == "pass" else 0.75
