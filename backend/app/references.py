@@ -263,6 +263,22 @@ CONSTANTS: tuple[ConstantEvidence, ...] = (
              "o presentarlo como si tuviera el mismo respaldo que los otros 6.",
     ),
     ConstantEvidence(
+        name="FACE_SYMMETRY_GAIN (filtro de asimetría del desprecio)",
+        location="action_units.py:22 y _compute_face_symmetry",
+        current_value="simetría = 1 − 3.0 × asimetría (fracción de la distancia entre ojos); corte 0.85",
+        tier=Tier.CALIBRATED,
+        refs=("ekman2002facs",),
+        note="Corregido (2026-11-02): el desprecio EMFACS es unilateral, y el patrón lo "
+             "descarta si face_symmetry ≥ 0.85. La medida comparaba alturas en 'y' de la "
+             "imagen sin quitar la inclinación de la cabeza y con ganancia 15, así que "
+             "hasta una cara neutral de frente daba ~0 (0% de los cuadros neutrales de "
+             "RAVDESS actor 1 llegaban a 0.85) y casi cualquier sonrisa salía como "
+             "'desprecio' contradictorio. Ahora se mide sobre el eje vertical de la "
+             "propia cara, en píxeles, y la ganancia se calibró para que ~95% de los "
+             "cuadros neutrales queden ≥ 0.85 (93% medido; feliz 77%, enojo 89%, triste "
+             "97%). Calibrado con un solo actor: el corte es empírico, no publicado.",
+    ),
+    ConstantEvidence(
         name="AU5 (Upper Lid Raiser)",
         location="action_units.py:249-267",
         current_value="clip((ratio − 0.10) × 10.0, 0, 1)",

@@ -15,6 +15,12 @@ import numpy as np
 
 from backend.app.services.face_detector import LANDMARK_GROUPS
 
+# face_symmetry = 1 - gain * asymmetry, asymmetry as a fraction of the
+# inter-ocular distance. Calibrated on neutral RAVDESS frames so ~95% of a
+# relaxed face scores >= 0.85 (the contempt check's cut); the old gain of 15
+# put even a neutral face at ~0.5. See references.py.
+FACE_SYMMETRY_GAIN = 3.0
+
 
 class ActionUnitAnalyzer:
     """
@@ -112,7 +118,7 @@ class ActionUnitAnalyzer:
         aus["blink_rate"] = self._compute_blink_rate(aus["AU45"], timestamp)
         aus["gaze_stability"] = self._compute_gaze_stability(lm)
         aus["head_tilt"] = self._compute_head_tilt(lm)
-        aus["face_symmetry"] = self._compute_face_symmetry(lm, iod)
+        aus["face_symmetry"] = self._compute_face_symmetry(lm, w, h)
 
         # Clamp all values to [0.0, 1.0]
         aus = {k: float(np.clip(v, 0.0, 1.0)) for k, v in aus.items()}
@@ -577,21 +583,35 @@ class ActionUnitAnalyzer:
         # Normalize: 0 degrees = 0, 15+ degrees = 1.0
         return float(np.clip(angle / 0.26, 0.0, 1.0))  # 0.26 rad ~ 15 degrees
 
-    def _compute_face_symmetry(self, lm: np.ndarray, iod: float) -> float:
+    def _compute_face_symmetry(self, lm: np.ndarray, width: int, height: int) -> float:
         """
         Compute facial symmetry (0 = asymmetric, 1 = symmetric).
         Asymmetry can indicate micro-expressions or contempt.
         """
+        # Heights are compared along the face's own vertical axis, in pixels.
+        # Raw normalized y made any head roll read as asymmetry (a few degrees
+        # put one lip corner and one brow lower than the other), so even a
+        # neutral frontal face scored ~0 and the contempt check, which needs
+        # >= 0.85 to reject a symmetric smile, never fired. Pixels because
+        # normalized x and y have different scales on a 4:3 frame.
+        pts = lm[:, :2] * np.array([width, height], dtype=np.float32)
+        left_eye, right_eye = pts[33], pts[263]
+        roll = np.arctan2(right_eye[1] - left_eye[1], right_eye[0] - left_eye[0])
+        sin_r, cos_r = np.sin(-roll), np.cos(-roll)
+        iod_px = float(np.linalg.norm(pts[133] - pts[362]))
+        if iod_px < 1e-6:
+            return 1.0
+
+        def face_y(idx: int) -> float:
+            dx, dy = pts[idx] - left_eye
+            return float(sin_r * dx + cos_r * dy)
+
         # Compare left vs right lip corner heights
-        left_corner_y = lm[61][1]
-        right_corner_y = lm[291][1]
-        lip_asymmetry = abs(left_corner_y - right_corner_y) / iod
+        lip_asymmetry = abs(face_y(61) - face_y(291)) / iod_px
 
         # Compare left vs right brow heights
-        left_brow_y = lm[107][1]
-        right_brow_y = lm[336][1]
-        brow_asymmetry = abs(left_brow_y - right_brow_y) / iod
+        brow_asymmetry = abs(face_y(107) - face_y(336)) / iod_px
 
         total_asymmetry = (lip_asymmetry + brow_asymmetry) / 2.0
-        symmetry = 1.0 - float(np.clip(total_asymmetry * 15.0, 0.0, 1.0))
+        symmetry = 1.0 - float(np.clip(total_asymmetry * FACE_SYMMETRY_GAIN, 0.0, 1.0))
         return symmetry
