@@ -8,6 +8,9 @@ User=APP_USER_PLACEHOLDER
 Group=APP_USER_PLACEHOLDER
 WorkingDirectory=APP_DIR_PLACEHOLDER
 Environment="PATH=APP_DIR_PLACEHOLDER/venv/bin"
+# Without it the app's print() status lines ("[OK] Emotion CNN loaded", EVM
+# errors) sit in a block buffer and rarely reach journalctl.
+Environment="PYTHONUNBUFFERED=1"
 ExecStart=APP_DIR_PLACEHOLDER/venv/bin/gunicorn backend.app.main:app \
     --workers 1 \
     --worker-class uvicorn.workers.UvicornWorker \

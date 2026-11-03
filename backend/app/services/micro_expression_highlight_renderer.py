@@ -29,6 +29,8 @@ import traceback
 import cv2
 import numpy as np
 
+from backend.app.utils.video_codec import ensure_browser_playable
+
 try:
     from scipy.signal import butter, filtfilt
     SCIPY_AVAILABLE = True
@@ -207,6 +209,9 @@ class MicroExpressionHighlightRenderer:
 
         writer.release()
         cap.release()
+
+        if rendered_count > 0:
+            ensure_browser_playable(output_path, codec)
 
         if rendered_count == 0:
             print("[WARN] No valid micro-expression clips could be rendered")

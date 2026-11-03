@@ -29,6 +29,8 @@ import traceback
 import cv2
 import numpy as np
 
+from backend.app.utils.video_codec import ensure_browser_playable
+
 try:
     from scipy.signal import butter, filtfilt
     SCIPY_AVAILABLE = True
@@ -467,6 +469,7 @@ class EVMRenderer:
 
         writer.release()
         cap.release()
+        ensure_browser_playable(output_path, codec)
 
         # Verify output
         output_size = os.path.getsize(output_path) / (1024 * 1024)
