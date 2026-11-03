@@ -284,6 +284,12 @@ async def generate_summary(db: AsyncSession, session_id: int) -> SessionSummary:
     await db.refresh(summary)
 
     # ── Generate Interview Behavior Analysis ──────────────────────────
+    # No frame passed the face/quality checks, so there is nothing to score:
+    # the analyzer crashed on the missing averages, and default scores would
+    # be invented.
+    if not emotion_records:
+        return summary
+
     try:
         analyzer = InterviewBehaviorAnalyzer()
         
