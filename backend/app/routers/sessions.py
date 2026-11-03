@@ -6,7 +6,6 @@ CRUD operations for interview sessions.
 
 import glob
 import os
-from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -14,7 +13,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.config import settings
-from backend.app.models.database import get_db, Session, SessionSummary
+from backend.app.models.database import get_db, Session, SessionSummary, utc_now
 from backend.app.models.schemas import (
     SessionCreate, SessionUpdate, SessionResponse,
     SessionListResponse, SessionComparisonRequest,
@@ -123,9 +122,9 @@ async def update_session(
 
     # If completing the session, set end time and duration
     if data.status == "completed" and session.ended_at is None:
-        session.ended_at = datetime.now(timezone.utc)
+        session.ended_at = utc_now()
         if session.created_at:
-            delta = session.ended_at - session.created_at
+            delta = session.ended_at - session.created_at.replace(tzinfo=None)
             session.duration_seconds = delta.total_seconds()
 
     await db.flush()

@@ -20,7 +20,7 @@ DB_PASSWORD="${DB_PASSWORD:-$(openssl rand -hex 16)}"
 echo ">> Installing system packages..."
 apt update && apt upgrade -y
 apt install -y python3.11 python3.11-venv python3-pip git nginx \
-    certbot python3-certbot-nginx libgl1 libglib2.0-0 \
+    certbot python3-certbot-nginx libgl1 libglib2.0-0 libegl1 libgles2 \
     postgresql postgresql-contrib ufw
 
 echo ">> Creating app user..."

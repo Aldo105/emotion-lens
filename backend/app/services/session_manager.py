@@ -11,7 +11,6 @@ All functions accept an async SQLAlchemy session for dependency injection
 and are fully stateless — no global mutable state.
 """
 
-from datetime import datetime, timezone
 from typing import Optional
 
 import numpy as np
@@ -21,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.models.database import (
     Session, SessionSummary, EmotionRecord,
     MicroExpression, InterviewerNote, async_session_factory,
-    InterviewAnalysis,
+    InterviewAnalysis, utc_now,
 )
 from backend.app.services.interview_analyzer import InterviewBehaviorAnalyzer
 from backend.app.models.schemas import (
@@ -84,17 +83,14 @@ async def end_session(db: AsyncSession, session_id: int) -> Session:
         raise ValueError(f"Session {session_id} not found")
 
     session.status = "completed"
-    session.ended_at = datetime.now(timezone.utc)
+    session.ended_at = utc_now()
 
     if session.created_at:
-        # created_at comes back from SQLite without tzinfo even though it was
-        # written as UTC-aware, so it has to be re-tagged before subtracting —
-        # otherwise this raises and (because callers wrap end_session in a
-        # try/except) the session silently never completes and no summary or
-        # behavioral analysis is ever generated.
-        created_at = session.created_at
-        if created_at.tzinfo is None:
-            created_at = created_at.replace(tzinfo=timezone.utc)
+        # Both sides must be naive UTC: mixing an aware and a naive datetime
+        # raises and (because callers wrap end_session in a try/except) the
+        # session silently never completes and no summary or behavioral
+        # analysis is ever generated.
+        created_at = session.created_at.replace(tzinfo=None)
         session.duration_seconds = (session.ended_at - created_at).total_seconds()
 
     # Generate the aggregate summary before committing

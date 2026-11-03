@@ -20,6 +20,14 @@ from sqlalchemy.orm import (
 from backend.app.config import settings
 
 
+def utc_now() -> datetime:
+    """Current UTC time without tzinfo, which is what the DateTime columns
+    hold. SQLite drops the offset silently, but asyncpg refuses an aware
+    datetime for a TIMESTAMP WITHOUT TIME ZONE column, so on PostgreSQL every
+    session insert failed."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 # ── Base Model ────────────────────────────────────────────────────────
 
 class Base(DeclarativeBase):
@@ -39,7 +47,7 @@ class Session(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(255), nullable=False)                  # e.g., "John Doe - Backend Dev Interview"
     candidate_name = Column(String(255), nullable=True)         # Name of the person being analyzed
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=utc_now)
     ended_at = Column(DateTime, nullable=True)
     duration_seconds = Column(Float, nullable=True)             # Total session duration
     status = Column(String(50), default="active")               # active, paused, completed, cancelled
@@ -141,7 +149,7 @@ class InterviewerNote(Base):
     emotion_at_time = Column(String(50), nullable=True)
     congruence_at_time = Column(Float, nullable=True)
 
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=utc_now)
 
     # Relationship
     session = relationship("Session", back_populates="interviewer_notes")
@@ -209,7 +217,7 @@ class SessionFeedback(Base):
     attempted_suppression = Column(Boolean, default=False)          # Did subject try to hide emotions?
     moment_validations = Column(JSON, nullable=True)                # [{timestamp, emotion, verdict}]
     free_text_comments = Column(Text, nullable=True)                # Optional comments
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=utc_now)
 
     # delete-orphan: without it, deleting a Session tries to NULL out this
     # FK instead of removing the row, which fails the NOT NULL constraint
@@ -268,7 +276,7 @@ class InterviewAnalysis(Base):
     noise_events_filtered = Column(Integer, default=0)
     speaking_time_ratio = Column(Float, nullable=True)
 
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=utc_now)
 
     session = relationship(
         "Session",
