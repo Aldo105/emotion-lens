@@ -37,6 +37,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnLang.addEventListener('click', () => i18n.toggle());
     }
 
+    // "?" next to the congruence score: explains what the number means.
+    // Closes on a second click, a click outside it, or Escape.
+    const helpBtn = document.getElementById('congruence-help-btn');
+    const helpBox = document.getElementById('congruence-help');
+    if (helpBtn && helpBox) {
+        const setHelpOpen = (open) => {
+            helpBox.classList.toggle('hidden', !open);
+            helpBox.closest('.congruence-panel').classList.toggle('help-open', open);
+            helpBtn.setAttribute('aria-expanded', String(open));
+        };
+        helpBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setHelpOpen(helpBox.classList.contains('hidden'));
+        });
+        document.addEventListener('click', (e) => {
+            if (!helpBox.classList.contains('hidden') && !helpBox.contains(e.target)) setHelpOpen(false);
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !helpBox.classList.contains('hidden')) {
+                setHelpOpen(false);
+                helpBtn.focus();
+            }
+        });
+    }
+
     // Logout — only shown when the server has the login switched on.
     const btnLogout = document.getElementById('btn-logout');
     if (btnLogout) {

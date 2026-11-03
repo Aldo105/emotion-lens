@@ -176,5 +176,21 @@
   },
   "auth": {
     "logout": "Cerrar sesión"
+  },
+
+  "congruenceHelp": {
+    "button": "¿Qué significa la congruencia?",
+    "title": "¿Qué es la congruencia?",
+    "intro": "Mide qué tan consistentes son las señales de la cara entre sí, de 0 a 100. No mide si alguien dice la verdad.",
+    "stabilityTitle": "Estabilidad (30%)",
+    "stabilityText": "Qué tan seguido cambia la emoción mostrada en los últimos instantes. Menos cambios bruscos, puntuación más alta.",
+    "alignmentTitle": "Alineación (35%)",
+    "alignmentText": "Si las microexpresiones coinciden con la emoción visible. Una que la contradice baja la puntuación.",
+    "baselineTitle": "Línea Base (20%)",
+    "baselineText": "Compara los gestos con el rostro neutro de la persona. Las sesiones en vivo ya no calibran, así que se queda en 60.",
+    "physioTitle": "Fisiológico (15%)",
+    "physioText": "Parpadeo, estabilidad de la mirada, movimiento de la cabeza y, cuando hay lectura, el ritmo cardíaco.",
+    "scale": "80 o más: alta · de 50 a 79: moderada · menos de 50: baja.",
+    "note": "Es una herramienta de apoyo para el entrevistador, no un detector de mentiras."
   }
 }

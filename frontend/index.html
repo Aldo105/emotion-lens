@@ -226,7 +226,29 @@
 
                     <!-- Trustworthiness / Congruence -->
                     <div class="glass-panel congruence-panel">
-                        <h3 data-i18n="live.congruenceScore">Congruence Score</h3>
+                        <div class="panel-heading">
+                            <h3 data-i18n="live.congruenceScore">Congruence Score</h3>
+                            <button type="button" class="help-btn" id="congruence-help-btn"
+                                    aria-expanded="false" aria-controls="congruence-help"
+                                    data-i18n-title="congruenceHelp.button" title="What does congruence mean?">?</button>
+                        </div>
+                        <div class="help-popover hidden" id="congruence-help" role="dialog"
+                             aria-labelledby="congruence-help-title">
+                            <h4 id="congruence-help-title" data-i18n="congruenceHelp.title">What is congruence?</h4>
+                            <p data-i18n="congruenceHelp.intro">How consistent the face's signals are with each other, from 0 to 100. It does not measure whether someone is telling the truth.</p>
+                            <dl>
+                                <dt data-i18n="congruenceHelp.stabilityTitle">Stability (30%)</dt>
+                                <dd data-i18n="congruenceHelp.stabilityText">How often the shown emotion changes over the last moments. Fewer abrupt changes, higher score.</dd>
+                                <dt data-i18n="congruenceHelp.alignmentTitle">Alignment (35%)</dt>
+                                <dd data-i18n="congruenceHelp.alignmentText">Whether micro-expressions match the visible emotion. One that contradicts it lowers the score.</dd>
+                                <dt data-i18n="congruenceHelp.baselineTitle">Baseline (20%)</dt>
+                                <dd data-i18n="congruenceHelp.baselineText">Compares the gestures with the person's neutral face. Live sessions no longer calibrate, so it stays at 60.</dd>
+                                <dt data-i18n="congruenceHelp.physioTitle">Physio (15%)</dt>
+                                <dd data-i18n="congruenceHelp.physioText">Blinking, gaze steadiness, head movement and, when available, heart rate.</dd>
+                            </dl>
+                            <p class="help-scale" data-i18n="congruenceHelp.scale">80 or more: high · 50 to 79: moderate · under 50: low.</p>
+                            <p class="help-note" data-i18n="congruenceHelp.note">A support tool for the interviewer, not a lie detector.</p>
+                        </div>
                         <div class="gauge-container">
                             <canvas id="congruence-gauge"></canvas>
                             <div class="gauge-center">

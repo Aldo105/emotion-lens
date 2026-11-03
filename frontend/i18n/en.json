@@ -176,5 +176,21 @@
   },
   "auth": {
     "logout": "Sign out"
+  },
+
+  "congruenceHelp": {
+    "button": "What does congruence mean?",
+    "title": "What is congruence?",
+    "intro": "How consistent the face's signals are with each other, from 0 to 100. It does not measure whether someone is telling the truth.",
+    "stabilityTitle": "Stability (30%)",
+    "stabilityText": "How often the shown emotion changes over the last moments. Fewer abrupt changes, higher score.",
+    "alignmentTitle": "Alignment (35%)",
+    "alignmentText": "Whether micro-expressions match the visible emotion. One that contradicts it lowers the score.",
+    "baselineTitle": "Baseline (20%)",
+    "baselineText": "Compares the gestures with the person's neutral face. Live sessions no longer calibrate, so it stays at 60.",
+    "physioTitle": "Physio (15%)",
+    "physioText": "Blinking, gaze steadiness, head movement and, when available, heart rate.",
+    "scale": "80 or more: high · 50 to 79: moderate · under 50: low.",
+    "note": "A support tool for the interviewer, not a lie detector."
   }
 }
