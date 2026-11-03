@@ -73,8 +73,11 @@ class WebSocketManager {
         // server can do and the emotion shown stays current. Every frame is
         // answered by one frame_result or quality_warning, except an
         // undecodable one, so a silence of STALL_MS resets the count rather
-        // than freezing the stream.
-        const MAX_IN_FLIGHT = 2;
+        // than freezing the stream. The window must cover the round trip
+        // (~150 ms to the VPS from Mexico): 2 frames capped the rate at
+        // 2 / 0.15 s = 13 fps, below what the server can do; 4 leaves it free
+        // and still bounds the queue to ~4 frames (~0.2 s).
+        const MAX_IN_FLIGHT = 4;
         const STALL_MS = 1500;
         this.inFlight = 0;
         this.lastSentAt = 0;
