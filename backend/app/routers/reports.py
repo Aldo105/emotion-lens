@@ -7,11 +7,14 @@ Routes:
   GET /api/reports/{session_id}/data — Full session data as JSON
   GET /api/reports/{session_id}/pdf  — Generate and download PDF report
   GET /api/reports/{session_id}/csv  — Generate and download CSV export
+  GET/POST /api/reports/{session_id}/prediction-video[-status] — session video
+      side by side with the predicted emotion
 """
 
 import io
 import json
 import os
+import threading
 import time
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -29,7 +32,8 @@ from backend.app.services.report_generator import (
     generate_pdf_report, generate_csv_string,
 )
 from backend.app.services.validation_metrics import compute_agreement_metrics
-from backend.app.services import ux_metrics
+from backend.app.services import prediction_video_renderer, ux_metrics
+from backend.app.routers.websocket import _lower_thread_priority
 
 router = APIRouter()
 
@@ -467,3 +471,128 @@ async def download_micro_highlights_video(session_id: int, db: AsyncSession = De
         detail="No hay video de microexpresiones disponible para esta sesión (no se detectaron microexpresiones o aún no ha sido procesado)."
     )
 
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# PREDICTION OVERLAY VIDEO — the session next to what the model predicted
+# ═══════════════════════════════════════════════════════════════════════
+
+# Sessions whose overlay is being rendered right now, so a second click does
+# not start a second render of the same video.
+_prediction_jobs: set[int] = set()
+_prediction_jobs_lock = threading.Lock()
+
+
+def _prediction_source(session: Session) -> tuple[str, float | None] | None:
+    """The video to draw on and the session length that maps record time onto
+    it (None for uploads, already in video time). None if there is none."""
+    if session.input_type == "video_upload":
+        if session.video_path and os.path.exists(session.video_path):
+            return session.video_path, None
+        return None
+    evm_path = os.path.join(settings.recordings_dir, f"{session.id}_evm.mp4")
+    if os.path.exists(evm_path) and session.duration_seconds:
+        return evm_path, session.duration_seconds
+    return None
+
+
+@router.get("/{session_id}/prediction-video-status")
+async def get_prediction_video_status(session_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Status of the side-by-side video (session + predicted emotion).
+    status: "ready" | "rendering" | "failed" | "not_started" |
+            "waiting_source" (the live session's video is still being
+            processed) | "not_available" (no video or no analysed frames).
+    """
+    video_path, progress_path = prediction_video_renderer.output_paths(settings.recordings_dir, session_id)
+    if os.path.exists(video_path):
+        return {"status": "ready", "progress": 1.0,
+                "size_mb": round(os.path.getsize(video_path) / (1024 * 1024), 2)}
+    if session_id in _prediction_jobs:
+        progress = 0.0
+        try:
+            with open(progress_path, "r", encoding="utf-8") as f:
+                progress = json.load(f).get("progress", 0.0)
+        except Exception:
+            pass
+        return {"status": "rendering", "progress": progress}
+    if os.path.exists(progress_path):
+        try:
+            with open(progress_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if data.get("status") == "failed":
+                return {"status": "failed", "progress": 0.0, "phase": data.get("phase")}
+        except Exception:
+            pass
+
+    session = (await db.execute(select(Session).where(Session.id == session_id))).scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if _prediction_source(session) is None:
+        raw_path = os.path.join(settings.recordings_dir, f"{session_id}_raw.mp4")
+        return {"status": "waiting_source" if os.path.exists(raw_path) else "not_available", "progress": 0.0}
+    return {"status": "not_started", "progress": 0.0}
+
+
+@router.post("/{session_id}/prediction-video", status_code=202)
+async def start_prediction_video(session_id: int, db: AsyncSession = Depends(get_db)):
+    """Start rendering the side-by-side video in the background."""
+    video_path, progress_path = prediction_video_renderer.output_paths(settings.recordings_dir, session_id)
+    if os.path.exists(video_path):
+        return {"status": "ready", "progress": 1.0}
+
+    session = (await db.execute(select(Session).where(Session.id == session_id))).scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    source = _prediction_source(session)
+    if source is None:
+        raise HTTPException(status_code=409, detail="Esta sesión no tiene video para generar la predicción.")
+
+    records = (await db.execute(
+        select(EmotionRecord).where(EmotionRecord.session_id == session_id).order_by(EmotionRecord.timestamp)
+    )).scalars().all()
+    if not records:
+        raise HTTPException(status_code=409, detail="Esta sesión no tiene emociones registradas (poca luz o sin rostro).")
+    micros = (await db.execute(
+        select(MicroExpression).where(MicroExpression.session_id == session_id)
+    )).scalars().all()
+
+    with _prediction_jobs_lock:
+        if session_id in _prediction_jobs:
+            return {"status": "rendering", "progress": 0.0}
+        _prediction_jobs.add(session_id)
+
+    record_dicts = [{"timestamp": r.timestamp, "emotion": r.emotion,
+                     "emotion_probabilities": r.emotion_probabilities} for r in records]
+    micro_dicts = [{"timestamp": m.timestamp, "detected_emotion": m.detected_emotion} for m in micros]
+    source_path, session_duration = source
+
+    def _run():
+        _lower_thread_priority()
+        try:
+            prediction_video_renderer.render_prediction_video(
+                session_id, source_path, record_dicts, micro_dicts,
+                video_path, progress_path, session_duration=session_duration,
+            )
+        finally:
+            with _prediction_jobs_lock:
+                _prediction_jobs.discard(session_id)
+
+    if os.path.exists(progress_path):
+        os.remove(progress_path)  # a previous failure must not read as the new run's state
+    threading.Thread(target=_run, name=f"prediction-video-{session_id}", daemon=True).start()
+    return {"status": "rendering", "progress": 0.0}
+
+
+@router.get("/{session_id}/prediction-video")
+async def download_prediction_video(session_id: int, db: AsyncSession = Depends(get_db)):
+    """Download the side-by-side video once it has been rendered."""
+    video_path, _ = prediction_video_renderer.output_paths(settings.recordings_dir, session_id)
+    if not os.path.exists(video_path):
+        raise HTTPException(status_code=404, detail="El video con la predicción todavía no se ha generado.")
+    session = (await db.execute(select(Session).where(Session.id == session_id))).scalar_one_or_none()
+    session_name = session.name if session and session.name else f"session_{session_id}"
+    safe_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in session_name)
+    filename = f"EmotionLens_Prediccion_{safe_name}.mp4"
+    return FileResponse(video_path, media_type="video/mp4", filename=filename,
+                        headers={"Content-Disposition": f'attachment; filename="{filename}"'})

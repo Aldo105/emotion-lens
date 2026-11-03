@@ -125,6 +125,9 @@ class SessionManager {
                     <button class="btn btn-secondary btn-sm" onclick="sessionManager.downloadMicroHighlights('${session.id}')" title="Descargar video de validación de microexpresiones">
                         ${Icons.render('microscope')} Micro
                     </button>
+                    <button class="btn btn-secondary btn-sm" onclick="sessionManager.downloadPrediction('${session.id}')" title="Descargar el video de la sesión con la emoción que predijo el modelo a la derecha">
+                        ${Icons.render('video')} Predicción
+                    </button>
                     <button class="btn btn-danger btn-sm" onclick="sessionManager.deleteSession('${session.id}')">
                         ${Icons.render('trash')}
                     </button>
@@ -266,6 +269,7 @@ class SessionManager {
                     <button class="btn btn-secondary" onclick="sessionManager.downloadCSV('${sessionId}')">${Icons.render('chart')} Descargar CSV</button>
                     <button class="btn btn-secondary" id="btn-evm-download" onclick="sessionManager.downloadEVM('${sessionId}')">${Icons.render('video')} Video EVM</button>
                     <button class="btn btn-secondary" onclick="sessionManager.downloadMicroHighlights('${sessionId}')">${Icons.render('microscope')} Video Microexpresiones</button>
+                    <button class="btn btn-secondary" onclick="sessionManager.downloadPrediction('${sessionId}')">${Icons.render('video')} Video con Predicción</button>
                     <button class="btn btn-secondary" onclick="sessionManager.closeModal()">Cerrar</button>
                 </div>
             </div>
@@ -730,6 +734,85 @@ class SessionManager {
         } catch (err) {
             console.error('Error al solicitar video de microexpresiones:', err);
             this.showToast('Error al verificar video de microexpresiones: ' + err.message, 'error');
+        }
+    }
+
+    /**
+     * Side-by-side video: the session with the emotion the model predicted.
+     * Rendered on demand on the server the first time, so this starts the
+     * render, follows its progress and downloads it as soon as it is ready.
+     */
+    async downloadPrediction(id) {
+        const base = `${CONFIG.API_URL}/reports/${id}`;
+        const status = async () => {
+            const res = await fetch(`${base}/prediction-video-status`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+        };
+        const download = () => {
+            const a = document.createElement('a');
+            a.href = `${base}/prediction-video`;
+            a.download = '';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        };
+        let polling = false;
+        try {
+            if (!this._predictionPolls) this._predictionPolls = new Set();
+            if (this._predictionPolls.has(id)) {
+                this.showToast('El video con la predicción ya se está generando…', 'info');
+                return;
+            }
+            let data = await status();
+            if (data.status === 'ready') {
+                this.showToast(`Descargando video con la predicción (${data.size_mb} MB)...`, 'success');
+                download();
+                return;
+            }
+            if (data.status === 'not_available') {
+                this.showToast('Esta sesión no tiene video o no registró emociones (poca luz o sin rostro).', 'warning');
+                return;
+            }
+            if (data.status === 'waiting_source') {
+                this.showToast('El video de la sesión aún se está procesando. Intenta en unos momentos.', 'info');
+                return;
+            }
+            if (data.status === 'not_started' || data.status === 'failed') {
+                const res = await fetch(`${base}/prediction-video`, { method: 'POST' });
+                if (!res.ok) {
+                    const body = await res.json().catch(() => ({}));
+                    throw new Error(body.detail || `HTTP ${res.status}`);
+                }
+            }
+            this.showToast('Generando el video con la predicción. Tarda más o menos lo que dura la sesión; se descargará solo.', 'info');
+            this._predictionPolls.add(id);
+            polling = true;
+            const started = Date.now();
+            let lastPct = -1;
+            while (Date.now() - started < 20 * 60 * 1000) {
+                await new Promise(r => setTimeout(r, 3000));
+                data = await status();
+                if (data.status === 'ready') {
+                    this.showToast('Video con la predicción listo. Descargando...', 'success');
+                    download();
+                    break;
+                }
+                if (data.status === 'failed') {
+                    this.showToast('No se pudo generar el video con la predicción.', 'error');
+                    break;
+                }
+                const pct = Math.round((data.progress || 0) * 100);
+                if (pct >= lastPct + 25) {
+                    this.showToast(`Generando video con la predicción: ${pct}%`, 'info');
+                    lastPct = pct;
+                }
+            }
+        } catch (err) {
+            console.error('Error con el video de predicción:', err);
+            this.showToast('Error con el video de predicción: ' + err.message, 'error');
+        } finally {
+            if (polling) this._predictionPolls.delete(id);
         }
     }
 
