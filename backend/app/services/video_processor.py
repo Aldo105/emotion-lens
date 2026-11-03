@@ -18,7 +18,7 @@ import cv2
 import numpy as np
 
 from backend.app.config import settings
-from backend.app.models.database import async_session_factory, Session
+from backend.app.models.database import loop_local_session_factory, Session
 from backend.app.services.face_detector import FaceDetector
 from backend.app.services.action_units import ActionUnitAnalyzer
 from backend.app.services.emotion_classifier import EmotionClassifier
@@ -73,6 +73,8 @@ class VideoProcessor:
             "progress": 0.0,
             "status": "initializing",
         }
+        # Runs on the upload thread's own event loop, so it needs its own engine.
+        db_engine, session_factory = loop_local_session_factory()
 
         cap = None
         face_detector = None
@@ -231,7 +233,7 @@ class VideoProcessor:
                 )
 
                 # ── Persist to database ──────────────────────────────
-                async with async_session_factory() as db:
+                async with session_factory() as db:
                     try:
                         emotion_data = {
                             "timestamp": round(timestamp, 3),
@@ -269,7 +271,7 @@ class VideoProcessor:
                 )
 
             # ── Finalize session ─────────────────────────────────────
-            async with async_session_factory() as db:
+            async with session_factory() as db:
                 try:
                     await session_manager.end_session(db, session_id)
                     await db.commit()
@@ -295,7 +297,7 @@ class VideoProcessor:
 
             # Mark session as error in the database
             try:
-                async with async_session_factory() as db:
+                async with session_factory() as db:
                     result = await db.execute(
                         select(Session).where(Session.id == session_id)
                     )
@@ -311,3 +313,4 @@ class VideoProcessor:
                 cap.release()
             if face_detector is not None:
                 face_detector.close()
+            await db_engine.dispose()

@@ -13,6 +13,7 @@ from sqlalchemy import (
     DateTime, ForeignKey, JSON, create_engine, inspect as sa_inspect
 )
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.pool import NullPool
 from sqlalchemy.orm import (
     DeclarativeBase, backref, relationship, sessionmaker
 )
@@ -295,6 +296,24 @@ async_session_factory = sessionmaker(
     class_=AsyncSession,
     expire_on_commit=False
 )
+
+
+def loop_local_session_factory():
+    """Engine and session factory for code that runs on its own event loop
+    (the video upload thread). Pooled asyncpg connections are bound to the loop
+    that opened them, so the shared engine fails there with "attached to a
+    different loop"; SQLite never noticed. Dispose the engine when done."""
+    local_engine = create_async_engine(
+        settings.database_url,
+        echo=settings.debug,
+        future=True,
+        poolclass=NullPool,
+    )
+    return local_engine, sessionmaker(
+        local_engine,
+        class_=AsyncSession,
+        expire_on_commit=False
+    )
 
 
 def _add_missing_columns(conn) -> None:
